@@ -330,6 +330,33 @@ svg.dg{width:100%;height:auto;display:block}
 .vsw button[aria-pressed="true"]{background:var(--pitch);color:#fff}
 @media (prefers-reduced-motion: no-preference){ .sheet{animation:up .22s ease-out} @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}} }
 
+/* inbox, import, wrong bank, monthly */
+.inb{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-top:10px;box-shadow:0 0 0 2px var(--card),var(--sh)!important}
+.inb div{flex:1;min-width:0}.inb b{display:block}.inb small{display:block;color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inb .chip{padding:6px 11px;font-size:13px}
+.imp{background:var(--bg);border-radius:14px;padding:12px;margin-bottom:6px}.imp textarea{min-height:60px;margin-top:6px}
+.wrongbtn{display:flex;align-items:center;gap:10px;width:100%;text-align:right;margin-top:12px;border:0;border-radius:14px;padding:12px 14px;background:color-mix(in srgb,var(--red) 10%,var(--surface))}
+.wrongbtn span{font-size:22px}.wrongbtn b{display:block;font-size:15px}.wrongbtn small{display:block;font-size:12px;color:var(--muted)}
+.mrimg{width:100%;border-radius:16px;display:block;margin-top:10px;box-shadow:var(--sh)}
+/* exam + watch */
+.exhead{display:flex;align-items:center;justify-content:space-between}
+.extime{font-variant-numeric:tabular-nums;font-weight:700;background:var(--pitch-soft);color:var(--pitch);border-radius:999px;padding:4px 12px}
+.extime.low{background:#FBE9E7;color:var(--red)}
+.exdots{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 6px}
+.exdots button{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--line);background:var(--surface);font-size:12px;padding:0}
+.exdots button.ans{background:var(--pitch-soft);border-color:var(--pitch)}
+.exdots button.cur{outline:2px solid var(--ink);outline-offset:1px}
+.qopts button.sel{border-color:var(--pitch);background:var(--pitch);color:#fff}
+.exres{text-align:center;border-radius:18px;padding:22px;margin-top:6px}
+.exres.pass{background:var(--pitch-soft)}.exres.fail{background:color-mix(in srgb,var(--red) 10%,transparent)}
+.exres b{display:block;font-size:46px;line-height:1.1}.exres span{display:block;font-size:16px;font-weight:600}.exres small{display:block;color:var(--muted);margin-top:4px}
+.exrev{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.exa{font-size:14px;line-height:1.7;margin:4px 0}
+.exhist{display:flex;gap:6px;flex-wrap:wrap}
+.exhist span{border-radius:10px;padding:6px 10px;font-weight:700;text-align:center;font-size:15px}
+.exhist span small{display:block;font-weight:400;font-size:11px;color:var(--muted)}
+.exhist .pass{background:var(--pitch-soft)}.exhist .fail{background:color-mix(in srgb,var(--red) 10%,transparent)}
+.wres{white-space:pre-line;font-size:14px;background:var(--surface);border-radius:12px;padding:10px 12px;margin-top:8px;line-height:1.6}
 /* ===== design refresh ===== */
 :root{--sh:0 1px 2px rgba(16,40,28,.05),0 6px 20px rgba(16,40,28,.07);--r:18px}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh:0 0 0 1px var(--line)}}
@@ -385,6 +412,7 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
   </header>
 
   <section id="sched">
+    <div id="inbox"></div>
     <div id="hero"></div>
     <div id="ready"></div>
     <div id="quiz"></div>
@@ -401,6 +429,7 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
     <div class="seg" id="progSeg" role="tablist"><button data-g="ov" aria-pressed="true">نظرة عامة</button><button data-g="mt" aria-pressed="false">المباريات</button><button data-g="law" aria-pressed="false">القانون</button><button data-g="set" aria-pressed="false">الإعدادات</button></div>
     <div class="pg" data-g="ov">
       <div class="stats" id="stats"></div>
+      <div class="panel" id="monthPanel"></div>
       <div class="panel" id="reportPanel"></div>
       <div class="panel" id="loadPanel"></div>
       <div class="panel">
@@ -450,23 +479,46 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
   if (window.claude && window.claude.use) return;
   const KEY='rc-pass';
   const getPass=()=>{ try{ return localStorage.getItem(KEY)||''; }catch(e){ return ''; } };
-  async function call(input){
-    const messages = typeof input==='string' ? [{role:'user',content:input}] : input;
+  async function api(path, opts={}){
     let pass=getPass();
     for (let attempt=0; attempt<3; attempt++){
-      const r = await fetch('/api/claude',{method:'POST',headers:{'Content-Type':'application/json','X-Passcode':pass},body:JSON.stringify({messages})});
-      if (r.status===401){ pass = prompt('اكتب رمز الدخول للمدرب:')||''; try{localStorage.setItem(KEY,pass);}catch(e){} if(!pass) throw {code:'not_granted',message:'no passcode'}; continue; }
+      const r = await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Passcode':pass,...(opts.headers||{})}});
+      if (r.status===401){ pass = prompt('اكتب رمز الدخول:')||''; try{localStorage.setItem(KEY,pass);}catch(e){} if(!pass) throw {code:'not_granted',message:'no passcode'}; continue; }
       if (r.status===429) throw {code:'rate_limited',message:'rate'};
       if (!r.ok) throw {code:'upstream_error',message:'HTTP '+r.status};
-      const d = await r.json(); return {text:d.text||'', truncated:false, modelTierApplied:'default'};
+      return r.json();
     }
     throw {code:'not_granted',message:'bad passcode'};
   }
-  const sample = async (input, opts={}) => { if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; const r = await call(input); if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; if (opts.onText) opts.onText({text:r.text, delta:r.text}); return r; };
+  async function toB64(blob){
+    const img = await createImageBitmap(blob); const s=Math.min(1,1400/Math.max(img.width,img.height));
+    const c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s); c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',.85).split(',')[1];
+  }
+  async function call(input, opts){
+    let messages = typeof input==='string' ? [{role:'user',content:input}] : input.map(m=>({role:m.role,content:m.content}));
+    const imgs = opts.images ? Array.from(opts.images instanceof Blob ? [opts.images] : opts.images) : [];
+    if (imgs.length){ const last=messages[messages.length-1]; const blocks=[];
+      for (const b of imgs) blocks.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await toB64(b)}});
+      blocks.push({type:'text',text:last.content}); last.content=blocks; }
+    const d = await api('/api/claude',{method:'POST',body:JSON.stringify({messages})});
+    return {text:d.text||'', truncated:false, modelTierApplied:'default'};
+  }
+  const sample = async (input, opts={}) => { if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; const r = await call(input, opts); if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; if (opts.onText) opts.onText({text:r.text, delta:r.text}); return r; };
   sample.json = async (input, opts={}) => { const r = await sample(input, opts); let t=r.text.trim();
     const f=t.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) t=f[1];
     try { return JSON.parse(t); } catch(e){ const s=t.search(/[\[{]/), e2=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']')); try { return JSON.parse(t.slice(s,e2+1)); } catch(_){ throw {code:'invalid_json',message:'parse',text:r.text}; } } };
-  window.claude = { use: async name => name==='sample' ? sample : null };
+  sample.limits = async () => ({maxPromptBytes:65536, images:{maxCount:1,maxInputBytes:20e6,mediaTypes:['image/jpeg','image/png','image/heic','image/webp']}});
+  // cloud sync through our server (Supabase behind it)
+  const db = { doc: () => ({
+    get: async () => { const d = await api('/api/state'); return { exists: !!(d && d.data), data: () => d.data }; },
+    set: async (v) => { await api('/api/state',{method:'PUT',body:JSON.stringify({data:v})}); }
+  }) };
+  const user = { id: async () => 'me' };
+  window.RC_INBOX = { list: () => api('/api/inbox'), remove: id => api('/api/inbox?id='+encodeURIComponent(id),{method:'DELETE'}) };
+  let syncOk = null;
+  async function hasSync(){ if (syncOk!==null) return syncOk; try { const r=await fetch('/api/state/enabled'); syncOk = r.ok && (await r.json()).enabled; } catch(e){ syncOk=false; } return syncOk; }
+  window.claude = { use: async name => name==='sample' ? sample : name==='db' ? ((await hasSync())?db:null) : name==='user' ? ((await hasSync())?user:null) : null };
 })();
 if ('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('/sw.js').catch(()=>{}));
 
@@ -928,6 +980,7 @@ function openDay(d){
       <div class="logcard"><h3 id="logH">${s.type==='match'?'قيّم المباراة':'سجّل تمرينك'}</h3>
       <label class="f" id="effL">كيف كان التمرين؟</label><div class="scale" id="sc"></div>
       <div id="mEval"></div>
+      <div id="wWrap" hidden><button class="btn ghost sm" id="wImg" style="width:100%">📷 اقرأ البيانات من صورة ساعتك</button><input type="file" id="wFile" accept="image/*" hidden><div class="wres" id="wRes" hidden></div></div>
       <label class="f" for="du">المدة بالدقائق</label><input class="in" id="du" type="number" inputmode="numeric" min="0" max="240">
       <label class="f" for="nt">ملاحظة (اختياري)</label>
       <textarea class="in" id="nt" placeholder="مثلًا: السمانة شدّت علي آخر التمرين"></textarea>
@@ -969,6 +1022,22 @@ function openDay(d){
       b.onclick=()=>{ log.effort=i+1; sc.querySelectorAll('button').forEach((x,j)=>x.setAttribute('aria-pressed',j===i)); }; sc.appendChild(b); });
     const nt = sh.querySelector('#nt'); nt.value = log.note || '';
     const du = sh.querySelector('#du'); du.value = log.dur ?? defDur(d,s);
+    let watch = log.watch || null;
+    const wRes = sh.querySelector('#wRes');
+    const showW = w => { if(!w){ wRes.hidden=true; return; } wRes.hidden=false; const parts=[w.duration_min&&`${num(w.duration_min)} د`, w.distance_km&&`${num(w.distance_km)} كم`, w.avg_hr&&`نبض ${num(w.avg_hr)}`, w.max_hr&&`أعلى ${num(w.max_hr)}`, w.calories&&`${num(w.calories)} سعرة`].filter(Boolean); wRes.textContent = '⌚ '+(parts.join('، ')||'ما قدرت أقرأ أرقام واضحة')+(w.summary?`\n${w.summary}`:''); };
+    showW(watch);
+    if (sampleFn){ (sampleFn.limits?sampleFn.limits():Promise.resolve(null)).then(c=>{ if(c&&c.images){ sh.querySelector('#wWrap').hidden=false; sh.querySelector('#wFile').accept=c.images.mediaTypes.join(','); } }).catch(()=>{}); }
+    sh.querySelector('#wImg').onclick = () => sh.querySelector('#wFile').click();
+    sh.querySelector('#wFile').onchange = async e => { const f=e.target.files[0]; if(!f) return; const btn=sh.querySelector('#wImg'); btn.disabled=true; btn.textContent='يقرأ الصورة…';
+      try {
+        const r = await sampleFn.json(`هذي صورة ملخص ${s.type==='match'?'مباراة':'تمرين'} من ساعة رياضية أو تطبيق لياقة. استخرج القيم الموجودة بوضوح فقط، ولا تخمّن. رجّع JSON فقط بهذا الشكل:
+{"duration_min":رقم أو null,"distance_km":رقم أو null,"avg_hr":رقم أو null,"max_hr":رقم أو null,"calories":رقم أو null,"summary":"جملة عربية قصيرة عن الجهد"}`, {images:[f], cache:false});
+        watch = {duration_min:+r.duration_min||null, distance_km:+r.distance_km||null, avg_hr:+r.avg_hr||null, max_hr:+r.max_hr||null, calories:+r.calories||null, summary:String(r.summary||'').slice(0,200)};
+        if (watch.duration_min) du.value = Math.round(watch.duration_min);
+        if (!log.effort && watch.avg_hr){ const e2 = watch.avg_hr>=165?5:watch.avg_hr>=150?4:watch.avg_hr>=135?3:watch.avg_hr>=115?2:1; log.effort=e2; sc.querySelectorAll('button').forEach((x,j)=>x.setAttribute('aria-pressed',j===e2-1)); }
+        showW(watch);
+      } catch(err){ wRes.hidden=false; wRes.textContent = err&&err.code==='rate_limited' ? 'وصلت الحد المسموح، جرّب بعد شوي.' : 'ما قدرت أقرأ الصورة. جرّب صورة أوضح لشاشة الملخص.'; }
+      finally { btn.disabled=false; btn.textContent='📷 اقرأ البيانات من صورة ساعتك'; e.target.value=''; } };
     const isMatch = s.type==='match';
     let readMF = null;
     if (isMatch){
@@ -987,7 +1056,7 @@ function openDay(d){
     const done = sh.querySelector('#done');
     done.textContent = isMatch ? (log.done ? 'حفظ التعديل' : 'حفظ التقييم') : (log.done ? 'حفظ التعديل' : 'أنهيته ✓');
     done.onclick = () => { if (readMF) readMF(); const dv = Math.max(0, Math.min(240, parseInt(du.value,10)||defDur(d,s)));
-      state.logs[d] = {done:true, effort:log.effort||null, dur:dv, note:nt.value.trim(), ...(isMatch?{legs:log.legs||null, weather:log.weather||null, half:log.half||null}:{})};
+      state.logs[d] = {done:true, effort:log.effort||null, dur:dv, note:nt.value.trim(), ...(watch?{watch}:{}), ...(isMatch?{legs:log.legs||null, weather:log.weather||null, half:log.half||null}:{})};
       save(); renderAll(); closeSheet(); };
     sh.querySelector('#cl').onclick = closeSheet;
     const mrow = sh.querySelector('#mrow');
@@ -998,24 +1067,68 @@ function openDay(d){
   });
 }
 
-function openAddMatch(){
+function parseAssignText(t){
+  const s=String(t||'').replace(/\s+/g,' ').trim(), link=(s.match(/https?:\/\/\S+/)||[])[0]||'';
+  const body=s.replace(/https?:\/\/\S+/g,' ').replace(/\s+/g,' ').trim(), m=body.match(/مباراة\s+(.+?)\s*[Xx×]\s*(.+)$/);
+  return {home:m?m[1].trim():'', away:m?m[2].trim():'', link};
+}
+function openAddMatch(pre){
+  pre = pre || {};
   openSheet(sh => {
     sh.innerHTML = `<h2>مباراة جديدة</h2><div class="sub">أضيفها للجدول، والمدرب يعيد ترتيب الأيام اللي حولها.</div>
+      <div class="imp"><b>📩 من التكليف</b>
+        <textarea class="in" id="aTxt" placeholder="الصق رسالة التكليف هنا"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="aFill">عبّي من الرسالة</button><button class="btn ghost sm" id="aImg" hidden>📷 صورة صفحة التكليف</button></div>
+        <input type="file" id="aFile" accept="image/*" hidden><p class="note" id="aMsg"></p></div>
       <label class="f" for="md">التاريخ</label><input class="in" type="date" id="md">
       <label class="f" for="mt">الوقت</label><input class="in" type="time" id="mt">
-      ${matchFieldsHTML({})}
+      ${matchFieldsHTML(pre)}
       <div class="row"><button class="btn card" id="ok">أضف المباراة</button><button class="btn ghost" id="cl">إلغاء</button></div>`;
-    sh.querySelector('#md').value = todayISO();
-    const mTmp={}; const readM = bindMatchFields(sh, mTmp);
+    sh.querySelector('#md').value = pre.date || todayISO(); if (pre.time) sh.querySelector('#mt').value = pre.time;
+    const mTmp={...pre}; delete mTmp.date; delete mTmp.time; delete mTmp.inboxId; let readM = bindMatchFields(sh, mTmp);
+    const msg=sh.querySelector('#aMsg'), setV=(id,v)=>{ if(v) sh.querySelector(id).value=v; };
+    if (pre.text) sh.querySelector('#aTxt').value = pre.text;
+    sh.querySelector('#aFill').onclick = () => { const r=parseAssignText(sh.querySelector('#aTxt').value); setV('#mHome',r.home); setV('#mAway',r.away); if(r.link) mTmp.link=r.link;
+      msg.textContent = r.home ? `✅ ${r.home} × ${r.away}. افتح رابط التكليف وحدد التاريخ والوقت، أو صوّر الصفحة.` : 'ما لقيت أسماء الفريقين في الرسالة.'; };
+    if (sampleFn){ (sampleFn.limits?sampleFn.limits():Promise.resolve(null)).then(c=>{ if(c&&c.images) sh.querySelector('#aImg').hidden=false; }).catch(()=>{}); }
+    sh.querySelector('#aImg').onclick = () => sh.querySelector('#aFile').click();
+    sh.querySelector('#aFile').onchange = async e => { const f=e.target.files[0]; if(!f) return; msg.textContent='يقرأ صفحة التكليف…';
+      try {
+        const r = await sampleFn.json(`هذي صورة صفحة تكليف مباراة كرة قدم لحكم من الاتحاد السعودي. استخرج البيانات الموجودة بوضوح فقط ورجّع JSON فقط:
+{"date":"YYYY-MM-DD بالأرقام الإنجليزية أو null","time":"HH:MM بنظام ٢٤ ساعة أو null","home":"الفريق المستضيف أو null","away":"الفريق الضيف أو null","venue":"الملعب أو null","comp":"البطولة أو null","role":"واحد من: حكم مساعد أول، حكم مساعد ثاني، حكم رابع، حكم ساحة، أو null","crew":"أسماء بقية الطاقم أو null"}
+السنة الحالية ${new Date().getFullYear()}.`, {images:[f], cache:false});
+        if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) sh.querySelector('#md').value=r.date;
+        if (r.time && /^\d{2}:\d{2}$/.test(r.time)) sh.querySelector('#mt').value=r.time;
+        setV('#mHome',r.home); setV('#mAway',r.away); setV('#mVenue',r.venue); setV('#mComp',r.comp); setV('#mCrew',r.crew);
+        const ri = ROLES.indexOf(r.role); if (ri>=0) sh.querySelector(`#mRole button[data-i="${ri}"]`)?.click();
+        msg.textContent='✅ عبّيت البيانات من الصورة، راجعها قبل الإضافة.';
+      } catch(err){ msg.textContent='ما قدرت أقرأ الصورة، جرّب صورة أوضح.'; }
+      e.target.value=''; };
     sh.querySelector('#cl').onclick = closeSheet;
     sh.querySelector('#ok').onclick = () => {
       const d = sh.querySelector('#md').value; if (!d) return;
-      readM(); const t = sh.querySelector('#mt').value, n = [mTmp.comp, mTmp.home&&mTmp.away?mTmp.home+' × '+mTmp.away:''].filter(Boolean).join('، ');
-      applyMatch(d,t,n); const mm=state.matches.find(x=>x.date===d); if(mm) Object.assign(mm,mTmp); save(); renderAll(); closeSheet();
+      readM(); const t = sh.querySelector('#mt').value, n = [mTmp.comp, mTmp.home&&mTmp.away?mTmp.home+' × '+mTmp.away:'', mTmp.venue].filter(Boolean).join('، ');
+      applyMatch(d,t,n); const mm=state.matches.find(x=>x.date===d); if(mm) Object.assign(mm,mTmp); save();
+      if (pre.inboxId && window.RC_INBOX){ RC_INBOX.remove(pre.inboxId).then(loadInbox).catch(()=>{}); INBOX=INBOX.filter(x=>x.id!==pre.inboxId); }
+      renderAll(); closeSheet();
       if (sampleFn) { switchTab('chat'); send(`أضفت مباراة يوم ${fFull.format(parse(d))}${t?` الساعة ${t}`:''}${n?` (${n})`:''}. رتّب لي الأيام اللي حولها.`); }
     };
   });
 }
+/* ---------- assignment inbox (standalone site, fed by an iOS Shortcut) ---------- */
+let INBOX=[];
+async function loadInbox(){ if(!window.RC_INBOX) return; try { INBOX = await RC_INBOX.list() || []; } catch(e){ INBOX=[]; } renderInbox(); }
+function renderInbox(){
+  const box=$('inbox'); if(!box) return; box.innerHTML='';
+  INBOX.forEach(it=>{ const c=document.createElement('div'); c.className='rcard inb';
+    c.innerHTML=`<span class="cav">📩</span><div><b>تكليف جديد</b><small></small></div><button class="chip card">أضفه</button><button class="chip">تجاهل</button>`;
+    c.querySelector('small').textContent = it.home ? `${it.home} × ${it.away}` : it.text.slice(0,60);
+    const [add,skip]=c.querySelectorAll('.chip');
+    add.onclick=()=>openAddMatch({home:it.home,away:it.away,link:it.link,text:it.text,inboxId:it.id});
+    skip.onclick=()=>{ RC_INBOX.remove(it.id).catch(()=>{}); INBOX=INBOX.filter(x=>x.id!==it.id); renderInbox(); };
+    box.appendChild(c); });
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadInbox(); });
 
 function openAddTest(){
   openSheet(sh => {
@@ -1288,9 +1401,15 @@ const QUIZ = [
 const qRef = x => `${x.c==='g'?'الإرشادات العملية':x.c==='n'?'تعديلات القانون':'المادة '+num(x.c)}، صفحة ${num(x.p)}`;
 
 function dayHash(s){ let h=0; for (const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
-function quizState(){ if (!state.quiz || state.quiz.v!==2) state.quiz={v:2,answers:{},daily:{}}; return state.quiz; }
+function quizState(){ if (!state.quiz || state.quiz.v!==2) state.quiz={v:2,answers:{},daily:{}}; state.quiz.wrong ||= {}; return state.quiz; }
+function recordAnswer(qi, pick, extra){ const Q=quizState(), ok=pick===QUIZ[qi].a; Q.answers[qi]={pick,ok,date:todayISO(),extra:!!extra};
+  if (!ok) Q.wrong[qi]={n:((Q.wrong[qi]||{}).n||0)+1, fix:0};
+  else if (Q.wrong[qi]){ Q.wrong[qi].fix=(Q.wrong[qi].fix||0)+1; if (Q.wrong[qi].fix>=2) delete Q.wrong[qi]; }
+  return ok; }
 function quizOf(date){ const q=quizState(); if (q.daily[date]!=null && QUIZ[q.daily[date]]) return q.daily[date];
   // prefer new-rule and assistant-referee questions on alternate days
+  const wr=Object.keys(q.wrong||{}).map(Number).filter(i=>QUIZ[i]);
+  if (wr.length && dayHash(date)%2===0){ const i=wr[dayHash(date+'w')%wr.length]; q.daily[date]=i; return i; }
   let i=dayHash(date)%QUIZ.length; for (let k=0;k<QUIZ.length && q.answers[i];k++) i=(i+1)%QUIZ.length; q.daily[date]=i; return i; }
 function shuffled(qi){ const n=QUIZ[qi].o.length, idx=[...Array(n).keys()]; let s=dayHash('q'+qi); for(let i=n-1;i>0;i--){ s=(s*1103515245+12345)>>>0; const j=s%(i+1); [idx[i],idx[j]]=[idx[j],idx[i]]; } return idx; }
 function qBlock(qi, onAnswer, answered){
@@ -1317,20 +1436,55 @@ function renderQuiz(){
   }
   const c=document.createElement('div'); c.className='rcard qcard';
   c.innerHTML=`<div class="chead"><span class="cav">⚖️</span><b>${quizExtra!=null?'سؤال إضافي':'سؤال اليوم'}</b><span class="rpct" style="margin-inline-start:auto">${num(Object.values(Q.answers).filter(x=>x.ok).length)}/${num(QUIZ.length)} صح</span></div>`;
-  c.appendChild(qBlock(qi, i=>{ Q.answers[qi]={pick:i,ok:i===QUIZ[qi].a,date:t,extra:quizExtra!=null}; save(); renderQuiz(); renderLaw(); }, answered));
+  c.appendChild(qBlock(qi, i=>{ recordAnswer(qi,i,quizExtra!=null); save(); renderQuiz(); renderLaw(); }, answered));
   if (answered){ const more=document.createElement('button'); more.className='btn ghost sm'; more.textContent='سؤال ثاني';
     more.onclick=()=>{ const left=QUIZ.map((_,i)=>i).filter(i=>!Q.answers[i]); quizExtra = left.length ? left[Math.floor(Math.random()*left.length)] : Math.floor(Math.random()*QUIZ.length); if(!left.length) delete Q.answers[quizExtra]; renderQuiz(); }; c.appendChild(more); }
   box.innerHTML=''; box.appendChild(c);
 }
+function openExam(){
+  const Q=quizState(), N=Math.min(20,QUIZ.length), LIMIT=20*60;
+  const pool=QUIZ.map((_,i)=>i).sort(()=>Math.random()-.5);
+  // make sure offside, AR positioning and new rules are all represented
+  const pick=[]; ['11','g','n'].forEach(c=>pool.filter(i=>QUIZ[i].c===c).slice(0,4).forEach(i=>pick.push(i)));
+  pool.forEach(i=>{ if(pick.length<N && !pick.includes(i)) pick.push(i); });
+  const qs=pick.slice(0,N).sort(()=>Math.random()-.5), ans={}; let pos=0, left=LIMIT, tick=null, done=false;
+  openSheet(sh=>{
+    const finish=()=>{ if(done) return; done=true; clearInterval(tick);
+      const right=qs.filter(qi=>ans[qi]===QUIZ[qi].a).length, pct=Math.round(100*right/qs.length);
+      qs.forEach(qi=>{ if(ans[qi]!=null) recordAnswer(qi,ans[qi],true); });
+      (Q.exams ||= []).push({date:todayISO(),right,total:qs.length,secs:LIMIT-left}); save(); renderLaw();
+      sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const b=document.createElement('div'); b.className='pbody';
+      b.innerHTML=`<div class="exres ${pct>=80?'pass':'fail'}"><b>${num(pct)}٪</b><span>${num(right)} من ${num(qs.length)} صح</span><small>${pct>=80?'ناجح 👏 مستوى ممتاز':'تحتاج مراجعة، النجاح من ٨٠٪'}، الوقت ${num(Math.floor((LIMIT-left)/60))}:${String((LIMIT-left)%60).padStart(2,'0')}</small></div><h3 style="margin:16px 0 6px">${right<qs.length?'راجع أخطاءك':'ولا خطأ! 🔥'}</h3>`;
+      qs.filter(qi=>ans[qi]!==QUIZ[qi].a).forEach(qi=>{ const x=QUIZ[qi]; const d=document.createElement('div'); d.className='exrev';
+        d.innerHTML=`<span class="qtag"></span><p class="qq"></p><p class="exa">❌ ${ans[qi]!=null?'إجابتك: <span class="y"></span><br>':'ما جاوبت<br>'}✅ الصحيحة: <span class="c"></span></p><p class="qwhy"><span class="w"></span><small class="qref">📖 ${qRef(x)}</small></p>`;
+        d.querySelector('.qtag').textContent=QCAT[x.c]; d.querySelector('.qq').textContent=x.q; if(ans[qi]!=null) d.querySelector('.y').textContent=x.o[ans[qi]]; d.querySelector('.c').textContent=x.o[x.a]; d.querySelector('.w').textContent=x.w; b.appendChild(d); });
+      const c=document.createElement('button'); c.className='btn primary'; c.style.marginTop='14px'; c.textContent='إغلاق'; c.onclick=closeSheet; b.appendChild(c); sh.appendChild(b); sh.scrollTop=0; };
+    const draw=()=>{ sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const body=document.createElement('div'); body.className='pbody';
+      const qi=qs[pos], x=QUIZ[qi], order=shuffled(qi);
+      body.innerHTML=`<div class="exhead"><h2>اختبار تجريبي</h2><span class="extime" id="exT"></span></div>
+        <div class="exdots">${qs.map((q,i)=>`<button data-i="${i}" class="${i===pos?'cur':''} ${ans[q]!=null?'ans':''}">${num(i+1)}</button>`).join('')}</div>
+        <span class="qtag">${QCAT[x.c]}</span><p class="qq"></p><div class="qopts"></div>
+        <div class="row"><button class="btn ghost" id="exP" ${pos===0?'disabled':''}>السابق</button><button class="btn primary" id="exN">${pos<qs.length-1?'التالي':'إنهاء وتصحيح'}</button></div>`;
+      body.querySelector('.qq').textContent=x.q;
+      const w=body.querySelector('.qopts'); order.forEach(i=>{ const b=document.createElement('button'); b.textContent=x.o[i]; if(ans[qi]===i) b.className='sel'; b.onclick=()=>{ ans[qi]=i; draw(); }; w.appendChild(b); });
+      body.querySelectorAll('.exdots button').forEach(b=>b.onclick=()=>{ pos=+b.dataset.i; draw(); });
+      body.querySelector('#exP').onclick=()=>{ pos--; draw(); };
+      body.querySelector('#exN').onclick=()=>{ if(pos<qs.length-1){ pos++; draw(); } else { const un=qs.filter(q=>ans[q]==null).length; if(!un || confirm(`باقي ${un} سؤال بدون إجابة. تنهي الاختبار؟`)) finish(); } };
+      sh.appendChild(body); upd(); };
+    const upd=()=>{ const el=sh.querySelector('#exT'); if(el){ el.textContent=`⏱ ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`; el.classList.toggle('low',left<=120); } };
+    tick=setInterval(()=>{ if(!sh.isConnected || $('scrim').hidden){ clearInterval(tick); return; } left--; upd(); if(left<=0) finish(); },1000);
+    draw();
+  });
+}
 function openPractice(cat){
-  const Q=quizState(); const pool=QUIZ.map((x,i)=>i).filter(i=>cat==='all'||QUIZ[i].c===cat);
+  const Q=quizState(); const pool=QUIZ.map((x,i)=>i).filter(i=>cat==='all'||(cat==='wrong'?Q.wrong[i]:QUIZ[i].c===cat));
   const order=pool.sort((a,b)=>(Q.answers[a]?1:0)-(Q.answers[b]?1:0) || Math.random()-.5); let pos=0, right=0;
   openSheet(sh=>{
     const draw=(ans)=>{ sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const body=document.createElement('div'); body.className='pbody';
-      if (pos>=order.length){ body.innerHTML=`<h2>خلصت! 🎉</h2><p class="sub">${num(right)} صح من ${num(order.length)}</p>`; const b=document.createElement('button'); b.className='btn primary'; b.textContent='إغلاق'; b.onclick=closeSheet; body.appendChild(b); sh.appendChild(body); return; }
+      if (pos>=order.length || !order.length){ body.innerHTML=`<h2>${order.length?'خلصت! 🎉':'ما فيه أسئلة'}</h2><p class="sub">${num(right)} صح من ${num(order.length)}</p>`; const b=document.createElement('button'); b.className='btn primary'; b.textContent='إغلاق'; b.onclick=closeSheet; body.appendChild(b); sh.appendChild(body); return; }
       const qi=order[pos];
-      body.innerHTML=`<h2>${cat==='all'?'كل المواد':QCAT[cat]}</h2><div class="pbar"><i style="width:${Math.round(100*pos/order.length)}%"></i></div><p class="sub">سؤال ${num(pos+1)} من ${num(order.length)}</p>`;
-      body.appendChild(qBlock(qi, i=>{ const ok=i===QUIZ[qi].a; if(ok) right++; Q.answers[qi]={pick:i,ok,date:todayISO(),extra:true}; save(); draw({pick:i,ok}); renderLaw(); }, ans));
+      body.innerHTML=`<h2>${cat==='all'?'كل المواد':cat==='wrong'?'بنك أخطائك':QCAT[cat]}</h2><div class="pbar"><i style="width:${Math.round(100*pos/order.length)}%"></i></div><p class="sub">سؤال ${num(pos+1)} من ${num(order.length)}</p>`;
+      body.appendChild(qBlock(qi, i=>{ const ok=recordAnswer(qi,i,true); if(ok) right++; save(); draw({pick:i,ok}); renderLaw(); }, ans));
       if (ans){ const n=document.createElement('button'); n.className='btn primary'; n.style.marginTop='12px'; n.textContent=pos+1<order.length?'السؤال اللي بعده':'النتيجة'; n.onclick=()=>{ pos++; draw(null); sh.scrollTop=0; }; body.appendChild(n); }
       sh.appendChild(body); };
     draw(null);
@@ -1373,17 +1527,18 @@ function matchFieldsHTML(m){
     <label class="f" for="mComp">البطولة</label><input class="in" id="mComp" placeholder="مثلًا: دوري الدرجة الثانية">
     <div class="two"><div><label class="f" for="mHome">المستضيف</label><input class="in" id="mHome"></div><div><label class="f" for="mAway">الضيف</label><input class="in" id="mAway"></div></div>
     <label class="f">دورك</label><div class="opts" id="mRole">${ROLES.map((r,i)=>`<button data-i="${i}" aria-pressed="${String(m&&String(m.role)===String(i))}">${r}</button>`).join('')}</div>
+    <label class="f" for="mVenue">الملعب</label><input class="in" id="mVenue" placeholder="مثلًا: ملعب نادي الزلفي">
     <label class="f" for="mCrew">طاقم التحكيم (اختياري)</label><input class="in" id="mCrew" placeholder="الحكم والمساعد الثاني">
     <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا ٨٫٤"></div><div></div></div>
     <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea></div>`;
 }
 function bindMatchFields(sh, m){
   const set=(id,v)=>{ const el=sh.querySelector(id); if(el&&v!=null) el.value=v; };
-  set('#mComp',m.comp); set('#mHome',m.home); set('#mAway',m.away); set('#mCrew',m.crew); set('#mScore',m.score); set('#mAssess',m.assess);
+  set('#mComp',m.comp); set('#mVenue',m.venue); set('#mHome',m.home); set('#mAway',m.away); set('#mCrew',m.crew); set('#mScore',m.score); set('#mAssess',m.assess);
   let role = m.role;
   sh.querySelectorAll('#mRole button').forEach(b=>b.onclick=()=>{ role=b.dataset.i; sh.querySelectorAll('#mRole button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   return () => { const v=id=>(sh.querySelector(id)?.value||'').trim(); const sc=v('#mScore').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g,'.');
-    Object.assign(m,{comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''}); };
+    Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''}); };
 }
 
 /* ---------- weather (Open-Meteo, works on the standalone site) ---------- */
@@ -1413,8 +1568,82 @@ function renderLaw(){ const box=$('lawPanel'); if(!box) return; const Q=quizStat
   const cats=Object.keys(QCAT).map(c=>{ const ids=QUIZ.map((x,i)=>x.c===c?i:-1).filter(i=>i>=0); const ans=ids.filter(i=>Q.answers[i]); const good=ans.filter(i=>Q.answers[i].ok).length; return {c,n:ids.length,ans:ans.length,good}; });
   box.innerHTML=`<h3>أسئلة القانون ٢٠٢٦/٢٠٢٧</h3><div class="stats" style="margin-top:6px"><div class="stat"><b>${A.length?num(Math.round(100*ok/A.length))+'٪':'–'}</b><span>نسبة الإجابات الصح</span></div><div class="stat"><b>${num(streak)}</b><span>أيام متتالية</span></div></div>
     <p class="note" style="margin:10px 0 6px">تدرّب على مادة معينة:</p><div class="qcats">${cats.map(k=>`<button data-c="${k.c}"><b>${QCAT[k.c]}</b><small>${num(k.ans)}/${num(k.n)}${k.ans?`، ${num(Math.round(100*k.good/k.ans))}٪ صح`:''}</small><i style="width:${Math.round(100*k.ans/k.n)}%"></i></button>`).join('')}<button data-c="all"><b>كل المواد</b><small>${num(QUIZ.length)} سؤال</small></button></div>
+    ${Object.keys(Q.wrong).length?`<button class="wrongbtn" id="wrongBtn"><span>🔁</span><div><b>بنك أخطائك: ${num(Object.keys(Q.wrong).length)} سؤال</b><small>كل سؤال يطلع من البنك إذا جاوبته صح مرتين</small></div></button>`:''}
+    <button class="btn primary" id="examBtn" style="width:100%;margin-top:12px">📝 اختبار تجريبي: ٢٠ سؤال في ٢٠ دقيقة</button>
+    ${(Q.exams||[]).length?`<p class="note" style="margin:10px 0 4px">آخر نتائجك:</p><div class="exhist">${Q.exams.slice(-5).reverse().map(e=>{const p=Math.round(100*e.right/e.total); return `<span class="${p>=80?'pass':'fail'}">${num(p)}٪<small>${fDm.format(parse(e.date))}</small></span>`;}).join('')}</div>`:''}
     <p class="note" style="margin-top:8px">الأسئلة من كتاب قانون كرة القدم ٢٠٢٦/٢٠٢٧، وكل إجابة معها رقم المادة والصفحة.</p>`;
+  box.querySelector('#examBtn').onclick=openExam; const wb=box.querySelector('#wrongBtn'); if(wb) wb.onclick=()=>openPractice('wrong');
   box.querySelectorAll('.qcats button').forEach(b=>b.onclick=()=>openPractice(b.dataset.c)); }
+/* ---------- monthly report (shareable image) ---------- */
+const fMon = new Intl.DateTimeFormat(AR,{month:'long',year:'numeric'});
+let monthSel=null;
+function monthStats(ym){
+  const [y,m]=ym.split('-').map(Number), start=`${ym}-01`, end=iso(new Date(y,m,0)), t=todayISO(), last = end<t?end:t;
+  let planned=0, done=0, mins=0; const weeks={};
+  for (let d=start; d<=last; d=addDays(d,1)){ const s=state.sessions[d], l=state.logs[d];
+    if (s && !['rest','match'].includes(s.type)){ planned++; if(l&&l.done) done++; }
+    if (l&&l.done){ const mn=l.dur ?? defDur(d,s); mins+=mn; const ws=addDays(d,-parse(d).getDay()); weeks[ws]=(weeks[ws]||0)+mn; } }
+  const ms=state.matches.filter(x=>x.date>=start&&x.date<=last), sc=ms.map(x=>parseFloat(x.score)).filter(isFinite);
+  const rd=Object.entries(state.readiness||{}).filter(([d])=>d>=start&&d<=last).map(([,r])=>readyScore(r));
+  const Q=quizState(), qa=Object.values(Q.answers).filter(a=>a.date>=start&&a.date<=last), ex=(Q.exams||[]).filter(e=>e.date>=start&&e.date<=last);
+  const coop=state.tests.filter(x=>x.kind==='cooper'&&x.date<=last).sort((a,b)=>a.date.localeCompare(b.date));
+  return {ym, start, end, planned, done, adh: planned?Math.round(100*done/planned):0, mins, matches:ms.length, score: sc.length?sc.reduce((a,b)=>a+b,0)/sc.length:null,
+    ready: rd.length?Math.round(rd.reduce((a,b)=>a+b,0)/rd.length/5*100):null, qn:qa.length, qacc: qa.length?Math.round(100*qa.filter(a=>a.ok).length/qa.length):null,
+    exam: ex.length?Math.max(...ex.map(e=>Math.round(100*e.right/e.total))):null, cooper: coop.length?coop[coop.length-1].value:null, weeks};
+}
+function renderMonth(){
+  const box=$('monthPanel'); if(!box) return; const t=todayISO(), cur=t.slice(0,7);
+  const months=[...new Set([cur, ...Object.keys(state.logs).map(d=>d.slice(0,7)), ...state.matches.map(x=>x.date.slice(0,7))])].filter(x=>x<=cur).sort().reverse();
+  if (!monthSel || !months.includes(monthSel)) monthSel=months[0];
+  const S=monthStats(monthSel);
+  box.innerHTML=`<div class="phead"><h3>تقرير الشهر</h3><select class="in sm" id="monSel" style="width:auto"></select></div>
+    <p class="note">التزامك ${num(S.adh)}٪، ${num(S.done)} من ${num(S.planned)} تمارين، ${num(S.matches)} ${S.matches===1?'مباراة':'مباريات'}، ${num(Math.round(S.mins))} دقيقة تدريب.</p>
+    <button class="btn primary" id="monBtn" style="width:100%;margin-top:10px">🖼️ أنشئ صورة التقرير للمشاركة</button><div id="monOut"></div>`;
+  const sel=box.querySelector('#monSel'); months.forEach(mo=>{ const o=document.createElement('option'); o.value=mo; o.textContent=fMon.format(parse(mo+'-01')); if(mo===monthSel) o.selected=true; sel.appendChild(o); });
+  sel.onchange=()=>{ monthSel=sel.value; renderMonth(); };
+  box.querySelector('#monBtn').onclick=async()=>{ const out=box.querySelector('#monOut'); out.innerHTML='<p class="note">يجهز الصورة…</p>';
+    try { const url=await drawMonth(S); out.innerHTML=`<img class="mrimg" alt="تقرير الشهر" src="${url}"><p class="note" style="margin-top:8px">اضغط مطولًا على الصورة لحفظها أو مشاركتها.</p>`;
+      if (navigator.canShare){ const blob=await (await fetch(url)).blob(), file=new File([blob],`report-${S.ym}.png`,{type:'image/png'});
+        if (navigator.canShare({files:[file]})){ const b=document.createElement('button'); b.className='btn card'; b.style.width='100%'; b.style.marginTop='8px'; b.textContent='مشاركة'; b.onclick=()=>navigator.share({files:[file],title:'تقريري الشهري'}).catch(()=>{}); out.appendChild(b); } }
+    } catch(e){ out.innerHTML='<p class="note">تعذّر إنشاء الصورة.</p>'; } };
+}
+async function drawMonth(S){
+  try { await Promise.all(['400','600','700'].map(w=>document.fonts.load(`${w} 40px "Readex Pro"`))); } catch(e){}
+  const W=1080,H=1350,c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d'); x.direction='rtl';
+  const F=(w,s)=>`${w} ${s}px "Readex Pro", system-ui, sans-serif`;
+  const rr=(X,Y,w,h,r)=>{ x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+w,Y,X+w,Y+h,r); x.arcTo(X+w,Y+h,X,Y+h,r); x.arcTo(X,Y+h,X,Y,r); x.arcTo(X,Y,X+w,Y,r); x.closePath(); };
+  x.fillStyle='#F4F6F2'; x.fillRect(0,0,W,H);
+  const g=x.createLinearGradient(0,0,0,520); g.addColorStop(0,'#2A8456'); g.addColorStop(1,'#15503A'); x.fillStyle=g; rr(0,-40,W,560,60); x.fill();
+  x.globalAlpha=.08; x.fillStyle='#fff'; for(let i=0;i<8;i++) x.fillRect(0,i*70,W,35); x.globalAlpha=1;
+  // flag
+  x.save(); x.translate(90,90); x.rotate(-.12); x.fillStyle='#EDEDED'; x.fillRect(0,0,10,120); x.fillStyle='#FFD21F'; x.fillRect(10,4,80,60); x.fillStyle='#E0301E'; x.fillRect(10,4,40,30); x.fillRect(50,34,40,30); x.restore();
+  x.textAlign='right'; x.fillStyle='#fff';
+  x.font=F(700,68); x.fillText('تقريري الشهري',W-70,130);
+  x.font=F(400,40); x.fillStyle='rgba(255,255,255,.85)'; x.fillText(fMon.format(parse(S.ym+'-01')),W-70,190);
+  x.font=F(400,32); x.fillText('سعود، حكم مساعد',W-70,240);
+  // big adherence
+  x.fillStyle='#fff'; x.font=F(700,150); x.fillText(num(S.adh)+'٪',W-70,420);
+  x.font=F(400,36); x.fillStyle='rgba(255,255,255,.85)'; x.fillText('التزام بالتمارين',W-70,470);
+  // ring
+  const cx=230,cy=340,R=110; x.lineWidth=26; x.strokeStyle='rgba(255,255,255,.2)'; x.beginPath(); x.arc(cx,cy,R,0,Math.PI*2); x.stroke();
+  x.strokeStyle='#FFD21F'; x.lineCap='round'; x.beginPath(); x.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+Math.PI*2*S.adh/100); x.stroke();
+  x.textAlign='center'; x.fillStyle='#fff'; x.font=F(700,52); x.fillText(`${num(S.done)}/${num(S.planned)}`,cx,cy+10); x.font=F(400,26); x.fillText('تمرين',cx,cy+50);
+  // tiles
+  const tiles=[['🏃','دقائق التدريب',num(Math.round(S.mins))],['🟨','مباريات',num(S.matches)],['⭐','متوسط التقييم',S.score!=null?num(S.score.toFixed(1)):'–'],
+    ['💪','متوسط الجاهزية',S.ready!=null?num(S.ready)+'٪':'–'],['⚖️','دقة القانون',S.qacc!=null?num(S.qacc)+'٪':'–'],['📝','أفضل اختبار',S.exam!=null?num(S.exam)+'٪':'–']];
+  tiles.forEach((tl,i)=>{ const col=i%2, row=Math.floor(i/2), tw=450, th=150, X=W-70-tw-col*(tw+40), Y=560+row*(th+26);
+    x.fillStyle='rgba(16,40,28,.06)'; rr(X,Y+6,tw,th,30); x.fill(); x.fillStyle='#fff'; rr(X,Y,tw,th,30); x.fill();
+    x.textAlign='right'; x.font=F(400,40); x.fillText(tl[0],X+tw-30,Y+62); x.fillStyle='#5E6B63'; x.font=F(400,30); x.fillText(tl[1],X+tw-90,Y+60);
+    x.fillStyle='#1E6A43'; x.font=F(700,60); x.fillText(tl[2],X+tw-30,Y+125); });
+  // weekly minutes bars
+  const wk=Object.entries(S.weeks).sort(), mx=Math.max(60,...wk.map(w=>w[1])); const bx0=70, bw=W-140, by=1255, bh=100;
+  x.textAlign='right'; x.fillStyle='#5E6B63'; x.font=F(400,28); x.fillText('دقائق التدريب كل أسبوع',W-70,by-bh-24); if(!wk.length){ x.textAlign='center'; x.fillStyle='#9AA9A0'; x.fillText('ما فيه تمارين مسجلة هالشهر',W/2,by-40); }
+  const n=Math.max(wk.length,1), gap=24, w1=(bw-gap*(n-1))/n;
+  wk.forEach(([ws,v],i)=>{ const X=W-70-(i+1)*w1-i*gap, hh=Math.max(8,bh*v/mx); x.fillStyle='#1E6A43'; rr(X,by-hh,w1,hh,10); x.fill(); x.textAlign='center'; x.fillStyle='#5E6B63'; x.font=F(400,22); x.fillText(num(Math.round(v)),X+w1/2,by+30); });
+  x.textAlign='center'; x.fillStyle='#9AA9A0'; x.font=F(400,24); x.fillText('جدول الحكم',W/2,H-30);
+  return c.toDataURL('image/png');
+}
+
 /* ---------- alerts + report prompt ---------- */
 function renderAlerts(){
   const box=$('alerts'); box.innerHTML='';
@@ -1624,10 +1853,10 @@ function renderAll(){
     nm.className='nextm'; nm.innerHTML = `<span class="card-ic"></span>${days===0?'<span class="big">اليوم</span>':`<span class="big">${num(days)}</span>`}<span class="tx">${days===0?'عندك مباراة':(days===1?'يوم على مباراتك':'أيام على مباراتك')}<small>${fFull.format(parse(next.date))}${next.time?' الساعة '+next.time:''}</small></span>`;
   } else { nm.className='nextm none'; nm.innerHTML = '<span class="card-ic"></span><span class="tx">ما فيه مباراة قادمة<small>إذا نزلت لك مباراة أضفها من الزر تحت</small></span>'; }
   renderHero();
-  renderReady(); renderQuiz(); renderAlerts(); renderSchedule(); renderCareer(); renderLaw(); renderProgress(); renderReport(); renderLoad(); renderMatches(); renderChat();
+  renderReady(); renderQuiz(); renderAlerts(); renderSchedule(); renderCareer(); renderLaw(); renderMonth(); renderProgress(); renderReport(); renderLoad(); renderMatches(); renderChat();
 }
 ensureHorizon(); renderAll(); requestAnimationFrame(scrollToday);
-initStorage().then(()=>{ requestAnimationFrame(scrollToday); $('citySel').value=(state.settings&&state.settings.city)||'zulfi'; loadWeather(); });
+initStorage().then(()=>{ loadInbox(); requestAnimationFrame(scrollToday); $('citySel').value=(state.settings&&state.settings.city)||'zulfi'; loadWeather(); });
 claude.use('sample').then(s => { sampleFn = s; renderAll(); }).catch(()=>{});
 })();
 </script>
