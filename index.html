@@ -461,6 +461,8 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
           <div class="row"><select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select><input class="in sm" type="time" id="nWeekT"></div>
           <p class="note">التنبيه يكتبه المدرب حسب جدولك والطقس. تذكير التمرين يتخطى أيام الراحة والمباريات تلقائيًا.</p>
         </div>
+        <div class="row" style="margin-top:10px"><button class="btn ghost" id="vapidBtn">أظهر مفاتيح التنبيهات الثابتة</button></div>
+        <div id="vapidBox" hidden></div>
       </div>
       <div class="panel"><h3>نسخة احتياطية</h3><p class="note">بياناتك محفوظة على هذا الجهاز. صدّر نسخة من وقت لآخر، أو استورد نسخة من جهاز ثاني.</p>
       <div class="row"><button class="btn ghost" id="expBtn">تصدير نسخة</button><button class="btn ghost" id="impBtn">استيراد نسخة</button></div>
@@ -1951,6 +1953,30 @@ if ($('notifOn')) {
       $('notifState').textContent = r.ok ? 'أرسلنا تنبيه تجربة، لازم يوصلك خلال ثوانٍ.' : 'ما قدرنا نرسل. راجع سجل الخدمة.';
     } catch(e){ $('notifState').textContent='ما قدرنا نرسل التجربة.'; }
     finally { btn.disabled=false; btn.textContent='جرّب تنبيه'; }
+  };
+  // the keys live behind the passcode header, which a browser cannot send from the address
+  // bar, so the app fetches them and hands them over ready to paste into the host settings
+  $('vapidBtn').onclick = async () => {
+    const box=$('vapidBox'), btn=$('vapidBtn');
+    if (!box.hidden){ box.hidden=true; btn.textContent='أظهر مفاتيح التنبيهات الثابتة'; return; }
+    btn.disabled=true; btn.textContent='لحظة…';
+    try {
+      const r = await fetch('/api/push/vapid',{headers:{'X-Passcode':(localStorage.getItem('rc-pass')||'')}});
+      if (!r.ok) throw new Error('http '+r.status);
+      const k = await r.json();
+      box.innerHTML = '<p class="note">انسخ كل قيمة وحطها في إعدادات الخدمة بنفس الاسم، عشان التنبيهات ما تنقطع مع كل تحديث.</p>';
+      [['VAPID_PUBLIC_KEY',k.publicKey],['VAPID_PRIVATE_KEY',k.privateKey]].forEach(([name,val])=>{
+        const w=document.createElement('div'); w.style.marginTop='10px';
+        const l=document.createElement('label'); l.className='f'; l.textContent=name; w.appendChild(l);
+        const t=document.createElement('textarea'); t.className='in'; t.rows=2; t.readOnly=true; t.value=val;
+        t.onclick=()=>t.select(); w.appendChild(t);
+        const b=document.createElement('button'); b.className='btn ghost'; b.textContent='انسخ';
+        b.onclick=async()=>{ try{ await navigator.clipboard.writeText(val); }catch(e){ t.select(); document.execCommand('copy'); } b.textContent='تم النسخ ✅'; setTimeout(()=>b.textContent='انسخ',1500); };
+        w.appendChild(b); box.appendChild(w);
+      });
+      box.hidden=false; btn.textContent='إخفاء المفاتيح';
+    } catch(e){ box.innerHTML='<p class="note">ما قدرنا نجيب المفاتيح. تأكد من رمز الدخول وأعد المحاولة.</p>'; box.hidden=false; btn.textContent='إخفاء'; }
+    finally { btn.disabled=false; }
   };
   ['nReady','nTrain','nMatch','nWeek'].forEach(id=>$(id).onchange=savePrefs);
   ['nReadyT','nTrainT','nMatchB','nWeekD','nWeekT'].forEach(id=>$(id).onchange=savePrefs);
