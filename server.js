@@ -19,7 +19,7 @@ const TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 90000;
 const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_KEY, SYNC_TOKEN = process.env.SYNC_TOKEN;
 const SYNC = !!(SB_URL && SB_KEY && SYNC_TOKEN);
 const PUBLIC = __dirname;
-const PRIVATE = new Set(['server.js','package.json','render.yaml','README.md','.gitignore']);
+const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','README.md','.gitignore']);
 const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.webmanifest':'application/manifest+json', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.ico':'image/x-icon' };
 
 // simple per-IP rate limit: 30 coach calls / 10 minutes
@@ -270,7 +270,7 @@ async function route(req, res){
   if (url.pathname === '/api/cron') return cron(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
-  if (!file.startsWith(PUBLIC) || PRIVATE.has(path.basename(file)) || path.basename(file).startsWith('.')) return send(res, 403, 'forbidden', 'text/plain');
+  if (!file.startsWith(PUBLIC) || PRIVATE.has(path.basename(file)) || path.basename(file).startsWith('.') || url.pathname.startsWith('/node_modules')) return send(res, 403, 'forbidden', 'text/plain');
   if (url.pathname === '/' ) file = path.join(PUBLIC, 'index.html');
   fs.readFile(file, (err, data) => {
     if (err) { fs.readFile(path.join(PUBLIC,'index.html'), (e2, d2) => e2 ? send(res,404,'not found','text/plain') : send(res,200,d2,TYPES['.html'])); return; }
