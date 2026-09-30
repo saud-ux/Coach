@@ -206,7 +206,7 @@ async function cron(req, res, url){
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
   const data = st.data || st;
   const p = data && data.push;
-  if (!p || !p.sub) return send(res, 200, {ok:true, note:'no subscription'});
+  if (!p || !p.sub) { console.log('cron: tick, but reminders are not switched on in the app yet'); return send(res, 200, {ok:true, note:'no subscription'}); }
   const prefs = p.prefs || {};
   const now = localNow();
   const sessions = data.sessions || {}, matches = data.matches || [], logs = data.logs || {}, readiness = data.readiness || {};
@@ -240,8 +240,9 @@ async function cron(req, res, url){
     const body = await line(kind, snapshot);
     if (await push(p.sub, title, body, kind, link)) fired.push(kind);
   }
-  if (fired.length) console.log('cron: sent', fired.join(', '));
-  send(res, 200, {ok:true, at:`${now.date} ${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`, fired});
+  const clock = `${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`;
+  console.log(`cron: tick ${clock} sent=${fired.length ? fired.join('+') : 'none'}`);
+  send(res, 200, {ok:true, at:`${now.date} ${clock}`, fired});
 }
 
 // a "does this work at all" button in the app
