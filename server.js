@@ -4,19 +4,20 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-// strip every space and line break: an API key never contains whitespace, and a key
-// pasted wrapped across lines makes fetch throw "invalid header value", which used
-// to surface in the app as a bare connection error
-const API_KEY = (process.env.ANTHROPIC_API_KEY || '').replace(/\s+/g, '');
-const KEY_OK = /^[\x21-\x7e]+$/.test(API_KEY);   // printable ASCII, no spaces or newlines
+// strip every space and line break: no secret here contains whitespace, and one pasted
+// wrapped across lines makes fetch throw "invalid header value", which used to surface
+// in the app as a bare connection error
+const clean = v => (v || '').replace(/\s+/g, '');
 // never let a key reach the logs
 const redact = v => String(v == null ? '' : v).replace(/sk-ant-[A-Za-z0-9_\-]+/g, 'sk-ant-***');
-const PASSCODE = process.env.APP_PASSCODE || '';
+const API_KEY = clean(process.env.ANTHROPIC_API_KEY);
+const KEY_OK = /^[\x21-\x7e]+$/.test(API_KEY);   // printable ASCII, no spaces or newlines
+const PASSCODE = clean(process.env.APP_PASSCODE);
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
 const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 8000;
 const EFFORT = process.env.CLAUDE_EFFORT || 'low';            // low|medium|high|xhigh|max, or 'off' to omit
 const TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 90000;
-const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_KEY, SYNC_TOKEN = process.env.SYNC_TOKEN;
+const SB_URL = clean(process.env.SUPABASE_URL), SB_KEY = clean(process.env.SUPABASE_KEY), SYNC_TOKEN = clean(process.env.SYNC_TOKEN);
 const SYNC = !!(SB_URL && SB_KEY && SYNC_TOKEN);
 const PUBLIC = __dirname;
 const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','README.md','.gitignore']);
@@ -133,7 +134,7 @@ async function inbox(req, res, url){
 /* ---------- reminders: web push, driven by an external cron hitting /api/cron ---------- */
 const webpush = require('web-push');
 const TZ = process.env.APP_TZ || 'Asia/Riyadh';
-const CRON_TOKEN = process.env.CRON_TOKEN || '';   // its own token: it travels in a URL to a third-party scheduler
+const CRON_TOKEN = clean(process.env.CRON_TOKEN);   // its own token: it travels in a URL to a third-party scheduler
 // a stable pair from the environment survives restarts; a generated one only lasts
 // until the next deploy, and the app re-subscribes when it sees the key change
 let VAPID = { publicKey: process.env.VAPID_PUBLIC_KEY || '', privateKey: process.env.VAPID_PRIVATE_KEY || '' };
@@ -200,7 +201,13 @@ async function push(sub, title, body, tag, url){
 
 // called by the external cron every few minutes; decides what is due and sends it
 async function cron(req, res, url){
-  if (!CRON_TOKEN || url.searchParams.get('token') !== CRON_TOKEN) { console.error(CRON_TOKEN ? 'cron: token did not match; check the token in the scheduler URL' : 'cron: CRON_TOKEN is not set, so no reminder can be sent'); return send(res, 401, {error:'token'}); }
+  const given = clean(url.searchParams.get('token'));
+  if (!CRON_TOKEN || given !== CRON_TOKEN) {
+    console.error(CRON_TOKEN
+      ? `cron: token did not match (the stored one is ${CRON_TOKEN.length} characters, the call sent ${given.length})`
+      : 'cron: CRON_TOKEN is not set, so no reminder can be sent');
+    return send(res, 401, {error:'token'});
+  }
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
   let st;
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
