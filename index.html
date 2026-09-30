@@ -484,9 +484,10 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
     for (let attempt=0; attempt<3; attempt++){
       const r = await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Passcode':pass,...(opts.headers||{})}});
       if (r.status===401){ pass = prompt('اكتب رمز الدخول:')||''; try{localStorage.setItem(KEY,pass);}catch(e){} if(!pass) throw {code:'not_granted',message:'no passcode'}; continue; }
-      if (r.status===429) throw {code:'rate_limited',message:'rate'};
-      if (!r.ok) throw {code:'upstream_error',message:'HTTP '+r.status};
-      return r.json();
+      let body = null; try { body = await r.clone().json(); } catch(e){}
+      if (r.status===429) throw {code:(body&&body.error==='upstream_rate')?'upstream_rate':'rate_limited',message:'rate'};
+      if (!r.ok) throw {code:(body&&body.error)||'upstream_error', detail:(body&&body.detail)||'', status:r.status};
+      return body!==null ? body : r.json();
     }
     throw {code:'not_granted',message:'bad passcode'};
   }
@@ -501,13 +502,14 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
     if (imgs.length){ const last=messages[messages.length-1]; const blocks=[];
       for (const b of imgs) blocks.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await toB64(b)}});
       blocks.push({type:'text',text:last.content}); last.content=blocks; }
-    const d = await api('/api/claude',{method:'POST',body:JSON.stringify({messages})});
-    return {text:d.text||'', truncated:false, modelTierApplied:'default'};
+    const payload = opts.system ? {system:opts.system, messages} : {messages};
+    const d = await api('/api/claude',{method:'POST',body:JSON.stringify(payload)});
+    return {text:d.text||'', truncated:d.stop_reason==='max_tokens', modelTierApplied:'default'};
   }
   const sample = async (input, opts={}) => { if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; const r = await call(input, opts); if (opts.signal && opts.signal.aborted) throw {code:'cancelled'}; if (opts.onText) opts.onText({text:r.text, delta:r.text}); return r; };
   sample.json = async (input, opts={}) => { const r = await sample(input, opts); let t=r.text.trim();
     const f=t.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) t=f[1];
-    try { return JSON.parse(t); } catch(e){ const s=t.search(/[\[{]/), e2=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']')); try { return JSON.parse(t.slice(s,e2+1)); } catch(_){ throw {code:'invalid_json',message:'parse',text:r.text}; } } };
+    try { return JSON.parse(t); } catch(e){ const s=t.search(/[\[{]/), e2=Math.max(t.lastIndexOf('}'),t.lastIndexOf(']')); try { return JSON.parse(t.slice(s,e2+1)); } catch(_){ throw {code:r.truncated?'truncated':'invalid_json',message:'parse',text:r.text}; } } };
   sample.limits = async () => ({maxPromptBytes:65536, images:{maxCount:1,maxInputBytes:20e6,mediaTypes:['image/jpeg','image/png','image/heic','image/webp']}});
   // cloud sync through our server (Supabase behind it)
   const db = { doc: () => ({
@@ -1809,14 +1811,29 @@ async function send(text){
   state.chat.push({role:'user', content:text.trim()});
   busy = true; renderChat();
   const hist = state.chat.slice(-11,-1).filter(m=>!m.err).map(m=>({role:m.role, content:m.content}));
-  const turns = [{role:'user',content:RULES}, ...hist, {role:'user',content:`بيانات الجدول الحالية:\n${context()}\n\nرسالة الحكم: ${text.trim()}`}];
+  const turns = [...hist, {role:'user',content:`بيانات الجدول الحالية:\n${context()}\n\nرسالة الحكم: ${text.trim()}`}];
   ctl = new AbortController();
   try {
-    const r = await sampleFn.json(turns, {cache:false, signal:ctl.signal});
+    const r = await sampleFn.json(turns, {cache:false, signal:ctl.signal, system:RULES});
     const n = applyChanges(r || {});
     state.chat.push({role:'assistant', content:String(r?.reply||'تم.'), changes: n?`عدّلت ${num(n)} ${n===1?'يوم':'أيام'} في الجدول`:''});
   } catch(e){
-    const msg = {cancelled:'أوقفت الرد.', rate_limited:'وصلت الحد المسموح حاليًا. جرّب بعد شوي.', not_granted:'ما تم السماح للصفحة باستخدام Claude.', invalid_json:'الرد وصل بشكل غير مفهوم. أعد الإرسال.', session_expired:'سجّل دخولك مرة ثانية.'}[e?.code] || 'صار خطأ بالاتصال. أعد الإرسال.';
+    const msg = {
+      cancelled:'أوقفت الرد.',
+      rate_limited:'وصلت الحد المسموح حاليًا. جرّب بعد شوي.',
+      upstream_rate:'المدرب مشغول حاليًا من كثرة الطلبات. جرّب بعد دقيقة.',
+      not_granted:'ما تم السماح للصفحة باستخدام Claude.',
+      invalid_json:'الرد وصل بشكل غير مفهوم. أعد الإرسال.',
+      truncated:'الرد طلع أطول من اللازم وانقطع. أعد الإرسال برسالة أقصر.',
+      session_expired:'سجّل دخولك مرة ثانية.',
+      no_api_key:'مفتاح Claude مو مضبوط على الخادم. أضفه في إعدادات الخدمة باسم ANTHROPIC_API_KEY.',
+      bad_api_key:'مفتاح Claude مرفوض. تأكد من المفتاح في إعدادات الخادم.',
+      bad_request:'الخادم رفض الطلب' + (e?.detail ? ': '+e.detail : '. راجع سجل الخدمة.'),
+      upstream_down:'خدمة Claude متعثرة حاليًا. جرّب بعد شوي.',
+      timeout:'الرد تأخر أكثر من اللازم. أعد الإرسال.',
+      network:'ما قدر الخادم يوصل لـ Claude. تأكد من الاتصال.',
+      server:'صار خطأ داخلي بالخادم. أعد الإرسال.'
+    }[e?.code] || 'صار خطأ بالاتصال. أعد الإرسال.';
     state.chat.push({role:'assistant', content:msg, err:true});
     if (e?.code==='not_granted' || e?.code==='sampling_disabled') sampleFn = null;
   } finally { busy=false; ctl=null; save(); renderAll(); }

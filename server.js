@@ -6,7 +6,10 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const PASSCODE = process.env.APP_PASSCODE || '';
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
+const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
+const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 8000;
+const EFFORT = process.env.CLAUDE_EFFORT || 'low';            // low|medium|high|xhigh|max, or 'off' to omit
+const TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 90000;
 const SB_URL = process.env.SUPABASE_URL, SB_KEY = process.env.SUPABASE_KEY, SYNC_TOKEN = process.env.SYNC_TOKEN;
 const SYNC = !!(SB_URL && SB_KEY && SYNC_TOKEN);
 const PUBLIC = __dirname;
@@ -19,27 +22,57 @@ function limited(ip){ const now=Date.now(), w=10*60*1000; const a=(hits.get(ip)|
 
 function send(res, code, body, type='application/json'){ res.writeHead(code, {'Content-Type':type}); res.end(typeof body==='string'?body:JSON.stringify(body)); }
 
+// one call to the Claude API, with a timeout; retries once on a transient failure
+async function askClaude(body){
+  for (let attempt = 0; attempt < 2; attempt++){
+    let r, d;
+    try {
+      r = await fetch('https://api.anthropic.com/v1/messages', { method:'POST',
+        headers:{'content-type':'application/json','x-api-key':API_KEY,'anthropic-version':'2023-06-01'},
+        body: JSON.stringify(body), signal: AbortSignal.timeout(TIMEOUT_MS) });
+      d = await r.json();
+    } catch (e) {
+      const timedOut = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+      if (attempt === 0 && !timedOut) continue;                       // one retry on a network blip
+      console.error('Claude API unreachable', e && e.name, e && e.message);
+      return { status: timedOut ? 504 : 502, error: timedOut ? 'timeout' : 'network' };
+    }
+    if (r.ok) return { ok: true, data: d };
+    const detail = (d && d.error && d.error.message) || '';
+    console.error('Claude API error', r.status, detail || d);
+    if ((r.status === 429 || r.status >= 500) && attempt === 0) continue;   // one retry on a transient status
+    if (r.status === 401 || r.status === 403) return { status: 502, error: 'bad_api_key' };
+    if (r.status === 429) return { status: 429, error: 'upstream_rate' };
+    if (r.status >= 500) return { status: 502, error: 'upstream_down' };
+    return { status: 502, error: 'bad_request', detail };
+  }
+  return { status: 502, error: 'network' };
+}
+
 async function coach(req, res){
   if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'});
   const ip = (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').split(',')[0].trim();
   if (limited(ip)) return send(res, 429, {error:'rate'});
-  if (!API_KEY) return send(res, 500, {error:'ANTHROPIC_API_KEY is not set'});
+  if (!API_KEY) return send(res, 500, {error:'no_api_key'});
   let raw=''; for await (const c of req){ raw+=c; if (raw.length>8000000) return send(res, 413, {error:'too large'}); }
-  let messages; try { messages = JSON.parse(raw).messages; } catch { return send(res, 400, {error:'bad json'}); }
+  let messages, system; try { const b = JSON.parse(raw); messages = b.messages; system = b.system; } catch { return send(res, 400, {error:'bad json'}); }
   if (!Array.isArray(messages) || !messages.length) return send(res, 400, {error:'no messages'});
   // merge consecutive same-role turns (the app may send two user turns in a row)
   const toBlocks = c => Array.isArray(c) ? c.filter(b => (b.type==='text' && typeof b.text==='string') || (b.type==='image' && b.source && b.source.type==='base64' && /^image\/(jpeg|png|webp|gif)$/.test(b.source.media_type))).map(b => b.type==='text' ? {type:'text',text:b.text} : {type:'image',source:{type:'base64',media_type:b.source.media_type,data:String(b.source.data)}}) : [{type:'text',text:String(c||'')}];
   const merged=[]; for (const m of messages){ const role=m.role==='assistant'?'assistant':'user', blocks=toBlocks(m.content); if (!blocks.length) continue; if (merged.length && merged[merged.length-1].role===role) merged[merged.length-1].content.push(...blocks); else merged.push({role,content:blocks}); }
+  if (!merged.length) return send(res, 400, {error:'no messages'});
   if (merged[0].role!=='user') merged.unshift({role:'user',content:[{type:'text',text:'.'}]});
-  try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', { method:'POST',
-      headers:{'content-type':'application/json','x-api-key':API_KEY,'anthropic-version':'2023-06-01'},
-      body: JSON.stringify({ model: MODEL, max_tokens: 2000, messages: merged }) });
-    const d = await r.json();
-    if (!r.ok) { console.error('Claude API error', r.status, d); return send(res, r.status===429?429:502, {error:'upstream'}); }
-    const text = (d.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
-    send(res, 200, {text});
-  } catch (e) { console.error(e); send(res, 502, {error:'network'}); }
+
+  const body = { model: MODEL, max_tokens: MAX_TOKENS, messages: merged };
+  if (typeof system === 'string' && system.trim()) body.system = system.slice(0, 20000);
+  if (EFFORT !== 'off') body.output_config = { effort: EFFORT };
+
+  const r = await askClaude(body);
+  if (!r.ok) return send(res, r.status, {error: r.error, detail: r.detail || ''});
+  const text = (r.data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+  // an empty reply means the token budget ran out before any text was written
+  if (!text.trim()) { console.error('Claude returned no text', r.data.stop_reason, JSON.stringify(r.data.usage||{})); return send(res, 502, {error:'truncated'}); }
+  send(res, 200, {text, stop_reason: r.data.stop_reason || ''});
 }
 
 async function rpc(fn, args){
@@ -90,7 +123,12 @@ async function inbox(req, res, url){
   } catch (e) { console.error(e); send(res, 502, {error:'inbox failed'}); }
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
+  try { await route(req, res); }
+  catch (e) { console.error('unhandled request error', e); if (!res.headersSent) send(res, 500, {error:'server'}); else res.end(); }
+});
+
+async function route(req, res){
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/api/state/enabled') return send(res, 200, {enabled: SYNC});
   if (url.pathname === '/api/state') return state(req, res);
@@ -106,4 +144,7 @@ http.createServer(async (req, res) => {
     const cache = ext==='.html'||file.endsWith('sw.js') ? 'no-cache' : 'public, max-age=604800';
     res.writeHead(200, {'Content-Type': TYPES[ext]||'application/octet-stream', 'Cache-Control': cache}); res.end(data);
   });
-}).listen(PORT, () => console.log('referee coach on :'+PORT));
+}
+
+process.on('unhandledRejection', e => console.error('unhandled rejection', e));
+server.listen(PORT, () => console.log('referee coach on :'+PORT));
