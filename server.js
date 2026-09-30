@@ -4,9 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-// trim first: a key pasted with a trailing newline or space makes fetch throw
-// "invalid header value", which used to surface as a bare connection error
-const API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
+// strip every space and line break: an API key never contains whitespace, and a key
+// pasted wrapped across lines makes fetch throw "invalid header value", which used
+// to surface in the app as a bare connection error
+const API_KEY = (process.env.ANTHROPIC_API_KEY || '').replace(/\s+/g, '');
 const KEY_OK = /^[\x21-\x7e]+$/.test(API_KEY);   // printable ASCII, no spaces or newlines
 // never let a key reach the logs
 const redact = v => String(v == null ? '' : v).replace(/sk-ant-[A-Za-z0-9_\-]+/g, 'sk-ant-***');
@@ -152,6 +153,6 @@ async function route(req, res){
   });
 }
 
-if (API_KEY && !KEY_OK) console.error('ANTHROPIC_API_KEY contains a space, newline or non-ASCII character; the coach cannot call the API until it is re-entered');
+if (API_KEY && !KEY_OK) console.error('ANTHROPIC_API_KEY contains a character that cannot go in a header; the coach cannot call the API until it is re-entered');
 process.on('unhandledRejection', e => console.error('unhandled rejection', redact(e && e.stack || e)));
 server.listen(PORT, () => console.log('referee coach on :'+PORT));
