@@ -200,7 +200,7 @@ async function push(sub, title, body, tag, url){
 
 // called by the external cron every few minutes; decides what is due and sends it
 async function cron(req, res, url){
-  if (!CRON_TOKEN || url.searchParams.get('token') !== CRON_TOKEN) return send(res, 401, {error:'token'});
+  if (!CRON_TOKEN || url.searchParams.get('token') !== CRON_TOKEN) { console.error(CRON_TOKEN ? 'cron: token did not match; check the token in the scheduler URL' : 'cron: CRON_TOKEN is not set, so no reminder can be sent'); return send(res, 401, {error:'token'}); }
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
   let st;
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
@@ -240,6 +240,7 @@ async function cron(req, res, url){
     const body = await line(kind, snapshot);
     if (await push(p.sub, title, body, kind, link)) fired.push(kind);
   }
+  if (fired.length) console.log('cron: sent', fired.join(', '));
   send(res, 200, {ok:true, at:`${now.date} ${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`, fired});
 }
 
