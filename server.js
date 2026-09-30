@@ -4,7 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+// trim first: a key pasted with a trailing newline or space makes fetch throw
+// "invalid header value", which used to surface as a bare connection error
+const API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
+const KEY_OK = /^[\x21-\x7e]+$/.test(API_KEY);   // printable ASCII, no spaces or newlines
+// never let a key reach the logs
+const redact = v => String(v == null ? '' : v).replace(/sk-ant-[A-Za-z0-9_\-]+/g, 'sk-ant-***');
 const PASSCODE = process.env.APP_PASSCODE || '';
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
 const MAX_TOKENS = Number(process.env.CLAUDE_MAX_TOKENS) || 8000;
@@ -34,12 +39,12 @@ async function askClaude(body){
     } catch (e) {
       const timedOut = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
       if (attempt === 0 && !timedOut) continue;                       // one retry on a network blip
-      console.error('Claude API unreachable', e && e.name, e && e.message);
+      console.error('Claude API unreachable', e && e.name, redact(e && e.message));
       return { status: timedOut ? 504 : 502, error: timedOut ? 'timeout' : 'network' };
     }
     if (r.ok) return { ok: true, data: d };
-    const detail = (d && d.error && d.error.message) || '';
-    console.error('Claude API error', r.status, detail || d);
+    const detail = redact((d && d.error && d.error.message) || '');
+    console.error('Claude API error', r.status, detail || redact(JSON.stringify(d)));
     if ((r.status === 429 || r.status >= 500) && attempt === 0) continue;   // one retry on a transient status
     if (r.status === 401 || r.status === 403) return { status: 502, error: 'bad_api_key' };
     if (r.status === 429) return { status: 429, error: 'upstream_rate' };
@@ -54,6 +59,7 @@ async function coach(req, res){
   const ip = (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').split(',')[0].trim();
   if (limited(ip)) return send(res, 429, {error:'rate'});
   if (!API_KEY) return send(res, 500, {error:'no_api_key'});
+  if (!KEY_OK) return send(res, 500, {error:'bad_key_format'});
   let raw=''; for await (const c of req){ raw+=c; if (raw.length>8000000) return send(res, 413, {error:'too large'}); }
   let messages, system; try { const b = JSON.parse(raw); messages = b.messages; system = b.system; } catch { return send(res, 400, {error:'bad json'}); }
   if (!Array.isArray(messages) || !messages.length) return send(res, 400, {error:'no messages'});
@@ -125,7 +131,7 @@ async function inbox(req, res, url){
 
 const server = http.createServer(async (req, res) => {
   try { await route(req, res); }
-  catch (e) { console.error('unhandled request error', e); if (!res.headersSent) send(res, 500, {error:'server'}); else res.end(); }
+  catch (e) { console.error('unhandled request error', redact(e && e.stack || e)); if (!res.headersSent) send(res, 500, {error:'server'}); else res.end(); }
 });
 
 async function route(req, res){
@@ -146,5 +152,6 @@ async function route(req, res){
   });
 }
 
-process.on('unhandledRejection', e => console.error('unhandled rejection', e));
+if (API_KEY && !KEY_OK) console.error('ANTHROPIC_API_KEY contains a space, newline or non-ASCII character; the coach cannot call the API until it is re-entered');
+process.on('unhandledRejection', e => console.error('unhandled rejection', redact(e && e.stack || e)));
 server.listen(PORT, () => console.log('referee coach on :'+PORT));

@@ -1828,6 +1828,7 @@ async function send(text){
       session_expired:'سجّل دخولك مرة ثانية.',
       no_api_key:'مفتاح Claude مو مضبوط على الخادم. أضفه في إعدادات الخدمة باسم ANTHROPIC_API_KEY.',
       bad_api_key:'مفتاح Claude مرفوض. تأكد من المفتاح في إعدادات الخادم.',
+      bad_key_format:'مفتاح Claude فيه مسافة أو سطر زائد. انسخه من جديد في إعدادات الخادم بدون فراغات.',
       bad_request:'الخادم رفض الطلب' + (e?.detail ? ': '+e.detail : '. راجع سجل الخدمة.'),
       upstream_down:'خدمة Claude متعثرة حاليًا. جرّب بعد شوي.',
       timeout:'الرد تأخر أكثر من اللازم. أعد الإرسال.',
