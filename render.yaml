@@ -14,3 +14,9 @@ services:
         sync: false
       - key: CLAUDE_MODEL
         value: claude-sonnet-5-5
+      - key: CRON_TOKEN
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false

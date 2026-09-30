@@ -130,6 +130,129 @@ async function inbox(req, res, url){
   } catch (e) { console.error(e); send(res, 502, {error:'inbox failed'}); }
 }
 
+/* ---------- reminders: web push, driven by an external cron hitting /api/cron ---------- */
+const webpush = require('web-push');
+const TZ = process.env.APP_TZ || 'Asia/Riyadh';
+const CRON_TOKEN = process.env.CRON_TOKEN || '';   // its own token: it travels in a URL to a third-party scheduler
+// a stable pair from the environment survives restarts; a generated one only lasts
+// until the next deploy, and the app re-subscribes when it sees the key change
+let VAPID = { publicKey: process.env.VAPID_PUBLIC_KEY || '', privateKey: process.env.VAPID_PRIVATE_KEY || '' };
+if (!VAPID.publicKey || !VAPID.privateKey) {
+  VAPID = webpush.generateVAPIDKeys();
+  console.log('generated a temporary VAPID pair; set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY to keep reminders working across deploys');
+}
+webpush.setVapidDetails('mailto:coach@referee.app', VAPID.publicKey, VAPID.privateKey);
+
+// what the clock says in the referee's own timezone
+function localNow(){
+  const parts = new Intl.DateTimeFormat('en-CA', {timeZone:TZ, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', weekday:'short', hourCycle:'h23'}).formatToParts(new Date());
+  const g = t => (parts.find(x => x.type === t) || {}).value;
+  return { date:`${g('year')}-${g('month')}-${g('day')}`, min: Number(g('hour'))*60 + Number(g('minute')), wd: g('weekday') };
+}
+const toMin = hhmm => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm||'')); return m ? Number(m[1])*60 + Number(m[2]) : null; };
+const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// one reminder per kind per day: the cron may tick twice inside a window, or miss one
+const sentLog = new Map();
+function alreadySent(key){ return sentLog.has(key); }
+function markSent(key, date){ sentLog.set(key, date); for (const [k,d] of sentLog) if (d < date) sentLog.delete(k); }
+
+const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'} };
+const pref = (prefs, kind) => ({ ...DEFAULTS[kind], ...((prefs||{})[kind] || {}) });
+
+// the coach writes the reminder itself, so it knows the plan, the weather and the load
+const FALLBACK = {
+  ready: 'صباح الخير 👋 عبّي فحص الجاهزية عشان أرتب لك تمرين اليوم.',
+  train: 'وقت التمرين 💪 افتح الجدول وشوف تمرين اليوم.',
+  match: 'مباراتك قربت ⚽ جهّز أغراضك واشرب ماء من الحين.',
+  weekly: 'خلّص الأسبوع 📊 شوف ملخصك وخطة الأسبوع الجاي.'
+};
+const ASK = {
+  ready: 'اكتب تنبيهًا صباحيًا قصيرًا يذكّره يعبّي فحص الجاهزية.',
+  train: 'اكتب تنبيهًا قصيرًا يذكّره بتمرين اليوم، واذكر اسم التمرين، وإذا الجو حار اقترح وقتًا أنسب.',
+  match: 'اكتب تنبيهًا قصيرًا قبل مباراته، يذكّره بالترطيب والتجهيز، واذكر وقت المباراة.',
+  weekly: 'اكتب تنبيهًا قصيرًا بملخص أسبوعه: كم تمرين سوّى وكم مباراة، وكلمة تشجيع.'
+};
+async function line(kind, snapshot){
+  if (!API_KEY || !KEY_OK) return FALLBACK[kind];
+  try {
+    const r = await askClaude({
+      model: MODEL, max_tokens: 400, output_config: {effort:'low'},
+      system: 'أنت مدرب لياقة ودود لحكم كرة قدم مساعد سعودي اسمه سعود. تكتب إشعار جوال واحد فقط: جملة أو جملتين بالعربية بلهجة سعودية دافئة، أقل من ١٢٠ حرفًا، وإيموجي واحد على الأكثر. لا تكتب عنوانًا ولا أقواسًا ولا شرحًا، النص المطلوب فقط.',
+      messages: [{role:'user', content:[{type:'text', text:`${ASK[kind]}\n\nبياناته الآن:\n${JSON.stringify(snapshot)}`}]}]
+    });
+    if (!r.ok) return FALLBACK[kind];
+    const t = (r.data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join(' ').trim();
+    return t ? t.slice(0, 200) : FALLBACK[kind];
+  } catch (e) { console.error('reminder text failed', redact(e && e.message)); return FALLBACK[kind]; }
+}
+
+async function push(sub, title, body, tag, url){
+  try {
+    await webpush.sendNotification(sub, JSON.stringify({title, body, tag, url}));
+    return true;
+  } catch (e) {
+    const gone = e && (e.statusCode === 404 || e.statusCode === 410);
+    console.error('push failed', e && e.statusCode, gone ? 'subscription expired; the app re-subscribes on next open' : redact(e && e.body || e && e.message));
+    return false;
+  }
+}
+
+// called by the external cron every few minutes; decides what is due and sends it
+async function cron(req, res, url){
+  if (!CRON_TOKEN || url.searchParams.get('token') !== CRON_TOKEN) return send(res, 401, {error:'token'});
+  if (!SYNC) return send(res, 404, {error:'sync disabled'});
+  let st;
+  try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
+  const data = st.data || st;
+  const p = data && data.push;
+  if (!p || !p.sub) return send(res, 200, {ok:true, note:'no subscription'});
+  const prefs = p.prefs || {};
+  const now = localNow();
+  const sessions = data.sessions || {}, matches = data.matches || [], logs = data.logs || {}, readiness = data.readiness || {};
+  const today = sessions[now.date] || null;
+  const due = [];                                            // fires inside a 35-minute window after the set time
+  const within = t => t != null && now.min - t >= 0 && now.min - t < 35;
+
+  const rp = pref(prefs, 'ready');
+  if (rp.on && !readiness[now.date] && within(toMin(rp.time))) due.push(['ready', 'فحص الجاهزية', '/?tab=sched']);
+
+  const tp = pref(prefs, 'train');
+  const restDay = !today || today.type === 'rest' || today.type === 'match';
+  if (tp.on && !restDay && !(logs[now.date] && logs[now.date].done) && within(toMin(tp.time))) due.push(['train', today.title || 'تمرين اليوم', '/?tab=sched']);
+
+  const mp = pref(prefs, 'match');
+  if (mp.on) for (const m of matches) {
+    if (m.date !== now.date || !m.time) continue;
+    const t = toMin(m.time); if (t == null) continue;
+    if (within(t - Number(mp.before || 120))) due.push(['match', 'مباراة اليوم', '/?tab=sched']);
+  }
+
+  const wp = pref(prefs, 'weekly');
+  if (wp.on && WD[Number(wp.day)] === now.wd && within(toMin(wp.time))) due.push(['weekly', 'ملخص الأسبوع', '/?tab=prog']);
+
+  const fired = [];
+  for (const [kind, title, link] of due) {
+    const key = `${kind}:${now.date}`;
+    if (alreadySent(key)) continue;
+    markSent(key, now.date);
+    const snapshot = { today: now.date, session: today, matchesToday: matches.filter(m=>m.date===now.date), weekLogs: Object.keys(logs).filter(d=>d<=now.date).slice(-7).map(d=>({d, ...logs[d]})) };
+    const body = await line(kind, snapshot);
+    if (await push(p.sub, title, body, kind, link)) fired.push(kind);
+  }
+  send(res, 200, {ok:true, at:`${now.date} ${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`, fired});
+}
+
+// a "does this work at all" button in the app
+async function pushTest(req, res){
+  if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'});
+  let raw=''; for await (const c of req){ raw+=c; if (raw.length>20000) return send(res, 413, {error:'too large'}); }
+  let sub; try { sub = JSON.parse(raw).subscription; } catch { return send(res, 400, {error:'bad json'}); }
+  if (!sub || !sub.endpoint) return send(res, 400, {error:'no subscription'});
+  const ok = await push(sub, 'جدول الحكم', 'التنبيهات شغّالة ✅', 'test', '/');
+  send(res, ok ? 200 : 502, {ok});
+}
+
 const server = http.createServer(async (req, res) => {
   try { await route(req, res); }
   catch (e) { console.error('unhandled request error', redact(e && e.stack || e)); if (!res.headersSent) send(res, 500, {error:'server'}); else res.end(); }
@@ -141,6 +264,10 @@ async function route(req, res){
   if (url.pathname === '/api/state') return state(req, res);
   if (url.pathname === '/api/assign' || url.pathname === '/api/inbox') return inbox(req, res, url);
   if (url.pathname === '/api/claude' && req.method === 'POST') return coach(req, res);
+  if (url.pathname === '/api/push/key') return send(res, 200, {key: VAPID.publicKey});
+  if (url.pathname === '/api/push/vapid') { if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'}); return send(res, 200, VAPID); }
+  if (url.pathname === '/api/push/test' && req.method === 'POST') return pushTest(req, res);
+  if (url.pathname === '/api/cron') return cron(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
   if (!file.startsWith(PUBLIC) || PRIVATE.has(path.basename(file)) || path.basename(file).startsWith('.')) return send(res, 403, 'forbidden', 'text/plain');

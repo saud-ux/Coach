@@ -447,6 +447,21 @@ nav.tabs button[aria-selected="true"]{background:var(--pitch-soft)}
     </div>
     <div class="pg" data-g="set" hidden>
       <div class="panel"><h3>الإعدادات</h3><label class="f" for="citySel">مدينتك (للطقس)</label><select class="in" id="citySel"><option value="zulfi">الزلفي</option><option value="riyadh">الرياض</option><option value="majmaah">المجمعة</option></select></div>
+      <div class="panel" id="notifPanel"><h3>التنبيهات</h3>
+        <p class="note" id="notifState">…</p>
+        <div class="row"><button class="btn primary" id="notifOn">فعّل التنبيهات</button><button class="btn ghost" id="notifTest" hidden>جرّب تنبيه</button></div>
+        <div id="notifOpts" hidden>
+          <label class="f"><input type="checkbox" id="nReady"> فحص الجاهزية الصباحي</label>
+          <input class="in sm" type="time" id="nReadyT">
+          <label class="f"><input type="checkbox" id="nTrain"> تذكير التمرين</label>
+          <input class="in sm" type="time" id="nTrainT">
+          <label class="f"><input type="checkbox" id="nMatch"> قبل المباراة</label>
+          <select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select>
+          <label class="f"><input type="checkbox" id="nWeek"> ملخص الأسبوع</label>
+          <div class="row"><select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select><input class="in sm" type="time" id="nWeekT"></div>
+          <p class="note">التنبيه يكتبه المدرب حسب جدولك والطقس. تذكير التمرين يتخطى أيام الراحة والمباريات تلقائيًا.</p>
+        </div>
+      </div>
       <div class="panel"><h3>نسخة احتياطية</h3><p class="note">بياناتك محفوظة على هذا الجهاز. صدّر نسخة من وقت لآخر، أو استورد نسخة من جهاز ثاني.</p>
       <div class="row"><button class="btn ghost" id="expBtn">تصدير نسخة</button><button class="btn ghost" id="impBtn">استيراد نسخة</button></div>
       <input type="file" id="impFile" accept="application/json,.json" hidden></div>
@@ -604,7 +619,7 @@ function ensureHorizon(){
 function buildDefaults(){ return {}; }
 
 /* ---------- state + storage ---------- */
-let state = {v:6, sessions:buildDefaults(), matches:[], logs:{}, tests:[], chat:[], readiness:{}, reports:{}, quiz:{answers:{},daily:{}}, settings:{city:'zulfi'}};
+let state = {v:6, sessions:buildDefaults(), matches:[], logs:{}, tests:[], chat:[], readiness:{}, reports:{}, quiz:{answers:{},daily:{}}, settings:{city:'zulfi'}, push:null};
 let docRef = null, loaded = false, saveTimer = null, saving = Promise.resolve();
 const LS = 'referee-coach-v1';
 const $ = id => document.getElementById(id);
@@ -625,7 +640,7 @@ function save(){
 }
 function adopt(data){
   if (!data || !data.sessions) return;
-  state = {v:6, sessions:data.sessions, matches:data.matches||[], logs:data.logs||{}, tests:(data.tests||[]).filter(x=>x.kind==='cooper'), chat:data.chat||[], readiness:data.readiness||{}, reports:data.reports||{}, quiz:data.quiz||{answers:{},daily:{}}, settings:data.settings||{city:'zulfi'}};
+  state = {v:6, sessions:data.sessions, matches:data.matches||[], logs:data.logs||{}, tests:(data.tests||[]).filter(x=>x.kind==='cooper'), chat:data.chat||[], readiness:data.readiness||{}, reports:data.reports||{}, quiz:data.quiz||{answers:{},daily:{}}, settings:data.settings||{city:'zulfi'}, push:data.push||null};
   if ((data.v||1) < 6){
     // plan template changed: replace every upcoming non-match day with the ongoing plan
     const t = todayISO();
@@ -1862,6 +1877,87 @@ $('expBtn').onclick = () => { const blob=new Blob([JSON.stringify(state)],{type:
 $('impBtn').onclick = () => $('impFile').click();
 $('impFile').onchange = async e => { const f=e.target.files[0]; if(!f) return; try { const d=JSON.parse(await f.text()); if(!d.sessions) throw 0; adopt(d); ensureHorizon(); save(); renderAll(); alert('تم استيراد بياناتك ✅'); } catch(_){ alert('الملف غير صالح'); } e.target.value=''; };
 $('citySel').onchange = e => { state.settings = {...(state.settings||{}), city:e.target.value}; save(); loadWeather(); };
+/* ---------- reminders ---------- */
+const PUSH_DEF = {ready:{on:true,time:'08:00'}, train:{on:true,time:'17:00'}, match:{on:true,before:120}, weekly:{on:true,day:6,time:'20:00'}};
+const prefsOf = () => { const p=(state.push&&state.push.prefs)||{}; return {ready:{...PUSH_DEF.ready,...(p.ready||{})}, train:{...PUSH_DEF.train,...(p.train||{})}, match:{...PUSH_DEF.match,...(p.match||{})}, weekly:{...PUSH_DEF.weekly,...(p.weekly||{})}}; };
+const installed = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const b64 = s => { const pad='='.repeat((4-s.length%4)%4), raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(raw, c=>c.charCodeAt(0)); };
+
+async function subscribePush(){
+  const reg = await navigator.serviceWorker.ready;
+  const key = await (await fetch('/api/push/key')).json();
+  if (!key || !key.key) throw new Error('no key');
+  let sub = await reg.pushManager.getSubscription();
+  // the server may have restarted with a new pair; the old subscription is then dead
+  if (sub && sub.options && sub.options.applicationServerKey){
+    const cur = btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    if (cur !== key.key){ await sub.unsubscribe(); sub = null; }
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64(key.key)});
+  state.push = {...(state.push||{}), sub: sub.toJSON(), prefs: prefsOf()};
+  save();
+  return sub;
+}
+
+function renderNotif(){
+  const st=$('notifState'), on=$('notifOn'), test=$('notifTest'), opts=$('notifOpts');
+  if (!st) return;
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const perm = supported ? Notification.permission : 'denied';
+  const live = !!(state.push && state.push.sub);
+  if (!supported){
+    st.textContent = installed() ? 'متصفحك ما يدعم التنبيهات.' : 'عشان تشتغل التنبيهات، أضف التطبيق للشاشة الرئيسية: مشاركة ← إضافة إلى الشاشة الرئيسية، ثم افتحه من الأيقونة.';
+    on.hidden = true; opts.hidden = true; test.hidden = true; return;
+  }
+  if (perm === 'denied'){
+    st.textContent = 'التنبيهات ممنوعة لهذا التطبيق. فعّلها من إعدادات الآيفون ← الإشعارات ← جدول الحكم.';
+    on.hidden = true; opts.hidden = true; test.hidden = true; return;
+  }
+  on.hidden = live; test.hidden = !live; opts.hidden = !live;
+  st.textContent = live ? 'التنبيهات مفعّلة على هذا الجهاز ✅' : 'فعّل التنبيهات عشان يذكّرك المدرب بالتمرين وفحص الجاهزية وقبل المباريات.';
+  if (!live) return;
+  const p = prefsOf();
+  $('nReady').checked=p.ready.on; $('nReadyT').value=p.ready.time;
+  $('nTrain').checked=p.train.on; $('nTrainT').value=p.train.time;
+  $('nMatch').checked=p.match.on; $('nMatchB').value=String(p.match.before);
+  $('nWeek').checked=p.weekly.on; $('nWeekD').value=String(p.weekly.day); $('nWeekT').value=p.weekly.time;
+}
+function savePrefs(){
+  if (!state.push) return;
+  state.push.prefs = {
+    ready:{on:$('nReady').checked, time:$('nReadyT').value||'08:00'},
+    train:{on:$('nTrain').checked, time:$('nTrainT').value||'17:00'},
+    match:{on:$('nMatch').checked, before:Number($('nMatchB').value)||120},
+    weekly:{on:$('nWeek').checked, day:Number($('nWeekD').value), time:$('nWeekT').value||'20:00'}
+  };
+  save();
+}
+if ($('notifOn')) {
+  $('notifOn').onclick = async () => {
+    const btn=$('notifOn'); btn.disabled=true; btn.textContent='لحظة…';
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted'){ renderNotif(); return; }
+      await subscribePush();
+      renderNotif();
+    } catch(e){ $('notifState').textContent = 'ما قدرنا نفعّل التنبيهات. تأكد إن التطبيق مفتوح من أيقونة الشاشة الرئيسية وأعد المحاولة.'; }
+    finally { btn.disabled=false; btn.textContent='فعّل التنبيهات'; }
+  };
+  $('notifTest').onclick = async () => {
+    const btn=$('notifTest'); btn.disabled=true; btn.textContent='يرسل…';
+    try {
+      const sub = await subscribePush();
+      const r = await fetch('/api/push/test',{method:'POST',headers:{'Content-Type':'application/json','X-Passcode':(localStorage.getItem('rc-pass')||'')},body:JSON.stringify({subscription:sub.toJSON()})});
+      $('notifState').textContent = r.ok ? 'أرسلنا تنبيه تجربة، لازم يوصلك خلال ثوانٍ.' : 'ما قدرنا نرسل. راجع سجل الخدمة.';
+    } catch(e){ $('notifState').textContent='ما قدرنا نرسل التجربة.'; }
+    finally { btn.disabled=false; btn.textContent='جرّب تنبيه'; }
+  };
+  ['nReady','nTrain','nMatch','nWeek'].forEach(id=>$(id).onchange=savePrefs);
+  ['nReadyT','nTrainT','nMatchB','nWeekD','nWeekT'].forEach(id=>$(id).onchange=savePrefs);
+}
+// a tapped reminder opens straight to its tab
+(() => { const t=new URLSearchParams(location.search).get('tab'); if (t && ['sched','chat','prog'].includes(t)) setTimeout(()=>switchTab(t), 0); })();
+
 function renderAll(){
   const t = todayISO();
   const next = state.matches.filter(m=>m.date>=t).sort((a,b)=>a.date.localeCompare(b.date))[0];
@@ -1871,7 +1967,7 @@ function renderAll(){
     nm.className='nextm'; nm.innerHTML = `<span class="card-ic"></span>${days===0?'<span class="big">اليوم</span>':`<span class="big">${num(days)}</span>`}<span class="tx">${days===0?'عندك مباراة':(days===1?'يوم على مباراتك':'أيام على مباراتك')}<small>${fFull.format(parse(next.date))}${next.time?' الساعة '+next.time:''}</small></span>`;
   } else { nm.className='nextm none'; nm.innerHTML = '<span class="card-ic"></span><span class="tx">ما فيه مباراة قادمة<small>إذا نزلت لك مباراة أضفها من الزر تحت</small></span>'; }
   renderHero();
-  renderReady(); renderQuiz(); renderAlerts(); renderSchedule(); renderCareer(); renderLaw(); renderMonth(); renderProgress(); renderReport(); renderLoad(); renderMatches(); renderChat();
+  renderReady(); renderQuiz(); renderAlerts(); renderSchedule(); renderCareer(); renderLaw(); renderMonth(); renderProgress(); renderReport(); renderLoad(); renderMatches(); renderChat(); renderNotif();
 }
 ensureHorizon(); renderAll(); requestAnimationFrame(scrollToday);
 initStorage().then(()=>{ loadInbox(); requestAnimationFrame(scrollToday); $('citySel').value=(state.settings&&state.settings.city)||'zulfi'; loadWeather(); });
