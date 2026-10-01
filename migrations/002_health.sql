@@ -165,6 +165,8 @@ end
 $$;
 
 revoke all on function public.coach_health_check(text) from public;
+-- Supabase grants new functions to anon by default; the check is internal only
+revoke execute on function public.coach_health_check(text) from anon, authenticated;
 revoke all on function public.coach_health_add(text, jsonb, jsonb) from public;
 revoke all on function public.coach_health_get(text, date) from public;
 revoke all on function public.coach_health_ack(text, text) from public;
