@@ -20,8 +20,58 @@ const TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MS) || 90000;
 const SB_URL = clean(process.env.SUPABASE_URL), SB_KEY = clean(process.env.SUPABASE_KEY), SYNC_TOKEN = clean(process.env.SYNC_TOKEN);
 const SYNC = !!(SB_URL && SB_KEY && SYNC_TOKEN);
 const PUBLIC = __dirname;
-const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','README.md','.gitignore']);
-const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.webmanifest':'application/manifest+json', '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.ico':'image/x-icon' };
+// Nothing here is secret, but none of it is the app either: serving it only gives
+// a reader our source and our notes. Any .md and the migrations folder are covered
+// by rule rather than by name, so a new doc is private the moment it is written.
+const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','.gitignore']);
+const PRIVATE_DIRS = ['/migrations', '/node_modules', '/.git'];
+const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.mjs':'text/javascript',
+  '.css':'text/css; charset=utf-8', '.webmanifest':'application/manifest+json', '.json':'application/json',
+  '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp',
+  '.svg':'image/svg+xml', '.ico':'image/x-icon', '.woff2':'font/woff2', '.txt':'text/plain; charset=utf-8' };
+// what is worth compressing: text shrinks by 70-80%, images and fonts are already compressed
+const COMPRESSIBLE = new Set(['.html','.js','.mjs','.css','.json','.webmanifest','.svg','.txt']);
+
+/* ---------- static files: compression + cache policy ---------- */
+const zlib = require('zlib');
+// Compress once per file and keep the result, keyed by path, encoding and mtime.
+// The whole site is a handful of text files, so this stays tiny and every request
+// after the first is a buffer write.
+const zCache = new Map();
+function compressed(file, enc, buf, mtime){
+  const key = `${enc}:${file}:${mtime}`;
+  const hit = zCache.get(key);
+  if (hit) return hit;
+  let out;
+  try {
+    out = enc === 'br'
+      ? zlib.brotliCompressSync(buf, { params: {
+          [zlib.constants.BROTLI_PARAM_QUALITY]: 5,          // 5 is the knee: near-max ratio, fast
+          [zlib.constants.BROTLI_PARAM_SIZE_HINT]: buf.length } })
+      : zlib.gzipSync(buf, { level: 6 });
+  } catch (e) { return null; }
+  // a "compressed" file that grew is not worth serving
+  if (out.length >= buf.length) return null;
+  if (zCache.size > 200) zCache.clear();
+  zCache.set(key, out);
+  return out;
+}
+function pickEncoding(req){
+  const a = String(req.headers['accept-encoding'] || '').toLowerCase();
+  if (/\bbr\b/.test(a)) return 'br';
+  if (/\bgzip\b/.test(a)) return 'gzip';
+  return null;
+}
+// A ?v= query is a promise from index.html that the bytes will never change under
+// that URL, so those can be cached hard. Without it, revalidate: the service worker
+// is the real cache for css and js, and being able to ship a fix without waiting out
+// a max-age matters more than saving a 304.
+function cachePolicy(ext, file, hasVersion){
+  if (ext === '.html' || file.endsWith('sw.js')) return 'no-cache';
+  if (hasVersion) return 'public, max-age=31536000, immutable';
+  if (ext === '.js' || ext === '.mjs' || ext === '.css') return 'no-cache';
+  return 'public, max-age=604800';
+}
 
 // simple per-IP rate limit: 30 coach calls / 10 minutes
 const hits = new Map();
@@ -153,10 +203,31 @@ function localNow(){
 const toMin = hhmm => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm||'')); return m ? Number(m[1])*60 + Number(m[2]) : null; };
 const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-// one reminder per kind per day: the cron may tick twice inside a window, or miss one
+// One reminder per kind per day. The cron may tick twice inside the 35-minute
+// window, or miss one, so the log is what makes a tick idempotent.
+//
+// This used to be a bare Map in process memory, which worked until Render's free
+// plan spun the instance down: the restart cleared it and the next tick re-sent a
+// reminder the user had already read. It now lives in Supabase, with the Map kept
+// in front of it as a same-process shortcut.
 const sentLog = new Map();
-function alreadySent(key){ return sentLog.has(key); }
-function markSent(key, date){ sentLog.set(key, date); for (const [k,d] of sentLog) if (d < date) sentLog.delete(k); }
+async function alreadySent(key){
+  if (sentLog.has(key)) return true;
+  try {
+    const r = await rpc('coach_sent_has', {p_key: key});
+    // the RPC returns a boolean; older deployments without it fall through to the Map
+    return r === true || (r && r.sent === true);
+  } catch (e) {
+    console.error('sent-log read failed, falling back to memory', redact(e && e.message));
+    return false;
+  }
+}
+async function markSent(key, date){
+  sentLog.set(key, date);
+  for (const [k,d] of sentLog) if (d < date) sentLog.delete(k);
+  try { await rpc('coach_sent_mark', {p_key: key, p_date: date}); }
+  catch (e) { console.error('sent-log write failed; a restart may repeat this reminder', redact(e && e.message)); }
+}
 
 const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'} };
 const pref = (prefs, kind) => ({ ...DEFAULTS[kind], ...((prefs||{})[kind] || {}) });
@@ -241,8 +312,10 @@ async function cron(req, res, url){
   const fired = [];
   for (const [kind, title, link] of due) {
     const key = `${kind}:${now.date}`;
-    if (alreadySent(key)) continue;
-    markSent(key, now.date);
+    if (await alreadySent(key)) continue;
+    // claimed before sending, not after: if the push itself is slow and the cron
+    // ticks again, the second tick must find this already taken
+    await markSent(key, now.date);
     const snapshot = { today: now.date, session: today, matchesToday: matches.filter(m=>m.date===now.date), weekLogs: Object.keys(logs).filter(d=>d<=now.date).slice(-7).map(d=>({d, ...logs[d]})) };
     const body = await line(kind, snapshot);
     if (await push(p.sub, title, body, kind, link)) fired.push(kind);
@@ -279,13 +352,42 @@ async function route(req, res){
   if (url.pathname === '/api/cron') return cron(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
-  if (!file.startsWith(PUBLIC) || PRIVATE.has(path.basename(file)) || path.basename(file).startsWith('.') || url.pathname.startsWith('/node_modules')) return send(res, 403, 'forbidden', 'text/plain');
+  const base = path.basename(file), ext0 = path.extname(file).toLowerCase();
+  if (!file.startsWith(PUBLIC) || PRIVATE.has(base) || base.startsWith('.') || ext0 === '.md' ||
+      PRIVATE_DIRS.some(d => url.pathname === d || url.pathname.startsWith(d + '/')))
+    return send(res, 403, 'forbidden', 'text/plain');
   if (url.pathname === '/' ) file = path.join(PUBLIC, 'index.html');
-  fs.readFile(file, (err, data) => {
-    if (err) { fs.readFile(path.join(PUBLIC,'index.html'), (e2, d2) => e2 ? send(res,404,'not found','text/plain') : send(res,200,d2,TYPES['.html'])); return; }
-    const ext = path.extname(file);
-    const cache = ext==='.html'||file.endsWith('sw.js') ? 'no-cache' : 'public, max-age=604800';
-    res.writeHead(200, {'Content-Type': TYPES[ext]||'application/octet-stream', 'Cache-Control': cache}); res.end(data);
+  serveFile(req, res, file, url.searchParams.has('v'));
+}
+
+function serveFile(req, res, file, hasVersion){
+  fs.stat(file, (se, st) => {
+    if (se || !st.isFile()){
+      // unknown path: hand back the app so a deep link still boots
+      const idx = path.join(PUBLIC,'index.html');
+      if (file === idx) return send(res, 404, 'not found', 'text/plain');
+      return serveFile(req, res, idx, false);
+    }
+    fs.readFile(file, (err, data) => {
+      if (err) return send(res, 404, 'not found', 'text/plain');
+      const ext = path.extname(file).toLowerCase();
+      const head = {
+        'Content-Type': TYPES[ext] || 'application/octet-stream',
+        'Cache-Control': cachePolicy(ext, file, hasVersion),
+        'X-Content-Type-Options': 'nosniff'
+      };
+      const enc = COMPRESSIBLE.has(ext) ? pickEncoding(req) : null;
+      const body = enc ? compressed(file, enc, data, st.mtimeMs) : null;
+      if (body){
+        head['Content-Encoding'] = enc;
+        head['Vary'] = 'Accept-Encoding';
+        head['Content-Length'] = body.length;
+        res.writeHead(200, head); return res.end(body);
+      }
+      head['Content-Length'] = data.length;
+      if (COMPRESSIBLE.has(ext)) head['Vary'] = 'Accept-Encoding';
+      res.writeHead(200, head); res.end(data);
+    });
   });
 }
 

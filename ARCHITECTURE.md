@@ -1,6 +1,8 @@
 # ARCHITECTURE — جدول الحكم (referee-coach)
 
-Map of the app as it exists **before** Phase 1. Nothing described here has been changed.
+Map of the app. **Current as of Phase 1** (the split into modules, WebP images, the new service
+worker, and compression on the server). Sections 3, 6 and 7 — the state shape, the RPE scale and
+readiness — describe behaviour that Phase 1 deliberately did not change.
 
 Written in English on purpose: it is a developer map full of identifiers. All *user-facing* copy stays
 Arabic / RTL / Saudi dialect, as the project rules require.
@@ -11,61 +13,71 @@ Arabic / RTL / Saudi dialect, as the project rules require.
 
 | File | Size | Role |
 |---|---|---|
-| `index.html` | 213 115 B · 2 004 lines | **Everything client-side**: markup, all CSS (lines 18–405), the standalone runtime shim (493–544), and the whole app (545–2002) in one IIFE. |
-| `server.js` | 19 711 B | Node `http` server, no framework. Static file serving + 11 API routes. |
-| `sw.js` | 2 160 B | Service worker: cache `referee-coach-v10`, push receiver, notification-click router. |
+| `index.html` | 7 730 B · 119 lines | Markup only. Links two stylesheets and one entry module. |
+| `css/tokens.css` | 1 974 B | Palette, dark-mode variants, base element styles, shadow/radius tokens. |
+| `css/app.css` | 28 488 B | Every component rule, in the original cascade order. |
+| `js/*.js` | 10 modules, 174 KB | The app. See §2. |
+| `server.js` | 22 KB | Node `http` server, no framework. Static serving with brotli/gzip + 11 API routes. |
+| `sw.js` | 6 310 B | Service worker: versioned shell cache, cache-first media, network-first `/api/state`, push. |
 | `manifest.webmanifest` | 613 B | PWA manifest. `theme_color #1E6A43`, `background_color #F4F6F2`, `dir: rtl`, `lang: ar`. |
 | `render.yaml` | 514 B | Render free-plan web service, region frankfurt, `healthCheckPath: /healthz`. |
 | `package.json` | 309 B | Single dependency: `web-push@^3.6.7`. Node ≥ 20. `npm start` → `node server.js`. |
+| `migrations/001_sent_log.sql` | — | The persisted reminder log. Run once in Supabase. |
 | `icon-180/192/512.png`, `maskable-512.png` | — | App icons. |
-| `img-<exercise>-flat.jpg` (24 files) | 520 954 B | Flat-illustration style. |
-| `img-<exercise>-photo.jpg` (25 files) | 832 889 B | Photo style. |
-| `README.md` | 1 233 B | Arabic: deploy + data-transfer instructions. |
+| `img-<exercise>-flat.webp` (23 files) | 294 822 B | Flat-illustration style. |
+| `img-<exercise>-photo.webp` (24 files) | 580 114 B | Photo style. |
+| `README.md`, `ARCHITECTURE.md` | — | Docs. Not served: `server.js` refuses any `.md`. |
 
-**Total exercise images: 1 353 843 B across 49 files.**
+**Total exercise images: 874 936 B across 47 files** (was 1 353 843 B across 47 JPEGs — all were
+640×482, so the saving is the WebP encoder, not resizing). Only the selected style is ever
+downloaded, so the realistic worst case is roughly half of that.
 
-### Image-set gap (pre-existing, to fix in Phase 1)
-`IMG` (index.html:930) declares 24 exercises, each with a `flat` and a `photo` entry — 48 paths.
-`img-backSprint-flat.jpg` **does not exist on disk** even though `IMG.backSprint.flat` points at it.
-Today that only shows as a broken image when the user picks the «رسم» view on the back-sprint card.
+### Image-set gap
+`IMG` (`js/figures.js`) declares 24 exercises. **`backSprint` has a photo but no flat drawing** — the
+file never existed. Before Phase 1 the entry pointed at a missing `img-backSprint-flat.jpg` and showed
+a broken image when «رسم» was selected. Now `stylesFor()` derives the switcher from what actually
+exists, so that one card offers صورة + مخطط only and falls back to the photo when the global setting
+is «رسم». If a flat drawing for it is ever produced, dropping the file in and adding the entry to
+`IMG` is the whole change.
 
 ---
 
-## 2. Modules inside `index.html`
+## 2. The modules
 
-The single IIFE has no module boundaries, but the code is already grouped by banner comments.
-These groups are the natural Phase-1 split:
+Phase 1 split the single IIFE into native ES modules. No bundler, no build step: `index.html` loads
+one entry module and the browser resolves the rest.
 
-| Lines | Banner | Contents | Phase-1 target |
-|---|---|---|---|
-| 18–405 | — | All CSS. Two layers: the original palette/components, then a `/* ===== design refresh ===== */` block (~337–405) that overrides borders → shadows, bumps radii, floats the tab bar. | `css/tokens.css` + `css/app.css` |
-| 408–491 | — | Body markup: header, three `<section>` tabs (`#sched`, `#chat`, `#prog`), composer, `nav.tabs`, `#timer`, `#scrim`/`#sheet`. | `index.html` |
-| 493–544 | standalone runtime | `window.claude` shim: `api()` (passcode retry loop), `toB64()`, `call()`, `sample` / `sample.json` / `sample.limits`, `db.doc()`, `user.id()`, `window.RC_INBOX`, `hasSync()`. Also registers the SW. | `js/storage-sync.js` |
-| 547–558 | dates | `pad iso parse addDays todayISO`, the three `Intl.DateTimeFormat`s (`fWd fDm fFull`), `num()`, `PLAN_START`. | `js/state.js` |
-| 560–621 | plan | `TYPES HARD STRENGTH BUILD CYCLE weekParams defaultSession ensureHorizon buildDefaults`. | `js/schedule.js` |
-| 623–669 | state + storage | `state`, `LS`, `$`, `setStatus`, `save()`, `adopt()`, `initStorage()`. | `js/state.js` + `js/storage-sync.js` |
-| 671–691 | matches | `applyMatch() removeMatch()`. | `js/schedule.js` |
-| 693–747 | render: schedule | `TICON`, `viewWeek`, `renderSchedule()` (week nav, day strip, progress bar, day rows, swipe). | `js/schedule.js` |
-| 749–757 | sheets | `openSheet() closeSheet()`, scrim/Escape handlers, `EFFORT` labels. | `js/main.js` |
-| 759–988 | diagrams | ~230 lines of SVG: `svg() ln cv cone me tf tp`, the stick-figure rig (`pose place onGround taper bt band leg arm fig`), `FIG` (19 poses), `LEGEND`, `D` (25 exercise descriptors), `DOSE MUS IMG VIEW REST AFTER WARM_REST FLOW`, rest timer (`startTimer stopTimer beep`), `restHTML flowHTML nextHTML DIAGRAMS`. | `js/figures.js` |
-| 990–1167 | — | `openDay()` (the big session sheet), `parseAssignText() openAddMatch()`, inbox (`INBOX loadInbox renderInbox`), `openAddTest()`. | `js/schedule.js` + `js/main.js` |
-| 1169–1205 | progress | `chart() renderProgress()`. | `js/progress.js` |
-| 1207–1221 | training load | `RPE defDur dayLoad sumLoad loadStatus`, `LEGS WEA HALF`. | `js/progress.js` |
-| 1223–1304 | readiness | `RQ readyScore readyLabel lighten restoreOrig RQ2 greet coachReply bubble renderReady`. | `js/coach.js` |
-| 1306–1322 | hero | `renderHero()`. | `js/schedule.js` |
-| 1324–1512 | laws quiz bank | `QCAT`, `QUIZ` (**92 questions**), `qRef dayHash quizState recordAnswer quizOf shuffled qBlock renderQuiz openExam openPractice`. | `js/quiz.js` |
-| 1514–1561 | career log | `ROLES seasonOf renderCareer matchFieldsHTML bindMatchFields`. | `js/progress.js` |
-| 1563–1583 | weather | `CITIES WX loadWeather hr12 renderWx`. Calls Open-Meteo **directly from the browser**, not through our server. | `js/progress.js` |
-| 1585–1594 | — | `renderLaw()`. | `js/quiz.js` |
-| 1596–1664 | monthly report | `fMon monthSel monthStats renderMonth drawMonth` (1080×1350 canvas PNG for sharing). | `js/progress.js` |
-| 1666–1690 | alerts + report prompt | `renderAlerts()`. | `js/coach.js` |
-| 1692–1738 | weekly report | `weekSummary genReport renderReport`. | `js/coach.js` |
-| 1740–1766 | load + matches panels | `renderLoad() renderMatches()`. | `js/progress.js` |
-| 1768–1863 | chat | `sampleFn busy ctl`, `RULES` (system prompt), `context() renderChat() applyChanges() send()`, the error-code → Arabic message table, quick chips. | `js/coach.js` |
-| 1865–1881 | tabs + boot | `switchTab() scrollToday()`, all top-level `onclick` wiring, export/import, city select. | `js/main.js` |
-| 1882–1985 | reminders | `PUSH_DEF prefsOf installed b64 subscribePush renderNotif savePrefs`, notif buttons, VAPID-key reveal, `?tab=` deep link. | `js/notifications.js` |
-| 1987–2001 | — | `renderAll()` and the boot sequence. | `js/main.js` |
-| — | — | *(does not exist yet)* | `js/health.js` — empty stub in Phase 1, filled in Phase 3 |
+| File | Lines | Contents |
+|---|---|---|
+| `js/state.js` | 59 | Bottom of the graph, imports nothing. Dates (`iso parse addDays todayISO`, the four `Intl` formatters, `num`), `$`/`setStatus`, the `state` object, `save()`, and the `hooks` object other modules register into. |
+| `js/storage-sync.js` | 139 | `initRuntime()` (the `window.claude` shim: `sample`, `db`, `user`, `RC_INBOX`), the `rt` coach handle, `adopt()`, and the two-phase load: `bootLocal()` then `syncRemote()`. |
+| `js/figures.js` | 334 | All the inline-SVG artwork and the stick-figure rig, the per-exercise metadata (`D DOSE MUS IMG REST AFTER FLOW DIAGRAMS`), the rest timer, and the image helpers `mediaHTML/applyView/stylesFor/precacheSelectedStyle`. |
+| `js/schedule.js` | 356 | The plan (`weekParams defaultSession ensureHorizon defDur`), matches, `renderSchedule`, `renderHero`, `openDay`, `openAddMatch`, `openAddTest`, and the assignment inbox. |
+| `js/coach.js` | 283 | Readiness (`readyScore lighten renderReady`), `renderAlerts`, the weekly report, and chat (`RULES context send applyChanges renderChat`). |
+| `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
+| `js/quiz.js` | 212 | The 92-question bank, the daily question, the mock exam, per-article practice, and `renderLaw`. |
+| `js/notifications.js` | 120 | Push subscription, the four reminder preferences, and `initNotifications()`. |
+| `js/health.js` | 26 | Stub for Phase 3. Exports no-ops that `main.js` already calls. |
+| `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
+
+### Import cycles, and why they are safe
+`schedule`, `coach`, `progress` and `quiz` all import from `main.js` (for `openSheet`, `switchTab`,
+`renderAll`) and from each other. ESM handles the cycles because every cross-module reference is a
+**hoisted function declaration** and nothing is called while a module is still evaluating — the calls
+all happen inside event handlers, long after the graph has loaded. `main.js` is the only module with
+top-level side effects.
+
+Two things make this work, and both will break silently if changed:
+
+1. **`main.js` must be imported by exactly one URL.** The first attempt put `?v=11` on the
+   `<script type="module">` tag while the modules imported each other by bare path. Those are two
+   different module identities, so the browser loaded the entire graph **twice** and the second copy
+   ran its boot code while `schedule.js` was still evaluating (`Cannot access 'BUILD' before
+   initialization`). `index.html`, `sw.js` and the imports must all spell the path the same way.
+2. **Reassigned values cannot be plain exports.** `state` is swapped wholesale by `adopt()`, so it is
+   an exported `let` with a `setState()` beside it — reassignment has to happen in the module that
+   declares it. `sampleFn` is reassigned after boot and on auth failure, so it became `rt.sample`, a
+   property on an exported object. `VIEW` and `WX` are likewise reached through accessors.
 
 ### Render graph
 `renderAll()` is the single entry point. It renders the "next match" header block inline, then calls:
@@ -76,21 +88,33 @@ renderMonth → renderProgress → renderReport → renderLoad → renderMatches
 Almost every mutation ends with `save(); renderAll();`. There is no diffing — every state change
 re-renders all three tabs.
 
-### Boot sequence (index.html:2000–2002)
-1. `ensureHorizon(); renderAll(); requestAnimationFrame(scrollToday);` — paints immediately from the
-   in-memory default state (empty), before storage is read.
-2. `initStorage()` — reads `localStorage`, then `await`s `/api/state/enabled` + `GET /api/state`.
-   **This is the blocking step that makes a cold Render instance feel broken**: the shell has already
-   painted, but the real schedule only appears after the round trip. Then `loadInbox()`
-   (`GET /api/inbox`) and `loadWeather()` (Open-Meteo).
-3. `claude.use('sample')` → sets `sampleFn`, re-renders. Until it resolves, the coach tab shows
-   «المدرب غير متاح حاليًا» and the composer stays hidden.
+### Boot sequence (`js/main.js`)
+Two phases, so a sleeping Render instance can no longer hold the app hostage.
+
+**Phase one — synchronous, no network.**
+`hooks.rerender = renderAll` → `initRuntime()` → register the service worker → `bootLocal()` (read
+`localStorage`, `adopt()`, `ensureHorizon()`, mark loaded) → `wire()` → `initNotifications()` →
+`renderAll()` → `scrollToday()` → `openDeepLinkTab()`.
+After this the app is fully usable offline.
+
+**Phase two — background, each piece independent.**
+`syncRemote()` shows «يتم التحديث…», fetches `/api/state`, adopts it and re-renders; `loadWeather()`,
+`loadInbox()`, `syncHealth()` and `precacheSelectedStyle()` run alongside it; `claude.use('sample')`
+sets `rt.sample` and re-renders just the chat, report and alert strips.
+
+`syncRemote()` keeps the old precedence — the server copy wins — with one addition: it counts edits
+(`hooks.onDirty`) and skips the overwrite if the user changed something while the request was in
+flight, so a snapshot taken before their edit cannot erase it.
+
+> **Known limitation, unchanged from before Phase 1:** there is no timestamp or merge. Edits made on
+> a *different* device while this one was offline are still lost when the server copy arrives. Giving
+> `state` an `updated_at` and comparing would fix it, and is not in scope for these phases.
 
 ---
 
 ## 3. State shape
 
-One object, `state`, declared at index.html:624. `v` is the schema version, currently **6**.
+One object, `state`, declared at `js/state.js`. `v` is the schema version, currently **6**.
 
 ```js
 state = {
@@ -184,7 +208,7 @@ state = {
 ```
 
 ### `adopt()` is a whitelist — matters for Phase 3
-`adopt(data)` (index.html:643) rebuilds `state` key by key. **Any top-level key not named there is
+`adopt(data)` (`js/storage-sync.js`) rebuilds `state` key by key. **Any top-level key not named there is
 silently dropped**, including on backup import. Adding a new top-level key (e.g. `health`) in a later
 phase means adding it to `adopt()` too, or it vanishes on the next load.
 
@@ -215,14 +239,14 @@ Import (`#impFile`) → `JSON.parse` → requires `d.sessions` → `adopt(d)` �
 
 | Key | Written by | Value |
 |---|---|---|
-| `referee-coach-v1` | `save()` (const `LS`, index.html:626) | The whole `state`, JSON. The only key holding user data. |
-| `rc-pass` | runtime shim `api()` (const `KEY`, index.html:496) | The app passcode, captured by `prompt()` on the first 401 and replayed as the `X-Passcode` header. Also read directly by `#notifTest` and `#vapidBtn`. |
-| `dg-view` | the view switcher in `openDay()` (index.html:1032) | `"photo" \| "flat" \| "diagram"` — which exercise illustration style to show. Defaults to `"photo"`. This is the setting Phase 1 item 2 keys image loading off. |
+| `referee-coach-v1` | `save()` (`js/state.js`) | The whole `state`, JSON. The only key holding user data. |
+| `rc-pass` | the `window.claude` shim (`js/storage-sync.js`) | The app passcode, captured by `prompt()` on the first 401 and replayed as the `X-Passcode` header. Also read directly by `#notifTest` and `#vapidBtn`. |
+| `dg-view` | `setView()` (`js/figures.js`) | `"photo" \| "flat" \| "diagram"` — which exercise illustration style to show. Defaults to `"photo"`. This is the setting Phase 1 item 2 keys image loading off. |
 
 Nothing else touches `localStorage`; there is no `sessionStorage` or IndexedDB use.
 
 ### Theme
-The CSS defines a full dark palette under both `@media (prefers-color-scheme: dark)` and
+`css/tokens.css` defines a full dark palette under both `@media (prefers-color-scheme: dark)` and
 `:root[data-theme="dark"]`, and guards the media query with `:root:not([data-theme="light"])`.
 **No JavaScript ever sets `data-theme`** — there is no toggle UI and no stored preference. The hooks
 are inert scaffolding, which is exactly what Phase 2 has to preserve.
@@ -249,16 +273,22 @@ are inert scaffolding, which is exactly what Phase 2 has to preserve.
 | `/healthz` | GET | none | `ok`, text/plain. Render's health check. |
 | anything else | GET | none | Static file from `__dirname`. SPA fallback: a miss serves `index.html` with status 200. |
 
-### Static serving (server.js:281–289)
-- Path traversal is blocked (`file.startsWith(PUBLIC)`), plus a `PRIVATE` deny-set
-  (`server.js package.json package-lock.json render.yaml README.md .gitignore`), dotfiles, and
-  `/node_modules`. **`ARCHITECTURE.md`, and the future `migrations/` and `SHORTCUT.md`, are not in
-  `PRIVATE` and would be served publicly** — worth fixing in Phase 1.
-- `Cache-Control`: `no-cache` for `.html` and `sw.js`, `public, max-age=604800` for everything else.
-- `TYPES` covers `.html .js .webmanifest .json .png .jpg .svg .ico`. **No `.css`, no `.webp`** — both are
-  needed in Phase 1. A `.css` file would fall through to `application/octet-stream` and the browser would
-  refuse the stylesheet.
-- **No compression at all.** No gzip, no brotli, no `Content-Encoding`.
+### Static serving (`serveFile()`)
+- Path traversal is blocked (`file.startsWith(PUBLIC)`), plus a `PRIVATE` deny-set, dotfiles, **any
+  `.md`**, and the `PRIVATE_DIRS` list (`/migrations`, `/node_modules`, `/.git`). Docs and SQL are
+  refused by rule rather than by name, so a new one is private the moment it is written.
+- **Compression**: brotli (quality 5) or gzip for `.html .js .mjs .css .json .webmanifest .svg .txt`,
+  chosen from `Accept-Encoding`, with `Vary: Accept-Encoding`. Each result is compressed once and kept
+  in memory keyed by path + encoding + mtime; a result that came out larger than the original is
+  discarded. Images and fonts are skipped — they are already compressed.
+- **`Cache-Control`**, in order:
+  - `.html` and `sw.js` → `no-cache`
+  - any URL with a `?v=` query → `public, max-age=31536000, immutable`
+  - `.js`, `.mjs`, `.css` without `?v=` → `no-cache`, because the service worker is the real cache and
+    being able to ship a fix beats saving a 304
+  - everything else (images, icons) → `public, max-age=604800`
+- `X-Content-Type-Options: nosniff` on every static response.
+- `TYPES` covers `.html .js .mjs .css .webmanifest .json .png .jpg .jpeg .webp .svg .ico .woff2 .txt`.
 
 ### `/api/claude` (`coach()`, server.js:59)
 Passcode → per-IP rate limit (**30 calls / 10 min**, in-memory `Map`) → key sanity checks → read body
@@ -268,7 +298,7 @@ an empty `text` becomes a 502 `truncated`.
 
 `askClaude()` retries **once** on a network blip, a 429, or a 5xx. Errors map to
 `bad_api_key | upstream_rate | upstream_down | bad_request | timeout | network`, which the client turns
-into Arabic sentences (index.html:1838–1856).
+into Arabic sentences (`js/coach.js`).
 
 ### Environment variables
 
@@ -313,7 +343,7 @@ This is the number Phase 2's 1–10 picker and Phase 3's watch import have to ma
 out exactly.
 
 ### Input: `effort`, an integer 1–5
-Collected in `openDay()` from a five-button row labelled by `EFFORT` (index.html:757):
+Collected in `openDay()` from a five-button row labelled by `EFFORT` (`js/schedule.js`):
 
 | `log.effort` | Label | Meaning |
 |---|---|---|
@@ -327,7 +357,7 @@ On match days the question is relabelled «كيف كان جهد المباراة
 
 ### The lookup table
 ```js
-const RPE = [0, 2, 4, 6, 8, 10];     // index.html:1208
+const RPE = [0, 2, 4, 6, 8, 10];     // `js/progress.js`
 ```
 `RPE` is indexed by `effort`, not by RPE value — slot 0 is unused padding:
 
@@ -343,14 +373,14 @@ So it is a **1–5 user scale projected onto the even numbers of a 0–10 RPE ax
 
 ### The computation
 ```js
-function defDur(d, s) {                                    // index.html:1209
+function defDur(d, s) {                                    // `js/schedule.js`
   if (!s) return 0;
   if (s.type === 'run') return weekParams(d).run;          // 25–45, from the plan's week
   return ({ strength:35, intervals:35, yoyo:40, light:20,
             recovery:25, rest:0, test:25, match:105 })[s.type] ?? 30;
 }
 
-function dayLoad(d) {                                      // index.html:1210
+function dayLoad(d) {                                      // `js/progress.js`
   const l = state.logs[d];
   if (!l || !l.done) return 0;                             // unlogged days contribute nothing
   const dur = l.dur ?? defDur(d, state.sessions[d]);
@@ -366,7 +396,7 @@ Two defaults to respect: a missing `dur` falls back to `defDur()`, and a missing
 
 ### Where load is consumed
 - `sumLoad(from, to)` — inclusive day-by-day sum.
-- `loadStatus()` (index.html:1212) — the ACWR:
+- `loadStatus()` (`js/progress.js`) — the ACWR:
   - `acute` = `sumLoad(today-6, today)` (7-day window)
   - `chronic` = `sumLoad(today-27, today) / 4` (28-day window, averaged to a weekly figure)
   - `ratio` = `acute / chronic`, or `null` when `chronic === 0`
@@ -390,8 +420,8 @@ happen silently. If Phase 2 wants to keep the 1–10 answer verbatim, store it i
 ## 7. How readiness is computed
 
 ### Input: three questions, each 1–5
-Asked conversationally in `renderReady()` from `RQ2` (index.html:1237), as emoji buttons inside a chat
-bubble. The flat labels in `RQ` (index.html:1224) are the same scale in plain words.
+Asked conversationally in `renderReady()` from `RQ2` (`js/coach.js`), as emoji buttons inside a chat
+bubble. The flat labels in `RQ` (`js/coach.js`) are the same scale in plain words.
 
 | Key | Question | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|---|
@@ -405,13 +435,13 @@ reload.
 
 ### The score
 ```js
-const readyScore = r => (r.sleep + r.sore + r.energy) / 3;    // index.html:1225
+const readyScore = r => (r.sleep + r.sore + r.energy) / 3;    // `js/coach.js`
 ```
 An unweighted mean of three 1–5 answers → a **float in [1, 5]**. Displayed as a percentage:
 `Math.round(score / 5 * 100)` — so the floor of the gauge is 20%, not 0%.
 
 ```js
-const readyLabel = sc =>                                       // index.html:1226
+const readyLabel = sc =>                                       // `js/coach.js`
   sc >= 4 ? ['جاهز تمامًا',     'var(--pitch)']   // fully ready, green
 : sc >= 3 ? ['جاهزية متوسطة',  '#C99A1E']        // moderate, amber
 :           ['جاهزية منخفضة',  'var(--red)'];    // low, red
@@ -421,7 +451,7 @@ const readyLabel = sc =>                                       // index.html:122
 
 1. **Automatic downgrade.** When the third answer lands, if `readyScore < 2.5` **and** today's session
    type is in `HARD` (`run strength intervals yoyo test`), `lighten(today, true)` fires immediately.
-2. **`lighten(d, toRecovery)`** (index.html:1227) — never touches `test` days. It stashes the old
+2. **`lighten(d, toRecovery)`** (`js/coach.js`) — never touches `test` days. It stashes the old
    `{type,title,details}` under `sessions[d].orig` and replaces the day with either
    - `toRecovery` → `type:'recovery'`, «استشفاء (جاهزيتك منخفضة)», or
    - otherwise → `type:'light'`, «نسخة خفيفة: <original title>», with the original details appended.
@@ -430,13 +460,13 @@ const readyLabel = sc =>                                       // index.html:122
    softened", and what the «رجّع التمرين الأصلي» button undoes.
 3. **Manual buttons.** With no `orig` yet, a HARD non-test day, and `score < 4`, the card offers
    «حوّل اليوم لاستشفاء» when `score < 2.5`, otherwise «خفّف تمرين اليوم».
-4. **Coach copy.** `coachReply(today, r)` (index.html:1248) composes one Arabic line from the score plus
+4. **Coach copy.** `coachReply(today, r)` (`js/coach.js`) composes one Arabic line from the score plus
    today's/tomorrow's match, whether the session was softened, and two extra nudges:
    `sleep <= 2` → «وحاول تنام بدري الليلة»; `sore <= 2` with no match today → «ورجولك تحتاج مشي خفيف وإطالة».
 5. **Prompt context.** The last 7 days of raw `readiness` entries go into `context()` for `/api/claude`,
    and `weekSummary()` averages them into the weekly report. `monthStats()` averages them into the
    monthly percentage.
-6. **The cron's morning reminder** is suppressed once `readiness[today]` exists (server.js:225).
+6. **The cron's morning reminder** is suppressed once `readiness[today]` exists (`server.js`).
 7. **`readiness[today].skipped`** is a separate flag unrelated to the score: set when the user answers
    «ما لحقت» to the evening "did you train?" follow-up, which stops the card re-asking.
 
@@ -472,89 +502,122 @@ the three keys) must keep scoring the same way.
    on next open.
 7. `sw.js`'s `push` handler shows it; `notificationclick` focuses an existing window and navigates to
    `data.url` (`/?tab=sched` or `/?tab=prog`) rather than opening a second copy. The client reads
-   `?tab=` on boot (index.html:1985).
+   `?tab=` on boot (`js/main.js`).
 
 ### The `sentLog` bug (Phase 1 item 5)
 ```js
-const sentLog = new Map();                                     // server.js:157
+const sentLog = new Map();                                     // `server.js`
 function alreadySent(key){ return sentLog.has(key); }
 function markSent(key, date){ sentLog.set(key, date); for (const [k,d] of sentLog) if (d < date) sentLog.delete(k); }
 ```
 Process memory only. Render's free plan spins the instance down when idle and restarts it on the next
-request, which clears the Map — so the very next cron tick inside the same 35-minute window re-sends a
-reminder the user already got. The fix is to persist it (new `coach_sent_has` / `coach_sent_mark` RPCs,
-or a field on the state row), with the SQL in `migrations/001_sent_log.sql`.
+request, which cleared the Map — so the very next cron tick inside the same 35-minute window re-sent a
+reminder the user had already read.
+
+**Fixed in Phase 1.** `alreadySent()` and `markSent()` are now `async` and go through two new RPCs,
+`coach_sent_has` and `coach_sent_mark`, with the Map kept in front as a same-process shortcut. The key
+is claimed *before* the push is sent, not after, so a second tick arriving while the first is still
+working finds it taken. If the RPCs are missing or reject the token the server logs
+`sent-log read failed, falling back to memory` and behaves as it did before — degraded, not broken.
+The SQL is in `migrations/001_sent_log.sql`; read the note at the bottom of that file about how the
+token check must match your existing `coach_get`/`coach_put`.
 
 ---
 
-## 9. Service worker, as it stands
+## 9. Service worker
 
 ```js
-const CACHE = 'referee-coach-v10';
+const VERSION = '11';
+const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
+const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
+const API   = 'api-v1';              // the last good /api/state
 ```
-- **install** — precaches exactly `['/', '/index.html', '/manifest.webmanifest', '/icon-192.png']`, then
-  `skipWaiting()`. **No CSS, JS, fonts or images** (there is no separate CSS/JS today, and images are only
-  cached opportunistically).
-- **activate** — deletes every cache whose key isn't `CACHE`, then `clients.claim()`.
-- **fetch** — bails out on non-GET and on anything under `/api/`, so **`/api/state` is never cached and
-  has no offline fallback**.
-  - HTML (`/` or `*.html`) → **network-first**, writes through to the cache, falls back to the cached
-    response and then to `/index.html`.
-  - everything else → **cache-first**, writing through on a miss for same-origin responses and for
-    anything on a `fonts.g*` host.
-- **push / notificationclick** — as described in section 8.
 
-### Consequences for Phase 1
-- The Google Fonts stylesheet (`Readex Pro`, 5 weights) is a render-blocking third-party request on every
-  cold load, cached only after the first visit.
-- A cold Render instance still blocks the *content*: the shell paints from cache, then `initStorage()`
-  waits on `/api/state` with no cached fallback and no "updating" affordance.
-- Both image styles are reachable and both get cached opportunistically once the user flips the view
-  switcher, with nothing precached deliberately.
+Three caches on purpose: a release should not throw away the images or the last known state.
 
----
+- **install** — precaches the whole shell: `/`, `/index.html`, both stylesheets, **all ten JS modules**,
+  the manifest, two icons and the Google Fonts stylesheet. Added one at a time rather than with
+  `addAll()`, because `addAll()` rejects the entire batch if any single request fails and a
+  third-party font URL is exactly the kind of request that fails.
+  The module list must be complete: one missing import takes the whole graph down offline.
+- **activate** — deletes any cache not in the current three, then `clients.claim()`.
+- **message** — the page posts `{type:'precache-style', urls:[…]}` with the files for the *selected*
+  illustration style only. The worker skips anything it already holds, so switching styles back and
+  forth costs nothing and the unselected style is never fetched until it is actually shown.
+- **fetch**
+  - `/api/state` → **network first**, falling back to the cached copy. This is what lets the app open
+    fully populated while the server is still waking up.
+  - every other `/api/` path → not intercepted (they mutate or are per-moment).
+  - navigations → **cache first**, with a background refresh. The first paint never waits on the network.
+  - `img-*.webp` → cache first, into `MEDIA`.
+  - `/css/`, `/js/`, icons, manifest, `fonts.g*` → cache first, into `SHELL`.
+  - anything else (the weather API) → straight to the network.
+- **push / notificationclick** — unchanged from before.
 
-## 10. First-load transfer budget (the Phase 1 "before" number)
+**Bump `VERSION` whenever a shell file changes**, and keep the `?v=` on the two stylesheet links in
+`index.html` in step with it. The entry module is deliberately *not* versioned — see §2.
 
-Bytes on disk, uncompressed, which is exactly what the server sends today:
-
-| Asset | Bytes |
-|---|---|
-| `index.html` | 213 115 |
-| `manifest.webmanifest` | 613 |
-| `sw.js` | 2 160 |
-| `icon-192.png` | 4 943 |
-| **Same-origin subtotal** | **220 831** |
-| Google Fonts CSS + Readex Pro woff2 (5 weights, cross-origin) | not served by us; ~90–120 KB typical |
-
-Images are **not** part of the first load — they are only requested when a session sheet opens.
-Opening one intervals session fetches 4 exercise cards, and because both `<img>` tags for each card are
-in the DOM (one `hidden`), `loading="lazy"` is the only thing keeping the non-selected style from
-downloading; any card scrolled into view pulls **both** styles.
-Worst case across all 24 exercises in both styles: **1 353 843 B**.
-
-These are the numbers the Phase 1 report compares against.
+> **Not verified in this environment.** The embedded browser used during development refuses to
+> register any service worker at all (a one-line worker fails identically), so install, precache and
+> offline behaviour were not exercised. The routing predicates are unit-tested against 15 URLs, and
+> the rest is checked in Phase 4's cold-start test on a real browser.
 
 ---
 
-## 11. Things Phase 1 has to be careful about
+## 10. First-load transfer budget
 
-1. **`adopt()` is a whitelist** — splitting files must not change which keys survive a load or an import.
-2. **`localStorage` key `referee-coach-v1`** and the export shape are frozen by the project rules.
-3. **`state.v = 6`** — if any shape changes, bump it and write a migration that keeps v≤6 backups importable.
-4. **`defaultSession()` is deterministic from the date**, with `PLAN_START = '2026-09-27'`, and
-   `ensureHorizon()` fills today+56 on every boot. Touching the templates triggers the same
-   "replace future days" migration path that `v < 6` took.
-5. **Scope leakage**: every function currently lives in one closure. Moving to ES modules means every
-   cross-group reference needs an explicit export. The dense ones are `state`, `save`, `renderAll`,
-   `openDay`, `openSheet`, `closeSheet`, `switchTab`, `send`, `sampleFn`, `num`, `todayISO`, `addDays`,
-   `parse`, `fWd`/`fDm`/`fFull`, `TYPES`, `HARD`, `weekParams`, `defDur`, `dayLoad`, `loadStatus`,
-   `readyScore`, `quizState`, `WX`, `startTimer`.
-   `sampleFn` is *reassigned* after boot and again on auth failure, so it cannot be a plain imported
-   binding — it needs a getter or a small holder object.
-6. **`server.js`'s `TYPES` has no `.css` or `.webp` entry**, and `PRIVATE` does not hide `.md` files or
-   `migrations/`.
-7. **`img-backSprint-flat.jpg` is referenced but missing** — the WebP conversion pass should either
-   generate it or drop the entry so the switcher stops offering a broken view.
-8. **The `hidden`-sibling image pattern in `openDay()`** is what Phase 1 item 2 replaces: render only the
-   selected style's `<img>`, and inject the other on demand when the user flips the switch.
+Measured over the wire against the running server, like for like.
+
+| Asset | Before | After |
+|---|---|---|
+| `index.html` | 213 115 | 2 666 |
+| `css/tokens.css` | — | 870 |
+| `css/app.css` | — | 6 195 |
+| `js/` (10 modules) | — | 64 850 |
+| `manifest.webmanifest` | 613 | 287 |
+| `sw.js` | 2 160 | 2 383 |
+| `icon-192.png` | 4 943 | 4 943 |
+| `icon-180.png` | 4 683 | 4 683 |
+| **Total same-origin** | **225 514** | **86 877** |
+
+**A 61% reduction (138 637 bytes).** Two causes: the server now sends brotli for html/css/js/json,
+and the single 213 KB file became markup plus modules the service worker can keep.
+
+Fonts, cross-origin and not in the table: the request dropped from five weights to the four the app
+actually uses, and it no longer blocks the first paint.
+
+Images are still not part of the first load — they are fetched when a session sheet opens. What
+changed is that a sheet now pulls **one file per card instead of two**: previously both styles sat in
+the DOM with one hidden, and `loading="lazy"` was the only thing holding the second back. A seven-card
+strength session went from fourteen possible JPEGs to seven WebPs.
+
+---
+
+## 11. Phase 1: what changed, and what to watch
+
+Done:
+1. `index.html` split into markup, two stylesheets and ten ES modules; behaviour identical.
+2. All 47 images converted to WebP; only the selected style is requested, with `loading="lazy"`,
+   `decoding="async"` and explicit `width`/`height` so cards do not shift as they load.
+3. Service worker rewritten: three versioned caches, full shell precache, cache-first media,
+   network-first `/api/state`, and style precaching driven by the app.
+4. `server.js`: brotli/gzip for text, `.css`/`.webp`/`.woff2` MIME types, `immutable` for `?v=` assets,
+   `no-cache` for js/css (the worker is the real cache), and `.md` plus `migrations/` refused.
+5. The reminder send-log moved from process memory into Supabase — `migrations/001_sent_log.sql`.
+6. The coach chat shows an animated typing indicator, and the heavy re-render is deferred a frame so
+   the reply paints first.
+
+Still true, and worth keeping in mind:
+
+- **`adopt()` is a whitelist.** A new top-level state key is dropped on load and on backup import
+  unless it is added there. This is the single most important line for Phase 3.
+- **`localStorage['referee-coach-v1']` and the export shape are frozen.** Verified in Phase 1 with a
+  full round-trip of a pre-split backup: every key, nested `watch`/`quiz.wrong`/`quiz.exams`/
+  `push.prefs` object and the non-Cooper test filter all behave exactly as before.
+- **`state.v` is still 6.** Nothing in Phase 1 changed the shape, so no migration was needed.
+- **One URL per module** (§2) and **reassigned values need accessors** (§2).
+- **`VERSION` in `sw.js` and `?v=` in `index.html` must move together.**
+- **Phase 2** should keep the `data-theme` hooks in `css/tokens.css`; they are still inert and still
+  the place a light theme would attach.
+- **Phase 2's 1–10 effort picker** maps to the stored 1–5 as `Math.round(answer/2)` clamped to 1–5
+  (§6). Anything finer belongs in a new field, not in `effort`.

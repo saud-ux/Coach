@@ -1,0 +1,36 @@
+/* tokens.css — palette, dark-mode variants and base element styles.
+   Loaded before app.css. The data-theme hooks are deliberate: the dark
+   palette is defined twice so a future light/dark switch can set
+   data-theme on <html> without the media query fighting it. */
+:root{
+  --bg:#F4F6F2; --surface:#FFFFFF; --ink:#18201B; --muted:#5E6B63; --line:#DDE3DC;
+  --pitch:#1E6A43; --pitch-soft:#E3EFE7; --card:#F2C230; --card-ink:#3B2E00; --red:#C8372D;
+  --run:#1E6A43; --strength:#2F5D8A; --intervals:#B4561C; --yoyo:#7A3E9D; --light:#6E8B7A;
+  --rest:#A3ADA6; --recovery:#4E9A8C; --test:#C8372D; --match:#F2C230;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#101612; --surface:#18211B; --ink:#E8EEE9; --muted:#9AA9A0; --line:#2A362E;
+    --pitch:#4FB57F; --pitch-soft:#1C3326; --card-ink:#2A2100; --rest:#56625A; --light:#7FA08C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101612; --surface:#18211B; --ink:#E8EEE9; --muted:#9AA9A0; --line:#2A362E;
+  --pitch:#4FB57F; --pitch-soft:#1C3326; --card-ink:#2A2100; --rest:#56625A; --light:#7FA08C;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;font-size:16px;line-height:1.6;
+  -webkit-tap-highlight-color:transparent}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--pitch);outline-offset:2px}
+
+/* shadow + radius tokens (from the design-refresh layer) */
+:root{--sh:0 1px 2px rgba(16,40,28,.05),0 6px 20px rgba(16,40,28,.07);--r:18px}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh:0 0 0 1px var(--line)}}
+:root[data-theme="dark"]{--sh:0 0 0 1px var(--line)}
