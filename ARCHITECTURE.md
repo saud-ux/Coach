@@ -67,6 +67,7 @@ one entry module and the browser resolves the rest.
 | `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
 | `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
+| `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -1116,3 +1117,25 @@ are keyed by id like the rest.
 
 Verified in Chromium: a five-question test in the category showed a drawing on every question, and the
 review drew the two missed ones with the right letter lit.
+
+## 19. Siri: the day read out loud
+
+`GET /api/today` answers `{text, date}`, and `GET /api/today?plain` answers the same text as
+`text/plain`, so the Shortcut is two actions: Get Contents of URL, then Speak Text. The Shortcut's name
+is the Siri phrase («وش تمريني اليوم»). The recipe is in SHORTCUT.md.
+
+`lib/today.js` `brief()` builds the text from the state row, last night from `coach_health_get`, and
+`planSteps()` from `js/matchplan.js`. It covers:
+
+- the greeting;
+- last night's sleep duration;
+- readiness as a percentage (`readyNow`, the same blend as the app), or a nudge to fill it in before 15:00;
+- today's session title and the first sentence of its details, or rest, or "done";
+- on match day, the kickoff and the next plan step;
+- tomorrow's match or the next one within two weeks;
+- a reminder to rate yesterday's match.
+
+It is written for the ear: «7:30 مساءً», not «م». Ranges become «60 إلى 70», `×` becomes «في», and
+parentheses and trailing colons are dropped. It never writes. The passcode rule is the same as `/api/state`:
+checked only when `APP_PASSCODE` is set, through `x-passcode` or `?passcode=`. A failed sleep read leaves
+the sleep sentence out instead of failing the answer.

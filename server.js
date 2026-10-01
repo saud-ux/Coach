@@ -265,6 +265,29 @@ async function health(req, res, url){
   }
 }
 
+/* ---------- Siri: the day read out loud ----------
+   GET /api/today        {text, date}
+   GET /api/today?plain  the same text as text/plain, so a Shortcut can go straight
+                         from «Get Contents of URL» to «Speak Text»
+   The words are built by lib/today.js from the state row and last night's sleep. */
+const T = require('./lib/today');
+async function today(req, res, url){
+  if (!SYNC) return send(res, 404, {error:'sync disabled'});
+  const pass = clean(String(req.headers['x-passcode'] || url.searchParams.get('passcode') || ''));
+  if (PASSCODE && pass !== PASSCODE) return send(res, 401, {error:'passcode', text:'رمز الدخول غلط'});
+  let data;
+  try { const st = (await rpc('coach_get', {})) || {}; data = st.data || st; }
+  catch (e) { console.error('today: read failed', redact(e && e.message)); return send(res, 502, {error:'read', text:'ما قدرت أوصل لجدولك الحين. جرّب بعد شوي.'}); }
+  const now = localNow();
+  let nights = [];
+  try { nights = ((await rpc('coach_health_get', {p_since: new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10)})) || {}).nights || []; }
+  catch (e) { if (!missingFn(e)) console.error('today: sleep read failed', redact(e && e.message)); }
+  try { MATCHPLAN ||= await import('./js/matchplan.js'); } catch (e) { console.error('today: match plan unavailable', redact(e && e.message)); }
+  const text = T.brief(data, nights, now, MATCHPLAN && MATCHPLAN.planSteps);
+  if (url.searchParams.has('plain')) return send(res, 200, text, 'text/plain; charset=utf-8');
+  send(res, 200, {text, date: now.date});
+}
+
 /* ---------- reminders: web push, driven by an external cron hitting /api/cron ---------- */
 const webpush = require('web-push');
 const TZ = process.env.APP_TZ || 'Asia/Riyadh';
@@ -457,6 +480,7 @@ async function route(req, res){
   if (url.pathname === '/api/push/vapid') { if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'}); return send(res, 200, VAPID); }
   if (url.pathname === '/api/push/test' && req.method === 'POST') return pushTest(req, res);
   if (url.pathname === '/api/cron') return cron(req, res, url);
+  if (url.pathname === '/api/today' && req.method === 'GET') return today(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
   const base = path.basename(file), ext0 = path.extname(file).toLowerCase();
