@@ -205,8 +205,7 @@ async function maxHrSetting(){
 function arCount(n, one, two, few, many){
   if (n === 1) return one;
   if (n === 2) return two;
-  const d = String(n).replace(/\d/g, c => '٠١٢٣٤٥٦٧٨٩'[c]);
-  return `${d} ${n <= 10 ? few : many}`;
+  return `${n} ${n <= 10 ? few : many}`;
 }
 
 async function health(req, res, url){
@@ -325,7 +324,7 @@ async function line(kind, snapshot){
   try {
     const r = await askClaude({
       model: MODEL, max_tokens: 400, output_config: {effort:'low'},
-      system: 'أنت مدرب لياقة ودود لحكم كرة قدم مساعد سعودي اسمه سعود. تكتب إشعار جوال واحد فقط: جملة أو جملتين بالعربية بلهجة سعودية دافئة، أقل من ١٢٠ حرفًا، وإيموجي واحد على الأكثر. لا تكتب عنوانًا ولا أقواسًا ولا شرحًا، النص المطلوب فقط.',
+      system: 'أنت مدرب لياقة ودود لحكم كرة قدم مساعد سعودي اسمه سعود. تكتب إشعار جوال واحد فقط: جملة أو جملتين بالعربية بلهجة سعودية دافئة، أقل من 120 حرفًا، وإيموجي واحد على الأكثر، والأرقام بالإنجليزي (0-9). لا تكتب عنوانًا ولا أقواسًا ولا شرحًا، النص المطلوب فقط.',
       messages: [{role:'user', content:[{type:'text', text:`${ASK[kind]}\n\nبياناته الآن:\n${JSON.stringify(snapshot)}`}]}]
     });
     if (!r.ok) return FALLBACK[kind];

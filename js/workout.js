@@ -30,10 +30,10 @@ const TYPE_AR = {
 
 // Zones are a share of max HR. Only 2..5 are shown: zone 1 is standing around.
 const ZONES = [
-  { k: 'z5', label: 'المنطقة ٥', sub: '٩٠٪+',   color: 'var(--max)' },
-  { k: 'z4', label: 'المنطقة ٤', sub: '٨٠–٩٠٪', color: 'var(--effort)' },
-  { k: 'z3', label: 'المنطقة ٣', sub: '٧٠–٨٠٪', color: 'var(--match)' },
-  { k: 'z2', label: 'المنطقة ٢', sub: '٦٠–٧٠٪', color: 'var(--ready)' },
+  { k: 'z5', label: 'المنطقة 5', sub: '90%+',   color: 'var(--max)' },
+  { k: 'z4', label: 'المنطقة 4', sub: '80–90%', color: 'var(--effort)' },
+  { k: 'z3', label: 'المنطقة 3', sub: '70–80%', color: 'var(--match)' },
+  { k: 'z2', label: 'المنطقة 2', sub: '60–70%', color: 'var(--ready)' },
 ];
 
 const dateOfWorkout = w => (w.start ? new Date(w.start) : new Date());
@@ -100,7 +100,7 @@ export function openWorkout(id){
 
         <section class="card picker">
           <h3>كيف حسيت بالمجهود؟</h3>
-          <div class="p10" role="group" aria-label="من ١ إلى ١٠">
+          <div class="p10" role="group" aria-label="من 1 إلى 10">
             ${Array.from({length:10}, (_,i) => i+1).map(n =>
               `<button class="p10b${pick === n ? ' on' : ''}" data-n="${n}" aria-pressed="${pick === n}">${num(n)}</button>`).join('')}
           </div>

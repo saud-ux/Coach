@@ -86,7 +86,7 @@ function renderTiles(){
   box.innerHTML = `
     <button class="card tile" id="tileReady">
       ${ring({ size:62, pct:(pct ?? 0)/100, color:'var(--ready)', width:7 })}
-      <span class="tiletx"><small>الجاهزية</small><b>${pct == null ? 'عبّيها' : num(pct) + '٪'}</b></span>
+      <span class="tiletx"><small>الجاهزية</small><b>${pct == null ? 'عبّيها' : num(pct) + '%'}</b></span>
     </button>
     <button class="card tile" id="tileLoad">
       ${ring({ size:62, pct:loadPct, color:'var(--load)', width:7 })}
@@ -231,7 +231,7 @@ export function openSettings(focus){
         <p class="snote" id="healthMsg" hidden></p>
         <label class="flabel" for="maxHr">أقصى نبض</label>
         <input class="in sm" id="maxHr" type="number" inputmode="numeric" min="120" max="230" step="1">
-        <p class="snote">مناطق النبض تنحسب منه. إذا ما تعرفه: ٢٢٠ ناقص عمرك. يطبّق على التمارين اللي توصل بعد التغيير.</p>
+        <p class="snote">مناطق النبض تنحسب منه. إذا ما تعرفه: 220 ناقص عمرك. يطبّق على التمارين اللي توصل بعد التغيير.</p>
       </section>
 
       <section class="sgroup" id="notifPanel">

@@ -33,7 +33,7 @@ function renderProgress(){
   const pct = trainDays.length ? Math.round(100*doneAll/trainDays.length) : 0;
   $('stats').innerHTML = `
     <div class="stat"><b>${num(wkDone)}/${num(wk.length)}</b><span>تمارين هذا الأسبوع</span></div>
-    <div class="stat"><b>${num(pct)}٪</b><span>الالتزام منذ البداية</span></div>
+    <div class="stat"><b>${num(pct)}%</b><span>الالتزام منذ البداية</span></div>
     <div class="stat"><b>${num(doneAll)}</b><span>تمارين أنهيتها</span></div>
     <div class="stat"><b>${num(played)}</b><span>مباريات حكمتها</span></div>`;
   ['cooper'].forEach(k => {
@@ -81,11 +81,11 @@ function renderCareer(){
   const byRole={}; ms.forEach(m=>{ if(m.role) byRole[m.role]=(byRole[m.role]||0)+1; });
   const byComp={}; ms.forEach(m=>{ if(m.comp) byComp[m.comp]=(byComp[m.comp]||0)+1; });
   const topComp=Object.entries(byComp).sort((a,b)=>b[1]-a[1])[0];
-  box.innerHTML=`<div class="wkh"><div><b>مسيرتي التحكيمية</b><small>موسم ${careerSeason.split('/').map(x=>Number(x).toLocaleString('ar-SA',{useGrouping:false})).reverse().join(' – ')}</small></div>${seasons.length>1?'<select class="in sm" id="seasonSel" style="width:auto"></select>':''}</div>
+  box.innerHTML=`<div class="wkh"><div><b>مسيرتي التحكيمية</b><small>موسم ${careerSeason.split('/').map(x=>Number(x).toLocaleString('ar-SA-u-nu-latn',{useGrouping:false})).reverse().join(' – ')}</small></div>${seasons.length>1?'<select class="in sm" id="seasonSel" style="width:auto"></select>':''}</div>
     <div class="stats" style="margin-top:10px"><div class="stat"><b>${num(ms.length)}</b><span>مباريات</span></div><div class="stat"><b>${avg!=null?num(avg.toFixed(1)):'–'}</b><span>متوسط التقييم</span></div></div>
     ${Object.keys(byRole).length?`<p class="note" style="margin-top:10px">${Object.entries(byRole).map(([r,n])=>`${ROLES[r]}: ${num(n)}`).join('، ')}</p>`:''}
     ${topComp?`<p class="note">أكثر بطولة: ${topComp[0]} (${num(topComp[1])})</p>`:''}`;
-  const sel=box.querySelector('#seasonSel'); if(sel){ seasons.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s.split('/').map(x=>Number(x).toLocaleString('ar-SA',{useGrouping:false})).reverse().join(' – '); if(s===careerSeason) o.selected=true; sel.appendChild(o); }); sel.onchange=()=>{ careerSeason=sel.value; renderCareer(); }; }
+  const sel=box.querySelector('#seasonSel'); if(sel){ seasons.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s.split('/').map(x=>Number(x).toLocaleString('ar-SA-u-nu-latn',{useGrouping:false})).reverse().join(' – '); if(s===careerSeason) o.selected=true; sel.appendChild(o); }); sel.onchange=()=>{ careerSeason=sel.value; renderCareer(); }; }
   const ul=document.createElement('ul'); ul.className='mlist';
   if (!ms.length){ box.insertAdjacentHTML('beforeend','<p class="note">لما تضيف مباراة وتقيّمها، تطلع هنا مع بيانات البطولة والفريقين وتقييم المقيّم.</p>'); return; }
   ms.forEach(m=>{ const li=document.createElement('li'); li.className='cm'; li.onclick=()=>openDay(m.date);
@@ -103,7 +103,7 @@ function matchFieldsHTML(m){
     <label class="f">دورك</label><div class="opts" id="mRole">${ROLES.map((r,i)=>`<button data-i="${i}" aria-pressed="${String(m&&String(m.role)===String(i))}">${r}</button>`).join('')}</div>
     <label class="f" for="mVenue">الملعب</label><input class="in" id="mVenue" placeholder="مثلًا: ملعب نادي الزلفي">
     <label class="f" for="mCrew">طاقم التحكيم (اختياري)</label><input class="in" id="mCrew" placeholder="الحكم والمساعد الثاني">
-    <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا ٨٫٤"></div><div></div></div>
+    <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا 8.4"></div><div></div></div>
     <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea></div>`;
 }
 function bindMatchFields(sh, m){
@@ -136,7 +136,7 @@ function renderWx(){
   el.hidden=false; const b=WX.H[WX.best];
   // no emoji in the chrome: the line is plain text and the heat warning, when it
   // matters, is the coloured alert on المدرب
-  el.textContent=`${WX.city}: الساعة ٦ م ${num(Math.round(WX.at18.t))}° (تحسها ${num(Math.round(WX.at18.f))}°)، أنسب وقت ${hr12(WX.best)} (${num(Math.round(b.f))}°)`;
+  el.textContent=`${WX.city}: الساعة 6 م ${num(Math.round(WX.at18.t))}° (تحسها ${num(Math.round(WX.at18.f))}°)، أنسب وقت ${hr12(WX.best)} (${num(Math.round(b.f))}°)`;
 }
 
 /* ---------- monthly report (shareable image) ---------- */
@@ -161,7 +161,7 @@ function renderMonth(){
   if (!monthSel || !months.includes(monthSel)) monthSel=months[0];
   const S=monthStats(monthSel);
   box.innerHTML=`<div class="phead"><h3>تقرير الشهر</h3><select class="in sm" id="monSel" style="width:auto"></select></div>
-    <p class="note">التزامك ${num(S.adh)}٪، ${num(S.done)} من ${num(S.planned)} تمارين، ${num(S.matches)} ${S.matches===1?'مباراة':'مباريات'}، ${num(Math.round(S.mins))} دقيقة تدريب.</p>
+    <p class="note">التزامك ${num(S.adh)}%، ${num(S.done)} من ${num(S.planned)} تمارين، ${num(S.matches)} ${S.matches===1?'مباراة':'مباريات'}، ${num(Math.round(S.mins))} دقيقة تدريب.</p>
     <button class="btn primary" id="monBtn" style="width:100%;margin-top:10px">🖼️ أنشئ صورة التقرير للمشاركة</button><div id="monOut"></div>`;
   const sel=box.querySelector('#monSel'); months.forEach(mo=>{ const o=document.createElement('option'); o.value=mo; o.textContent=fMon.format(parse(mo+'-01')); if(mo===monthSel) o.selected=true; sel.appendChild(o); });
   sel.onchange=()=>{ monthSel=sel.value; renderMonth(); };
@@ -187,7 +187,7 @@ async function drawMonth(S){
   x.font=F(400,40); x.fillStyle='#C9CED6'; x.fillText(fMon.format(parse(S.ym+'-01')),W-70,190);
   x.font=F(400,32); x.fillStyle='#8B93A1'; x.fillText('سعود، حكم مساعد',W-70,240);
   // big adherence
-  x.fillStyle='#F2F4F7'; x.font=F(600,150); x.fillText(num(S.adh)+'٪',W-70,420);
+  x.fillStyle='#F2F4F7'; x.font=F(600,150); x.fillText(num(S.adh)+'%',W-70,420);
   x.font=F(400,36); x.fillStyle='#8B93A1'; x.fillText('التزام بالتمارين',W-70,470);
   // ring
   const cx=230,cy=340,R=110; x.lineWidth=26; x.strokeStyle='#1E232B'; x.beginPath(); x.arc(cx,cy,R,0,Math.PI*2); x.stroke();
@@ -196,7 +196,7 @@ async function drawMonth(S){
   // tiles
   // no emoji: each tile is labelled, and a small colour bar carries the meaning
   const tiles=[['#4AA3FF','دقائق التدريب',num(Math.round(S.mins))],['#F2C230','مباريات',num(S.matches)],['#9B8CFF','متوسط التقييم',S.score!=null?num(S.score.toFixed(1)):'–'],
-    ['#3DDC84','متوسط الجاهزية',S.ready!=null?num(S.ready)+'٪':'–'],['#FF7A45','دقة القانون',S.qacc!=null?num(S.qacc)+'٪':'–'],['#FF4D5E','أفضل اختبار',S.exam!=null?num(S.exam)+'٪':'–']];
+    ['#3DDC84','متوسط الجاهزية',S.ready!=null?num(S.ready)+'%':'–'],['#FF7A45','دقة القانون',S.qacc!=null?num(S.qacc)+'%':'–'],['#FF4D5E','أفضل اختبار',S.exam!=null?num(S.exam)+'%':'–']];
   tiles.forEach((tl,i)=>{ const col=i%2, row=Math.floor(i/2), tw=450, th=150, X=W-70-tw-col*(tw+40), Y=560+row*(th+26);
     x.fillStyle='#101216'; rr(X,Y,tw,th,30); x.fill();
     x.fillStyle=tl[0]; rr(X+tw-34,Y+30,6,36,3); x.fill();
@@ -219,7 +219,7 @@ function renderLoad(){
   const bars=weeks.map((w,i)=>{ const x=W-gap-(i+1)*bw-i*gap, hgt=Math.max(2,(H-40)*w.v/mx); return `<rect x="${x}" y="${H-22-hgt}" width="${bw}" height="${hgt}" rx="6" fill="${i===5?'var(--pitch)':'var(--line)'}"/><text x="${x+bw/2}" y="${H-6}" text-anchor="middle" font-size="13" fill="var(--muted)">${fDm.format(parse(w.ws))}</text>${w.v?`<text x="${x+bw/2}" y="${H-28-hgt}" text-anchor="middle" font-size="12" fill="var(--ink)">${num(Math.round(w.v))}</text>`:''}`; }).join('');
   box.innerHTML=`<h3>حمل التدريب</h3>
     <div class="gauge"><b style="color:${L.cls==='red'?'var(--red)':L.cls==='yel'?'#C99A1E':'var(--pitch)'}">${L.enough&&L.ratio!=null?num(L.ratio.toFixed(2)):'–'}</b><span>${L.lbl}</span></div>
-    <p class="note">${L.enough?'نسبة حمل آخر ٧ أيام إلى معدل آخر ٤ أسابيع. المنطقة الآمنة بين ٠٫٨ و١٫٣.':'يحتاج أسبوعين من تسجيل التمارين عشان تظهر النسبة.'} الحمل = مدة التمرين × الجهد.</p>
+    <p class="note">${L.enough?'نسبة حمل آخر 7 أيام إلى معدل آخر 4 أسابيع. المنطقة الآمنة بين 0.8 و1.3.':'يحتاج أسبوعين من تسجيل التمارين عشان تظهر النسبة.'} الحمل = مدة التمرين × الجهد.</p>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="الحمل الأسبوعي">${bars}</svg>`;
 }
 function renderMatches(){

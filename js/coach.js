@@ -35,8 +35,8 @@ function lighten(d, toRecovery){
   const s=state.sessions[d]; if(!s||!HARD.has(s.type)||s.type==='test') return;
   const orig={type:s.type,title:s.title,details:s.details};
   state.sessions[d] = toRecovery
-    ? {type:'recovery',title:'استشفاء (جاهزيتك منخفضة)',details:'مشي ٢٠–٣٠ دقيقة وإطالات خفيفة بجهد أقل من ٥٠٪. جسمك يحتاج راحة اليوم.',orig}
-    : {type:'light',title:'نسخة خفيفة: '+orig.title,details:'جاهزيتك اليوم متوسطة، فخففنا الحمل:\n• نص العدد أو المدة\n• الجهد لا يتعدى ٧٠٪\n• وقّف إذا حسيت ثقل بالرجلين\n\nالتمرين الأصلي:\n'+orig.details,orig};
+    ? {type:'recovery',title:'استشفاء (جاهزيتك منخفضة)',details:'مشي 20–30 دقيقة وإطالات خفيفة بجهد أقل من 50%. جسمك يحتاج راحة اليوم.',orig}
+    : {type:'light',title:'نسخة خفيفة: '+orig.title,details:'جاهزيتك اليوم متوسطة، فخففنا الحمل:\n• نص العدد أو المدة\n• الجهد لا يتعدى 70%\n• وقّف إذا حسيت ثقل بالرجلين\n\nالتمرين الأصلي:\n'+orig.details,orig};
 }
 function restoreOrig(d){ const s=state.sessions[d]; if(s&&s.orig) state.sessions[d]={...s.orig}; }
 let readyEdit=false, rStep={};
@@ -92,7 +92,7 @@ function renderReady(){
   }
   const sc=readyNow(r), [lbl,col]=readyLabel(sc);
   c.appendChild(bubble(coachReply(t,r)));
-  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}٪${r.sleep_watch!=null?`<small class="rwatch">مع نومك من الساعة ${num(r.sleep_watch)}</small>`:''}</span><button class="lnk">غيّر إجاباتي</button>`;
+  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}%${r.sleep_watch!=null?`<small class="rwatch">مع نومك من الساعة ${num(r.sleep_watch)}</small>`:''}</span><button class="lnk">غيّر إجاباتي</button>`;
   meta.querySelector('.lnk').onclick=()=>{ readyEdit=true; rStep={}; renderReady(); }; c.appendChild(meta);
   if (s && s.orig){ const b=document.createElement('button'); b.className='btn ghost sm'; b.textContent='رجّع التمرين الأصلي'; b.onclick=()=>{ restoreOrig(t); save(); renderAll(); }; c.appendChild(b); }
   else if (s && HARD.has(s.type) && s.type!=='test' && sc<4){ const b=document.createElement('button'); b.className='btn primary sm'; b.textContent=sc<2.5?'حوّل اليوم لاستشفاء':'خفّف تمرين اليوم'; b.onclick=()=>{ lighten(t, sc<2.5); save(); renderAll(); }; c.appendChild(b); }
@@ -120,13 +120,13 @@ function renderAlerts(){
   { const t0=todayISO(), s0=state.sessions[t0], WX=getWX();
     if (WX && WX.hot && s0 && HARD.has(s0.type) && s0.type!=='test' && !(state.logs[t0]&&state.logs[t0].done)){
       const a=document.createElement('div'); a.className='alert yel';
-      a.innerHTML=`<p>🔥 الجو حار اليوم (تحسها ${num(Math.round(WX.at18.f))}° الساعة ٦ م). أنسب وقت للتمرين ${hr12(WX.best)}، أو خفّف التمرين.</p>`;
+      a.innerHTML=`<p>🔥 الجو حار اليوم (تحسها ${num(Math.round(WX.at18.f))}° الساعة 6 م). أنسب وقت للتمرين ${hr12(WX.best)}، أو خفّف التمرين.</p>`;
       if (!s0.orig){ const b=document.createElement('button'); b.className='btn primary sm'; b.style.marginTop='0'; b.textContent='خفّفه'; b.onclick=()=>{ lighten(t0,false); save(); renderAll(); }; a.appendChild(b); }
       box.appendChild(a); } }
   const L=loadStatus();
   if (L.enough && L.ratio>1.3){
     const a=document.createElement('div'); a.className='alert '+L.cls;
-    a.innerHTML=`<p>${L.ratio>1.5?'حملك آخر ٧ أيام أعلى بكثير من معدلك. خطر إرهاق أو إصابة.':'حملك هالأسبوع مرتفع عن معدلك. انتبه لتعب الرجلين.'}</p>`;
+    a.innerHTML=`<p>${L.ratio>1.5?'حملك آخر 7 أيام أعلى بكثير من معدلك. خطر إرهاق أو إصابة.':'حملك هالأسبوع مرتفع عن معدلك. انتبه لتعب الرجلين.'}</p>`;
     if (rt.sample){ const b=document.createElement('button'); b.className='btn primary sm'; b.style.marginTop='0'; b.textContent='خفّف جدولي';
       b.onclick=()=>{ switchTab('chat'); send('حمل التدريب عندي مرتفع عن معدلي. خفّف الأيام الجاية بشكل مناسب.'); }; a.appendChild(b); }
     box.appendChild(a);
@@ -158,11 +158,11 @@ async function genReport(ws){
   const sum=weekSummary(ws), days={};
   for(let i=0;i<7;i++){ const d=addDays(ws,i); days[d]={session:state.sessions[d]?.title, type:state.sessions[d]?.type, log:state.logs[d]||null, readiness:state.readiness[d]||null}; }
   const next={}; for(let i=7;i<14;i++){ const d=addDays(ws,i); if(state.sessions[d]) next[d]=state.sessions[d].title; }
-  const prompt=`أنت مدرب لياقة لحكم كرة قدم مساعد في السعودية. اكتب له تقرير أسبوعي قصير بالعربي بلهجة سعودية بسيطة، أقل من ١٢٠ كلمة، بدون مقدمة، بثلاثة أقسام بعناوين قصيرة:
+  const prompt=`اكتب كل الأرقام بالإنجليزي (0-9). أنت مدرب لياقة لحكم كرة قدم مساعد في السعودية. اكتب له تقرير أسبوعي قصير بالعربي بلهجة سعودية بسيطة، أقل من 120 كلمة، بدون مقدمة، بثلاثة أقسام بعناوين قصيرة:
 وش أنجزت
 وش انتبه له
 تركيزك هالأسبوع (نقطتين عمليتين)
-الجهد من ١ إلى ٥، والجاهزية من ١ إلى ٥، والحمل = المدة × الجهد. حالة الرجلين بالمباريات من ١ (مرتاحة) إلى ٥ (منهكة)، والشوط ٣ يعني تعب بالشوط الثاني.
+الجهد من 1 إلى 5، والجاهزية من 1 إلى 5، والحمل = المدة × الجهد. حالة الرجلين بالمباريات من 1 (مرتاحة) إلى 5 (منهكة)، والشوط 3 يعني تعب بالشوط الثاني.
 الملخص: ${JSON.stringify(sum)}
 الأيام: ${JSON.stringify(days)}
 الأسبوع الجاي: ${JSON.stringify(next)}
@@ -177,7 +177,7 @@ function renderReport(){
   const ws = reportWeek || addDays(t,-dow-7);
   const sum=weekSummary(ws), rep=state.reports[ws];
   box.innerHTML=`<h3>تقرير أسبوع ${fDm.format(parse(ws))}</h3>
-    <p class="note">${num(sum.done)} من ${num(sum.planned)} تمارين، ${num(sum.matches.length)} ${sum.matches.length===1?'مباراة':'مباريات'}، الحمل ${num(Math.round(sum.load))}${sum.ready?`، متوسط الجاهزية ${num(Math.round(sum.ready/5*100))}٪`:''}</p>`;
+    <p class="note">${num(sum.done)} من ${num(sum.planned)} تمارين، ${num(sum.matches.length)} ${sum.matches.length===1?'مباراة':'مباريات'}، الحمل ${num(Math.round(sum.load))}${sum.ready?`، متوسط الجاهزية ${num(Math.round(sum.ready/5*100))}%`:''}</p>`;
   if (reportBusy){ box.insertAdjacentHTML('beforeend','<div class="report">المدرب يكتب التقرير…</div>'); return; }
   if (rep && rep.text){ const r=document.createElement('div'); r.className='report'; r.textContent=rep.text; box.appendChild(r); }
   if (reportErr){ const e=document.createElement('p'); e.className='note'; e.style.color='var(--red)'; e.textContent=reportErr; box.appendChild(e); reportErr=''; }
@@ -190,8 +190,8 @@ function renderReport(){
 
 /* ---------- chat ---------- */
 let busy = false, ctl = null;
-const RULES = `أنت مدرب لياقة شخصي وصديق لحكم كرة قدم مساعد (حكم خط) في السعودية اسمه سعود. تكلم بلهجة سعودية دافئة ومشجعة مثل صديق يهتم فيه: رحّب فيه حسب الوقت، اسأله أحيانًا عن حاله ويومه، امدح التزامه، وطمّنه إذا تعبان. لا تطوّل ولا تكون رسمي، وإيموجي واحد أو اثنين بالرد يكفي. حركته بالمباراة: خطوات جانبية على خط التماس، سرعات قصيرة ١٠–٣٠ م، ركض للخلف، وتغيير اتجاه سريع مع خط التسلل. معلومات ثابتة عنه:
-- يتمرن ٤ أيام بالأسبوع في البيت والشارع، بدون نادي ولا أوزان.
+const RULES = `اكتب كل الأرقام بالإنجليزي (0-9) لا بالعربي. أنت مدرب لياقة شخصي وصديق لحكم كرة قدم مساعد (حكم خط) في السعودية اسمه سعود. تكلم بلهجة سعودية دافئة ومشجعة مثل صديق يهتم فيه: رحّب فيه حسب الوقت، اسأله أحيانًا عن حاله ويومه، امدح التزامه، وطمّنه إذا تعبان. لا تطوّل ولا تكون رسمي، وإيموجي واحد أو اثنين بالرد يكفي. حركته بالمباراة: خطوات جانبية على خط التماس، سرعات قصيرة 10–30 م، ركض للخلف، وتغيير اتجاه سريع مع خط التسلل. معلومات ثابتة عنه:
+- يتمرن 4 أيام بالأسبوع في البيت والشارع، بدون نادي ولا أوزان.
 - مبارياته متغيرة: أحيانًا وحدة بالأسبوع، أحيانًا ولا وحدة، وأحيانًا اثنتين، غالبًا الجمعة أو السبت.
 - أكثر شي يتعبه: الرجلين والعضلات، خصوصًا بالحر.
 - لا توجد إصابات.
@@ -199,11 +199,11 @@ const RULES = `أنت مدرب لياقة شخصي وصديق لحكم كرة ق
 
 قواعد التعديل:
 - اليوم اللي بعد المباراة استشفاء، واليوم اللي قبلها خفيف. لا تحط يومين صعبين ورا بعض.
-- حافظ على ٤ تمارين بالأسبوع قدر الإمكان، وأولوية التمارين: سرعات الحكم المساعد والخطوات الجانبية، ثم الارتدادات ورد الفعل، ثم قوة الرجلين، ثم التحمل.
+- حافظ على 4 تمارين بالأسبوع قدر الإمكان، وأولوية التمارين: سرعات الحكم المساعد والخطوات الجانبية، ثم الارتدادات ورد الفعل، ثم قوة الرجلين، ثم التحمل.
 - الخطة مستمرة: كل رابع أسبوع خفيف للاستشفاء. إذا تراكمت مباريات كثيرة، خفّف أكثر.
-- إذا قال إنه تعبان أو رجوله ثقيلة، خفّف ولا تضغط. خذ بعين الاعتبار سجل إحساسه بالتمارين، وجاهزيته الصباحية (١ سيء إلى ٥ ممتاز)، وتقييم مبارياته، ونسبة الحمل (فوق ١٫٥ يعني خطر إرهاق).
+- إذا قال إنه تعبان أو رجوله ثقيلة، خفّف ولا تضغط. خذ بعين الاعتبار سجل إحساسه بالتمارين، وجاهزيته الصباحية (1 سيء إلى 5 ممتاز)، وتقييم مبارياته، ونسبة الحمل (فوق 1.5 يعني خطر إرهاق).
 - عدّل فقط الأيام اللي تحتاج تعديل، ولا تغيّر أيام مضت.
-- اذكر نسبة الجهد في كل تمرين: تحمّل ٦٠–٧٠٪، سرعات ٩٠٪، تحمّل المساعد ٨٠–٨٥٪، تنشيط واستشفاء ٥٠٪ أو أقل.
+- اذكر نسبة الجهد في كل تمرين: تحمّل 60–70%، سرعات 90%، تحمّل المساعد 80–85%، تنشيط واستشفاء 50% أو أقل.
 - التمارين بوزن الجسم فقط، وقابلة للتنفيذ بالشارع أو البيت.
 
 ردّك دائمًا كائن JSON واحد فقط بهذا الشكل:

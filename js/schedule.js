@@ -26,13 +26,13 @@ const TYPES = {
 };
 const HARD = new Set(['run','strength','intervals','yoyo','test']);
 const STRENGTH = n => `${rounds(n)}، دقيقة راحة بين كل جولة:
-• سكوات ١٥
-• طعنات للخلف ١٠ لكل رجل
-• سكوات برجل وحدة والثانية على كرسي ٨ لكل رجل
-• رفع السمانة على الدرج برجل وحدة ١٥ لكل رجل
-• رفع الحوض برجل وحدة ١٢ لكل رجل
-• العضلة الخلفية: رجلينك تحت الكنب وانزل ببطء ٥
-• بلانك جانبي ٣٠ ثانية لكل جهة`;
+• سكوات 15
+• طعنات للخلف 10 لكل رجل
+• سكوات برجل وحدة والثانية على كرسي 8 لكل رجل
+• رفع السمانة على الدرج برجل وحدة 15 لكل رجل
+• رفع الحوض برجل وحدة 12 لكل رجل
+• العضلة الخلفية: رجلينك تحت الكنب وانزل ببطء 5
+• بلانك جانبي 30 ثانية لكل جهة`;
 // first 4 weeks build up, then a repeating 4-week cycle (3 steady weeks + 1 lighter week)
 const BUILD = [
   {run:25,sp:5,ar:6,str:2},{run:30,sp:6,ar:8,str:3},
@@ -49,28 +49,28 @@ function defaultSession(date){
   if (w < 0) return null;
   const p = weekParams(date);
   const dow = parse(date).getDay(); // 0 = Sunday
-  if (date === PLAN_START) return {type:'test',title:'اختبار البداية: ركض ١٢ دقيقة',details:'إحماء ١٠ دقايق، ثم اركض ١٢ دقيقة بأعلى وتيرة تقدر تحافظ عليها. سجّل المسافة من صفحة التقدم.'};
-  if (dow===6 && w>=5 && (w-5)%6===0) return {type:'test',title:'إعادة اختبار ١٢ دقيقة',details:'نفس طريقة اختبار البداية. إذا عندك مباراة اليوم، أجّله لبكرة. سجّل المسافة من صفحة التقدم.'};
+  if (date === PLAN_START) return {type:'test',title:'اختبار البداية: ركض 12 دقيقة',details:'إحماء 10 دقايق، ثم اركض 12 دقيقة بأعلى وتيرة تقدر تحافظ عليها. سجّل المسافة من صفحة التقدم.'};
+  if (dow===6 && w>=5 && (w-5)%6===0) return {type:'test',title:'إعادة اختبار 12 دقيقة',details:'نفس طريقة اختبار البداية. إذا عندك مباراة اليوم، أجّله لبكرة. سجّل المسافة من صفحة التقدم.'};
   const tag = p.light ? ' (أسبوع خفيف)' : '';
   switch(dow){
-    case 0: return {type:'run',title:`ركض تحمّل ${num(p.run)} دقيقة${tag}`,details:'بجهد ٦٠–٧٠٪: وتيرة مريحة تقدر تتكلم فيها بجمل كاملة. نبضك في المنطقة الثانية بالساعة. بعد المغرب أفضل بسبب الحر.'};
-    case 1: return {type:'strength',title:'قوة الرجلين'+tag,details:STRENGTH(p.str)+(p.slow?'\nهذا الأسبوع: انزل ببطء ٣ ثواني بكل عدة.':'')};
-    case 2: return {type:'rest',title:'راحة أو مشي ٣٠ دقيقة',details:'مشي خفيف وإطالات.'};
-    case 3: return {type:'intervals',title:'سرعات الحكم المساعد'+tag,details:`إحماء ١٠ دقايق مع خطوات جانبية خفيفة، ثم (دقيقتين راحة بين كل تمرين):
-• سرعات قصيرة بجهد ٩٠٪: ${num(p.sp)} × ٢٠ م، راحة ٣٠ث مشي
-• جانبي ثم انطلاق: ${num(p.sp)} × (٨ م خطوات جانبية ثم ٢٠ م سرعة للأمام)
-• خلفي ثم انطلاق: ${num(p.sp)} × (٥ م ركض للخلف ثم ١٠ م سرعة)
-• تغيير اتجاه: ١٠ م أمام، ٨ م جانبي، ٨ م جانبي للجهة الثانية، ١٠ م أمام × ${num(p.light?2:4)}
-كل الانطلاقات بجهد ٩٠٪، والجانبي والخلفي بسرعة مباراة. إذا نزلت جودة حركتك وقّف.
+    case 0: return {type:'run',title:`ركض تحمّل ${num(p.run)} دقيقة${tag}`,details:'بجهد 60–70%: وتيرة مريحة تقدر تتكلم فيها بجمل كاملة. نبضك في المنطقة الثانية بالساعة. بعد المغرب أفضل بسبب الحر.'};
+    case 1: return {type:'strength',title:'قوة الرجلين'+tag,details:STRENGTH(p.str)+(p.slow?'\nهذا الأسبوع: انزل ببطء 3 ثواني بكل عدة.':'')};
+    case 2: return {type:'rest',title:'راحة أو مشي 30 دقيقة',details:'مشي خفيف وإطالات.'};
+    case 3: return {type:'intervals',title:'سرعات الحكم المساعد'+tag,details:`إحماء 10 دقايق مع خطوات جانبية خفيفة، ثم (دقيقتين راحة بين كل تمرين):
+• سرعات قصيرة بجهد 90%: ${num(p.sp)} × 20 م، راحة 30ث مشي
+• جانبي ثم انطلاق: ${num(p.sp)} × (8 م خطوات جانبية ثم 20 م سرعة للأمام)
+• خلفي ثم انطلاق: ${num(p.sp)} × (5 م ركض للخلف ثم 10 م سرعة)
+• تغيير اتجاه: 10 م أمام، 8 م جانبي، 8 م جانبي للجهة الثانية، 10 م أمام × ${num(p.light?2:4)}
+كل الانطلاقات بجهد 90%، والجانبي والخلفي بسرعة مباراة. إذا نزلت جودة حركتك وقّف.
 استخدم جوتي أو قوارير ماء كعلامات.`};
-    case 4: return {type:'light',title:'تنشيط ٢٠ دقيقة',details:'ركض هادي بجهد ٥٠٪ + إطالات حركية. تجهيز للويكند.'};
+    case 4: return {type:'light',title:'تنشيط 20 دقيقة',details:'ركض هادي بجهد 50% + إطالات حركية. تجهيز للويكند.'};
     case 5: return {type:'rest',title:'راحة',details:'إذا عندك مباراة أضفها من زر المباراة.'};
-    case 6: return {type:'yoyo',title:'ارتدادات ورد فعل'+tag,details:`إذا ما عندك مباراة. إحماء ١٠ دقايق، ثم:
-• ارتدادات الكاحل (قفز خفيف مكانك على أطراف الأصابع) ${num(p.light?2:3)} × ٢٠
-• قفز جانبي فوق خط ${num(p.light?2:3)} × ١٠ لكل جهة
-• قفزة طويلة من ثبات ${num(p.light?2:3)} × ٥
-• رد فعل: منبّه عشوائي أو أحد يصفق، وعند الإشارة غيّر اتجاهك وانطلق ٥ م × ٨
-• تحمّل المساعد: ٧٥ م ركض بجهد ٨٠–٨٥٪ ثم ٢٥ م مشي × ${num(p.ar)}`};
+    case 6: return {type:'yoyo',title:'ارتدادات ورد فعل'+tag,details:`إذا ما عندك مباراة. إحماء 10 دقايق، ثم:
+• ارتدادات الكاحل (قفز خفيف مكانك على أطراف الأصابع) ${num(p.light?2:3)} × 20
+• قفز جانبي فوق خط ${num(p.light?2:3)} × 10 لكل جهة
+• قفزة طويلة من ثبات ${num(p.light?2:3)} × 5
+• رد فعل: منبّه عشوائي أو أحد يصفق، وعند الإشارة غيّر اتجاهك وانطلق 5 م × 8
+• تحمّل المساعد: 75 م ركض بجهد 80–85% ثم 25 م مشي × ${num(p.ar)}`};
   }
 }
 // keep the plan filled 8 weeks ahead, forever
@@ -86,14 +86,14 @@ function applyMatch(date, time, note){
   const id = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
   state.matches = state.matches.filter(m => m.date !== date);
   state.matches.push({id,date,time:time||'',note:note||''});
-  state.sessions[date] = {type:'match',title:'مباراة'+(time?` الساعة ${time}`:''),details:(note?note+'\n':'')+'اشرب ٥٠٠ مل قبلها بساعتين، ورشفات بين الشوطين، وأملاح إذا الجو حار.'};
+  state.sessions[date] = {type:'match',title:'مباراة'+(time?` الساعة ${time}`:''),details:(note?note+'\n':'')+'اشرب 500 مل قبلها بساعتين، ورشفات بين الشوطين، وأملاح إذا الجو حار.'};
   const after = addDays(date,1), before = addDays(date,-1);
   const a = state.sessions[after];
   if (a && a.type!=='match' && a.type!=='test' && a.type!=='rest')
-    state.sessions[after] = {type:'recovery',title:'استشفاء بعد المباراة',details:'مشي ٢٠–٣٠ دقيقة وإطالات. لا تمرين قوي.'};
+    state.sessions[after] = {type:'recovery',title:'استشفاء بعد المباراة',details:'مشي 20–30 دقيقة وإطالات. لا تمرين قوي.'};
   const b = state.sessions[before];
   if (b && HARD.has(b.type) && b.type!=='test')
-    state.sessions[before] = {type:'light',title:'تنشيط قبل المباراة',details:'٢٠ دقيقة ركض هادي + إطالات حركية.'};
+    state.sessions[before] = {type:'light',title:'تنشيط قبل المباراة',details:'20 دقيقة ركض هادي + إطالات حركية.'};
 }
 function removeMatch(date){
   state.matches = state.matches.filter(m => m.date !== date);
@@ -189,7 +189,7 @@ function openDay(d){
   const s = state.sessions[d]; const log = {...(state.logs[d]||{})};
   openSheet(sh => {
     const ty0 = TYPES[s.type]||TYPES.rest, keys0 = DIAGRAMS[s.type]||[];
-    const EFF = {run:'٦٠–٧٠٪',intervals:'٩٠٪',yoyo:'٨٠–٩٠٪',strength:'متوسط',light:'٥٠٪',recovery:'خفيف',test:'أقصى جهد',match:'مباراة',rest:'راحة'};
+    const EFF = {run:'60–70%',intervals:'90%',yoyo:'80–90%',strength:'متوسط',light:'50%',recovery:'خفيف',test:'أقصى جهد',match:'مباراة',rest:'راحة'};
     sh.innerHTML = `<div class="shero ${s.type==='match'?'match':''}" style="--hc:${ty0.c}"><span class="sty">${ty0.l}</span><h2></h2><div class="sub"></div>
         <div class="schips">${defDur(d,s)?`<span>${icon('clock')} ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>${icon('scale')} ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>${icon('bolt')} ${EFF[s.type]||''}</span></div></div>
       <div id="dgs"></div>
@@ -301,7 +301,7 @@ function openAddMatch(pre){
     sh.querySelector('#aFile').onchange = async e => { const f=e.target.files[0]; if(!f) return; msg.textContent='يقرأ صفحة التكليف…';
       try {
         const r = await rt.sample.json(`هذي صورة صفحة تكليف مباراة كرة قدم لحكم من الاتحاد السعودي. استخرج البيانات الموجودة بوضوح فقط ورجّع JSON فقط:
-{"date":"YYYY-MM-DD بالأرقام الإنجليزية أو null","time":"HH:MM بنظام ٢٤ ساعة أو null","home":"الفريق المستضيف أو null","away":"الفريق الضيف أو null","venue":"الملعب أو null","comp":"البطولة أو null","role":"واحد من: حكم مساعد أول، حكم مساعد ثاني، حكم رابع، حكم ساحة، أو null","crew":"أسماء بقية الطاقم أو null"}
+{"date":"YYYY-MM-DD بالأرقام الإنجليزية أو null","time":"HH:MM بنظام 24 ساعة أو null","home":"الفريق المستضيف أو null","away":"الفريق الضيف أو null","venue":"الملعب أو null","comp":"البطولة أو null","role":"واحد من: حكم مساعد أول، حكم مساعد ثاني، حكم رابع، حكم ساحة، أو null","crew":"أسماء بقية الطاقم أو null"}
 السنة الحالية ${new Date().getFullYear()}.`, {images:[f], cache:false});
         if (r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date)) sh.querySelector('#md').value=r.date;
         if (r.time && /^\d{2}:\d{2}$/.test(r.time)) sh.querySelector('#mt').value=r.time;
@@ -339,9 +339,9 @@ function renderInbox(){
 
 function openAddTest(){
   openSheet(sh => {
-    sh.innerHTML = `<h2>نتيجة اختبار ١٢ دقيقة</h2>
+    sh.innerHTML = `<h2>نتيجة اختبار 12 دقيقة</h2>
       <label class="f" for="td">التاريخ</label><input class="in" type="date" id="td">
-      <label class="f" for="tv">المسافة بالمتر</label><input class="in" id="tv" inputmode="decimal" placeholder="مثلًا ٢٥٠٠">
+      <label class="f" for="tv">المسافة بالمتر</label><input class="in" id="tv" inputmode="decimal" placeholder="مثلًا 2500">
       <div class="row"><button class="btn primary" id="ok">حفظ</button><button class="btn ghost" id="cl">إلغاء</button></div>`;
     sh.querySelector('#td').value = todayISO();
     sh.querySelector('#cl').onclick = closeSheet;

@@ -23,7 +23,7 @@ import { renderProgress, renderCareer, renderMonth, renderLoad, renderMatches,
          loadWeather } from './progress.js';
 import { renderNotif } from './notifications.js';
 import { syncHealth } from './health.js';
-import { icon } from './ui.js';
+import { icon, latinDigits } from './ui.js';
 
 /* ---------- sheets ---------- */
 // `bare` suppresses the corner close button for sheets that carry their own
@@ -146,6 +146,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // phase one: offline, synchronous, paints immediately
+latinDigits(document.body);
 bootLocal();
 wire();
 renderAll();

@@ -105,25 +105,25 @@ const FIG = {
     const A=place(pose({t:-90,th1:90,sh1:180,th2:92,sh2:178,ft1:100,ft2:100,ua1:65,fa1:-70,ua2:60,fa2:-60}),'k1',275,G-6), B=place(pose({t:-38,th1:142,sh1:180,th2:140,sh2:178,ft1:100,ft2:100,ua1:55,fa1:25,ua2:50,fa2:20}),'k1',80,G-6);
     return two(A,B,couch(A.f1[0])+couch(B.f1[0])); },
   sidePlank(){ const P=onGround(pose({t:-148,th1:17,sh1:17,th2:16,sh2:16,ua1:90,fa1:-5,ua2:40,fa2:150,ft1:-80,ft2:-80}),'f1',250);
-    return svg(fig(P)+tp(95,40,'ثبّت ٣٠ ثانية')+tp(95,60,'جسمك خط مستقيم، لا تنزل الحوض',true),172); },
+    return svg(fig(P)+tp(95,40,'ثبّت 30 ثانية')+tp(95,60,'جسمك خط مستقيم، لا تنزل الحوض',true),172); },
   runForm(){ const P=onGround(pose({t:-78,th1:35,sh1:110,th2:115,sh2:160,ft1:10,ft2:130,ua1:120,fa1:30,ua2:55,fa2:-40}),'f1',235);
     return svg(fig(P)+`<path d="M22 20 h120 a10 10 0 0 1 10 10 v26 a10 10 0 0 1 -10 10 h-50 l-14 14 l2 -14 h-58 a10 10 0 0 1 -10 -10 v-26 a10 10 0 0 1 10 -10z" style="fill:var(--pitch-soft);stroke:var(--pitch)" stroke-width="1.5"/>`+tp(82,40,'أقدر أسولف')+tp(82,57,'وأنا أركض',false),172); },
-  zones(){ const cols=['#9BB5A5','#3FA36B','#E7B52C','#E5782B','#C8372D'], lbl=['٥٠٪','٦٠–٧٠٪','٧٠–٨٠٪','٨٠–٩٠٪','٩٠٪+'], nm=['مشي','مريح','متوسط','صعب','سبرنت'];
+  zones(){ const cols=['#9BB5A5','#3FA36B','#E7B52C','#E5782B','#C8372D'], lbl=['50%','60–70%','70–80%','80–90%','90%+'], nm=['مشي','مريح','متوسط','صعب','سبرنت'];
     let s=''; for (let i=0;i<5;i++){ const x=276-i*62; s+=`<rect x="${x}" y="${i===1?34:44}" width="56" height="${i===1?58:40}" rx="7" fill="${cols[i]}" ${i===1?'stroke="var(--ink)" stroke-width="2.5"':''} opacity="${i===1?1:.55}"/>`+tp(x+28,112,lbl[i],true)+tp(x+28,130,nm[i],i!==1); }
     return svg(s+tp(214+28,24,'أنت هنا',false)+ln(242,27,242,33,'move'),150); },
   walk(){ const P=onGround(pose({t:-88,th1:68,sh1:95,th2:112,sh2:100,ft2:15,ua1:108,fa1:95,ua2:72,fa2:65}),'f1',180);
-    return svg(fig(P)+ln(235,60,290,60,'dash')+tp(80,80,'مشي هادي')+tp(80,100,'٢٠–٣٠ دقيقة',true),172); },
+    return svg(fig(P)+ln(235,60,290,60,'dash')+tp(80,80,'مشي هادي')+tp(80,100,'20–30 دقيقة',true),172); },
   calfStretch(){ const P0=pose({t:-55,th1:45,sh1:95,th2:125,sh2:125,ua1:-25,fa1:-20,ua2:-20,fa2:-15}), P=onGround(P0,'f1',215);
-    return svg(wallR(Math.max(P.h1[0],P.h2[0])+5)+fig(P)+tp(85,50,'الرجل الخلفية مستقيمة')+tp(85,70,'والكعب على الأرض',true)+tp(85,90,'٣٠ ثانية لكل رجل',true),172); },
+    return svg(wallR(Math.max(P.h1[0],P.h2[0])+5)+fig(P)+tp(85,50,'الرجل الخلفية مستقيمة')+tp(85,70,'والكعب على الأرض',true)+tp(85,90,'30 ثانية لكل رجل',true),172); },
   quadStretch(){ const P=onGround(pose({...STAND,th2:110,sh2:-110,ft2:-100,ua2:120,fa2:118,ua1:-8,fa1:-8}),'f1',200);
-    return svg(wallR(P.h1[0]+5)+fig(P)+tp(90,50,'اسحب الكعب للخلف')+tp(90,70,'ركبتك تتجه للأرض',true)+tp(90,90,'٣٠ ثانية لكل رجل',true),172); },
+    return svg(wallR(P.h1[0]+5)+fig(P)+tp(90,50,'اسحب الكعب للخلف')+tp(90,70,'ركبتك تتجه للأرض',true)+tp(90,90,'30 ثانية لكل رجل',true),172); },
   jog(){ const P=onGround(pose({t:-82,th1:55,sh1:105,th2:105,sh2:140,ft2:100,ua1:115,fa1:35,ua2:65,fa2:-25}),'f1',220);
-    return svg(fig(P)+tp(85,60,'ركض هادي')+tp(85,80,'بجهد ٥٠٪',true),172); },
+    return svg(fig(P)+tp(85,60,'ركض هادي')+tp(85,80,'بجهد 50%',true),172); },
   legSwing(){ const a=pose({...STAND,th1:25,sh1:28,ft1:-10,ua1:-5,fa1:-5,ua2:-3,fa2:-3}), b=pose({...STAND,th1:135,sh1:150,ft1:170,ua1:-5,fa1:-5,ua2:-3,fa2:-3});
     const A=onGround(a,'f2',255), B=onGround(b,'f2',90);
     return two(A,B,'',172,'قدّام','ورا',-1); },
   highKnees(){ const P=onGround(pose({t:-85,th1:-8,sh1:88,th2:88,sh2:92,ft2:40,ua1:125,fa1:40,ua2:45,fa2:-50}),'t2',220);
-    return svg(fig(P)+tp(85,50,'الركبة لمستوى الحوض')+tp(85,70,'٢ × ٢٠ ثانية',true),172); },
+    return svg(fig(P)+tp(85,50,'الركبة لمستوى الحوض')+tp(85,70,'2 × 20 ثانية',true),172); },
   pogo(){ const a=pose({...STAND,th1:86,sh1:94,th2:88,sh2:93,ft1:55,ft2:55,ua1:100,fa1:75,ua2:95,fa2:80});
     const A=place(a,'t1',260,G-3.5), B=place(a,'t1',100,G-13);
     return two(A,B,ln(135,G-4,135,G-16,'dash'),172,'ملامسة','بالهواء',-1); },
@@ -137,14 +137,14 @@ const FIG = {
 };
 const LEGEND = svg([['sprint','سرعة'],['side','جانبي'],['back','للخلف'],['walk','مشي']].map(([k,l],i)=>{const c=255-i*85;return ln(c+22,15,c+62,15,k)+tf(c+42,38,l,true);}).join(''), 46, 'field');
 const D = {
-  sprint: ['سرعات قصيرة', ()=>svg(cone(40,50)+cone(300,50)+me(40,78,0)+ln(55,50,285,50,'sprint')+tf(170,36,'٢٠ م بجهد ٩٠٪')+ln(290,95,55,95,'walk')+tf(170,117,'رجوع مشي ٣٠ ثانية',true),128,'field'), 'انطلق من ثبات، وخلّ أول ٣ خطوات قوية وقصيرة.'],
-  sideSprint: ['جانبي ثم انطلاق', ()=>`${svg(`<line x1="20" y1="0" x2="20" y2="160" stroke="#fff" stroke-width="3" opacity=".85"/>`+cone(60,130)+cone(60,38)+cone(300,38)+me(40,126,0,1)+ln(60,117,60,54,'side')+tf(110,90,'٨ م جانبي')+ln(76,38,285,38,'sprint')+tf(180,24,'٢٠ م سرعة')+tf(210,112,'وجهك للملعب مثل متابعة التسلل',true),155,'field')}`, 'لا تقاطع رجولك بالجانبي، خطوات قصيرة وسريعة.'],
-  backSprint: ['للخلف ثم انطلاق', ()=>svg(cone(135,72)+cone(265,72)+me(200,72,0)+ln(195,44,145,44,'back')+tf(168,30,'٥ م للخلف')+ln(140,100,255,100,'sprint')+tf(200,124,'١٠ م سرعة'),135,'field'), 'ارجع للخلف وأنت شايف قدامك، وعند العلامة انطلق فورًا.'],
-  coda: ['تغيير الاتجاه', ()=>svg(cone(30,128)+cone(170,128)+cone(170,35)+cone(310,128)+me(30,102,0)+ln(42,128,155,128,'sprint')+ln(160,115,160,50,'side')+ln(180,50,180,115,'side')+ln(185,128,298,128,'sprint')+tf(98,151,'بداية: ١٠ م سرعة')+tf(115,85,'٨ م جانبي')+tf(235,85,'٨ م جانبي رجوع')+tf(242,151,'نهاية: ١٠ م سرعة'),160,'field'), 'بالجانبي ظهرك يبقى بنفس الاتجاه، لا تلف جسمك.'],
-  ariet: ['تحمّل الحكم المساعد', ()=>svg(`<line x1="0" y1="18" x2="340" y2="18" stroke="#fff" stroke-width="3" opacity=".85"/>`+cone(30,55)+cone(240,55)+cone(310,55)+me(30,82,0,1)+ln(42,55,226,55,'sprint')+tf(135,40,'٧٥ م بجهد ٨٠–٨٥٪')+ln(252,55,298,55,'walk')+tf(275,84,'٢٥ م مشي',true)+tf(170,112,'وارجع بنفس الطريقة، وهذي عدة وحدة',true),122,'field'), 'مثل ركضك على خط التماس. المشي جزء من التمرين، لا توقف.'],
-  reaction: ['رد الفعل', ()=>svg(me(170,92,-90)+cone(170,24)+cone(170,160)+cone(55,92)+cone(285,92)+ln(170,76,170,40,'sprint')+ln(170,108,170,146,'sprint')+ln(154,92,72,92,'sprint')+ln(186,92,268,92,'sprint')+tf(112,80,'٥ م',true)+tf(228,80,'٥ م',true)+tf(170,188,'عند الإشارة انطلق لأي علامة وارجع للوسط',true),196,'field'), 'خلّ أحد يأشر لك الاتجاه، أو استخدم منبّه عشوائي.'],
+  sprint: ['سرعات قصيرة', ()=>svg(cone(40,50)+cone(300,50)+me(40,78,0)+ln(55,50,285,50,'sprint')+tf(170,36,'20 م بجهد 90%')+ln(290,95,55,95,'walk')+tf(170,117,'رجوع مشي 30 ثانية',true),128,'field'), 'انطلق من ثبات، وخلّ أول 3 خطوات قوية وقصيرة.'],
+  sideSprint: ['جانبي ثم انطلاق', ()=>`${svg(`<line x1="20" y1="0" x2="20" y2="160" stroke="#fff" stroke-width="3" opacity=".85"/>`+cone(60,130)+cone(60,38)+cone(300,38)+me(40,126,0,1)+ln(60,117,60,54,'side')+tf(110,90,'8 م جانبي')+ln(76,38,285,38,'sprint')+tf(180,24,'20 م سرعة')+tf(210,112,'وجهك للملعب مثل متابعة التسلل',true),155,'field')}`, 'لا تقاطع رجولك بالجانبي، خطوات قصيرة وسريعة.'],
+  backSprint: ['للخلف ثم انطلاق', ()=>svg(cone(135,72)+cone(265,72)+me(200,72,0)+ln(195,44,145,44,'back')+tf(168,30,'5 م للخلف')+ln(140,100,255,100,'sprint')+tf(200,124,'10 م سرعة'),135,'field'), 'ارجع للخلف وأنت شايف قدامك، وعند العلامة انطلق فورًا.'],
+  coda: ['تغيير الاتجاه', ()=>svg(cone(30,128)+cone(170,128)+cone(170,35)+cone(310,128)+me(30,102,0)+ln(42,128,155,128,'sprint')+ln(160,115,160,50,'side')+ln(180,50,180,115,'side')+ln(185,128,298,128,'sprint')+tf(98,151,'بداية: 10 م سرعة')+tf(115,85,'8 م جانبي')+tf(235,85,'8 م جانبي رجوع')+tf(242,151,'نهاية: 10 م سرعة'),160,'field'), 'بالجانبي ظهرك يبقى بنفس الاتجاه، لا تلف جسمك.'],
+  ariet: ['تحمّل الحكم المساعد', ()=>svg(`<line x1="0" y1="18" x2="340" y2="18" stroke="#fff" stroke-width="3" opacity=".85"/>`+cone(30,55)+cone(240,55)+cone(310,55)+me(30,82,0,1)+ln(42,55,226,55,'sprint')+tf(135,40,'75 م بجهد 80–85%')+ln(252,55,298,55,'walk')+tf(275,84,'25 م مشي',true)+tf(170,112,'وارجع بنفس الطريقة، وهذي عدة وحدة',true),122,'field'), 'مثل ركضك على خط التماس. المشي جزء من التمرين، لا توقف.'],
+  reaction: ['رد الفعل', ()=>svg(me(170,92,-90)+cone(170,24)+cone(170,160)+cone(55,92)+cone(285,92)+ln(170,76,170,40,'sprint')+ln(170,108,170,146,'sprint')+ln(154,92,72,92,'sprint')+ln(186,92,268,92,'sprint')+tf(112,80,'5 م',true)+tf(228,80,'5 م',true)+tf(170,188,'عند الإشارة انطلق لأي علامة وارجع للوسط',true),196,'field'), 'خلّ أحد يأشر لك الاتجاه، أو استخدم منبّه عشوائي.'],
   lateralHop: ['قفز جانبي فوق خط', FIG.lateralHop, 'هبوط خفيف على أطراف الأصابع، الآثار توضح مكان رجولك.'],
-  broadJump: ['قفزة طويلة من ثبات', FIG.broadJump, 'اسحب يدينك للخلف قبل القفزة، وارتاح ٣٠ ثانية بين كل قفزة.'],
+  broadJump: ['قفزة طويلة من ثبات', FIG.broadJump, 'اسحب يدينك للخلف قبل القفزة، وارتاح 30 ثانية بين كل قفزة.'],
   pogo: ['ارتدادات الكاحل', FIG.pogo, 'الحركة من الكاحل، الركبة شبه ثابتة. وقّف إذا حسيت ألم بالوتر.'],
   squat: ['سكوات', FIG.squat, 'ظهرك مستقيم، والكعب ما يرتفع عن الأرض. انزل لين الفخذ يوازي الأرض.'],
   lunge: ['طعنات للخلف', FIG.lunge, 'ارجع برجل وحدة، والركبة الخلفية تقرّب من الأرض بدون ما تلمسها.'],
@@ -158,22 +158,22 @@ const D = {
   walk: ['مشي', FIG.walk, 'مشي مريح يحرّك الدم ويسرّع الاستشفاء.'],
   calfStretch: ['إطالة السمانة', FIG.calfStretch, 'بدون ارتداد، ثبات فقط.'],
   quadStretch: ['إطالة الفخذ الأمامية', FIG.quadStretch, 'استند على الجدار عشان توازنك.'],
-  jog: ['ركض هادي', FIG.jog, '١٠ دقايق قبل الحركات.'],
-  legSwing: ['مرجحة الرجل', FIG.legSwing, 'قدّام وورا ١٠ مرات لكل رجل، والحركة تكبر تدريجيًا.'],
+  jog: ['ركض هادي', FIG.jog, '10 دقايق قبل الحركات.'],
+  legSwing: ['مرجحة الرجل', FIG.legSwing, 'قدّام وورا 10 مرات لكل رجل، والحركة تكبر تدريجيًا.'],
   highKnees: ['رفع الركب', FIG.highKnees, 'خطوات سريعة وخفيفة في مكانك.'],
-  cooper: ['اختبار ١٢ دقيقة', ()=>svg(`<rect x="40" y="25" width="260" height="100" rx="50" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="10 8" opacity=".8"/>`+me(170,25,180)+ln(150,25,110,25,'sprint')+`<circle cx="170" cy="75" r="26" fill="#1b1b1b" stroke="#ddd" stroke-width="3"/><rect x="163" y="44" width="14" height="6" fill="#333"/><rect x="163" y="100" width="14" height="6" fill="#333"/>`+`<text x="170" y="80" text-anchor="middle" font-size="14" font-weight="700" fill="#7CFFB2">١٢:٠٠</text>`+tf(170,146,'لفّات على مسار ثابت، وسجّل المسافة من الساعة',true),155,'street'), 'نفس المسار كل مرة عشان المقارنة تكون عادلة.']
+  cooper: ['اختبار 12 دقيقة', ()=>svg(`<rect x="40" y="25" width="260" height="100" rx="50" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="10 8" opacity=".8"/>`+me(170,25,180)+ln(150,25,110,25,'sprint')+`<circle cx="170" cy="75" r="26" fill="#1b1b1b" stroke="#ddd" stroke-width="3"/><rect x="163" y="44" width="14" height="6" fill="#333"/><rect x="163" y="100" width="14" height="6" fill="#333"/>`+`<text x="170" y="80" text-anchor="middle" font-size="14" font-weight="700" fill="#7CFFB2">12:00</text>`+tf(170,146,'لفّات على مسار ثابت، وسجّل المسافة من الساعة',true),155,'street'), 'نفس المسار كل مرة عشان المقارنة تكون عادلة.']
 };
 const rounds = n => n===1?'جولة وحدة':n===2?'جولتين':`${num(n)} جولات`, sets = n => n===2?'مجموعتين':`${num(n)} مجموعات`;
 const DOSE = {
-  squat:p=>`١٥ عدة، ${rounds(p.str)}`, lunge:p=>`١٠ لكل رجل، ${rounds(p.str)}`, bulgarian:p=>`٨ لكل رجل، ${rounds(p.str)}`,
-  calf:p=>`١٥ لكل رجل، ${rounds(p.str)}`, bridge:p=>`١٢ لكل رجل، ${rounds(p.str)}`, nordic:p=>`٥ عدات، ${rounds(p.str)}`,
-  sidePlank:p=>`٣٠ ثانية لكل جهة، ${rounds(p.str)}`,
-  sprint:p=>`${num(p.sp)} مرات، راحة ٣٠ ثانية`, sideSprint:p=>`${num(p.sp)} مرات`, backSprint:p=>`${num(p.sp)} مرات`, coda:p=>`${num(p.light?2:4)} مرات`,
-  pogo:p=>`${sets(p.light?2:3)} × ٢٠ قفزة`, lateralHop:p=>`${sets(p.light?2:3)} × ١٠ لكل جهة`, broadJump:p=>`${sets(p.light?2:3)} × ٥ قفزات`,
-  reaction:()=>'٨ انطلاقات', ariet:p=>`${num(p.ar)} مرات`,
-  runForm:p=>`${num(p.run)} دقيقة متواصلة`, zones:()=>'المنطقة الثانية', walk:()=>'٢٠–٣٠ دقيقة',
-  calfStretch:()=>'٣٠ ثانية × ٢ لكل رجل', quadStretch:()=>'٣٠ ثانية × ٢ لكل رجل',
-  jog:()=>'١٠ دقايق', legSwing:()=>'١٠ لكل رجل', highKnees:()=>'مجموعتين × ٢٠ ثانية', cooper:()=>'١٢ دقيقة'
+  squat:p=>`15 عدة، ${rounds(p.str)}`, lunge:p=>`10 لكل رجل، ${rounds(p.str)}`, bulgarian:p=>`8 لكل رجل، ${rounds(p.str)}`,
+  calf:p=>`15 لكل رجل، ${rounds(p.str)}`, bridge:p=>`12 لكل رجل، ${rounds(p.str)}`, nordic:p=>`5 عدات، ${rounds(p.str)}`,
+  sidePlank:p=>`30 ثانية لكل جهة، ${rounds(p.str)}`,
+  sprint:p=>`${num(p.sp)} مرات، راحة 30 ثانية`, sideSprint:p=>`${num(p.sp)} مرات`, backSprint:p=>`${num(p.sp)} مرات`, coda:p=>`${num(p.light?2:4)} مرات`,
+  pogo:p=>`${sets(p.light?2:3)} × 20 قفزة`, lateralHop:p=>`${sets(p.light?2:3)} × 10 لكل جهة`, broadJump:p=>`${sets(p.light?2:3)} × 5 قفزات`,
+  reaction:()=>'8 انطلاقات', ariet:p=>`${num(p.ar)} مرات`,
+  runForm:p=>`${num(p.run)} دقيقة متواصلة`, zones:()=>'المنطقة الثانية', walk:()=>'20–30 دقيقة',
+  calfStretch:()=>'30 ثانية × 2 لكل رجل', quadStretch:()=>'30 ثانية × 2 لكل رجل',
+  jog:()=>'10 دقايق', legSwing:()=>'10 لكل رجل', highKnees:()=>'مجموعتين × 20 ثانية', cooper:()=>'12 دقيقة'
 };
 const MUS = {
   squat:[['quad','glute'],'الفخذ الأمامية والمؤخرة'], lunge:[['quad','glute'],'الفخذ الأمامية والمؤخرة'], bulgarian:[['quad','glute'],'الفخذ الأمامية والمؤخرة'],
@@ -186,19 +186,19 @@ let VIEW = (()=>{ try { return localStorage.getItem('dg-view')||'photo'; } catch
 const REST = {
   sprint:[['بين كل عدة',30,'مشي رجوع']], sideSprint:[['بين كل عدة',30]], backSprint:[['بين كل عدة',30]], coda:[['بين كل مرة',45]],
   pogo:[['بين المجموعات',60]], lateralHop:[['بين المجموعات',60]], broadJump:[['بين كل قفزة',30]], reaction:[['بين كل انطلاقة',20]],
-  ariet:[['المشي ٢٥ م هو راحتك',0]], sidePlank:[['بين الجهتين',10]],
+  ariet:[['المشي 25 م هو راحتك',0]], sidePlank:[['بين الجهتين',10]],
   calfStretch:[['بين الرجلين',10]], quadStretch:[['بين الرجلين',10]], highKnees:[['بين المجموعات',30]], legSwing:[['بين الرجلين',10]]
 };
 // rest after each exercise before the next one (index-aligned with DIAGRAMS[type])
 const AFTER = {intervals:[120,120,180], yoyo:[90,90,120,180], strength:[15,15,15,15,15,15,60], light:[30,30], rest:[0,10], recovery:[0,10]};
 const WARM_REST = {intervals:60, yoyo:60, strength:30, test:60};
 const FLOW = {
-  intervals:{warm:'إحماء ١٠ د: ركض خفيف وخطوات جانبية', cool:'تبريد ٥ د: مشي وإطالات', note:'الراحة الأطول قبل تغيير الاتجاه لأنه أصعب تمرين'},
-  yoyo:{warm:'إحماء ١٠ د: ركض خفيف وحركات كاحل', cool:'تبريد ٥ د: مشي وإطالات', note:'تمارين القفز أول والجسم نشيط، والتحمّل آخر شي'},
-  strength:{warm:'إحماء ٥ د: مشي سريع وحركات دائرية', cool:'تبريد ٥ د: إطالات للرجلين', note:'التمارين دائرة: تسويهم ورا بعض، وبعد آخر تمرين دقيقة راحة ثم الجولة الثانية'},
-  run:{warm:'أول ٥ د أبطأ', cool:'آخر ٥ د مشي', note:'ركض متواصل بدون توقف'},
+  intervals:{warm:'إحماء 10 د: ركض خفيف وخطوات جانبية', cool:'تبريد 5 د: مشي وإطالات', note:'الراحة الأطول قبل تغيير الاتجاه لأنه أصعب تمرين'},
+  yoyo:{warm:'إحماء 10 د: ركض خفيف وحركات كاحل', cool:'تبريد 5 د: مشي وإطالات', note:'تمارين القفز أول والجسم نشيط، والتحمّل آخر شي'},
+  strength:{warm:'إحماء 5 د: مشي سريع وحركات دائرية', cool:'تبريد 5 د: إطالات للرجلين', note:'التمارين دائرة: تسويهم ورا بعض، وبعد آخر تمرين دقيقة راحة ثم الجولة الثانية'},
+  run:{warm:'أول 5 د أبطأ', cool:'آخر 5 د مشي', note:'ركض متواصل بدون توقف'},
   light:{warm:'', cool:'', note:'كل شي خفيف ومتواصل'},
-  rest:{warm:'',cool:'',note:''}, recovery:{warm:'',cool:'',note:''}, test:{warm:'إحماء ١٠ د',cool:'تبريد ٥ د مشي',note:''}
+  rest:{warm:'',cool:'',note:''}, recovery:{warm:'',cool:'',note:''}, test:{warm:'إحماء 10 د',cool:'تبريد 5 د مشي',note:''}
 };
 const fmtS = s => { if(s<60) return `${num(s)} ثانية`; const m=Math.floor(s/60), r=s%60; const base = m===1?'دقيقة':m===2?'دقيقتين':`${num(m)} دقايق`; return r===30 ? base+' ونص' : r ? `${base} و${num(r)} ثانية` : base; };
 /* rest timer */
@@ -209,7 +209,7 @@ function startTimer(sec,label){
   draw();
   tmr=setInterval(()=>{ left--; if(left<=0){ stopTimer(true); } else { if(left<=3) beep(600,.08); draw(); } },1000);
 }
-function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} const bar=$('timer'); if(done){ beep(880,.35); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='٠:٠٠'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
+function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} const bar=$('timer'); if(done){ beep(880,.35); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='0:00'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
 let actx=null;
 function beep(f,d){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); const o=actx.createOscillator(), g=actx.createGain(); o.frequency.value=f; o.connect(g); g.connect(actx.destination); g.gain.value=.15; o.start(); o.stop(actx.currentTime+d);}catch(e){} }
 function restHTML(k){ const r=REST[k]; if(!r) return ''; return `<div class="rests">${r.map(([l,s,extra])=>s?`<button class="rbtn" data-s="${s}" data-l="${l}">⏱ ${l}: ${fmtS(s)}${extra?' '+extra:''}</button>`:`<span class="rbtn off">⏸ ${l}</span>`).join('')}</div>`; }

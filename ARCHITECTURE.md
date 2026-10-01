@@ -584,7 +584,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '13';
+const VERSION = '14';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -702,11 +702,24 @@ the exact inverse of that table. A 7 becomes effort 4 and a 38-minute session sc
 The raw answer is kept beside it as `rpe10` for later, and **nothing computes load from that field**.
 Changing either the table or what `effort` means would silently rewrite every historical comparison.
 
-### Known cosmetic gap
-A match session's stored `title` is built by `applyMatch()` as `مباراة الساعة ${time}` straight from
-the `<input type="time">` value, so it carries Western digits while the rest of the UI uses
-Arabic-Indic. It is stored text, not display text, and the coach prompt reads it, so it was left
-alone rather than changed under the redesign.
+### Digits: Western 0-9 everywhere
+The app used to show Arabic-Indic digits (٠١٢…). It now shows Western digits, with Arabic words and
+the Gregorian calendar, in three layers:
+
+1. **Formatters.** `AR` in `js/state.js` is `ar-SA-u-ca-gregory-nu-latn`, `num()` formats with it, and
+   `hhmm`/`clock12` in `js/ui.js` use `nu-latn`. `٪` became `%`.
+2. **Literals.** Every digit written in the source — exercise doses, quiz text, notes — is 0-9. The only
+   Arabic-Indic digits left in the code are the two input parsers (`#tv` in `js/schedule.js`, `#mScore`
+   in `js/progress.js`) and `lib/health.js`, which must keep *accepting* them because people type them.
+   The coach prompts (chat, weekly report, push text) ask Claude for 0-9 too.
+3. **Display.** `latinDigits(document.body)` (`js/ui.js`, installed first thing in `main.js`) converts
+   any Arabic-Indic or Persian digit in a text node as it reaches the screen. That covers what the code
+   did not write: plan days generated before the switch (the horizon is 56 days ahead), old chat and
+   reports, an assignment SMS. **Stored data is not rewritten** — the backup and the coach prompt see
+   exactly what was saved.
+
+The old cosmetic gap — a match title carrying Western digits from `<input type="time">` while the rest
+of the UI was Arabic-Indic — is gone as a side effect.
 
 ---
 

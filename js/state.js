@@ -14,12 +14,13 @@ const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
 const addDays = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
 const todayISO = () => iso(new Date());
-const AR = 'ar-SA-u-ca-gregory-nu-arab';
+// Arabic words, Gregorian calendar, Western digits (0-9) everywhere in the app.
+const AR = 'ar-SA-u-ca-gregory-nu-latn';
 const fWd = new Intl.DateTimeFormat(AR,{weekday:'long'});
 const fDm = new Intl.DateTimeFormat(AR,{day:'numeric',month:'short'});
 const fFull = new Intl.DateTimeFormat(AR,{weekday:'long',day:'numeric',month:'long'});
 const fMon = new Intl.DateTimeFormat(AR,{month:'long',year:'numeric'});
-const num = n => Number(n).toLocaleString('ar-SA');
+const num = n => Number(n).toLocaleString(AR);
 const PLAN_START = '2026-09-27';
 
 export { pad, iso, parse, addDays, todayISO, AR, fWd, fDm, fFull, fMon, num, PLAN_START };

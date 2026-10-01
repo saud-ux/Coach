@@ -65,8 +65,8 @@ export function icon(name, cls = ''){
 }
 
 /* ---------- small formatters ---------- */
-// "٧ س ١٢ د" — the app shows Arabic-Indic digits everywhere, including here.
-const ar = n => Number(n).toLocaleString('ar-SA', { useGrouping: false });
+// "7 س 12 د" — the app shows Western digits everywhere, including here.
+const ar = n => Number(n).toLocaleString('ar-SA-u-nu-latn', { useGrouping: false });
 
 export function hhmm(mins){
   const m = Math.max(0, Math.round(Number(mins) || 0));
@@ -75,7 +75,7 @@ export function hhmm(mins){
   return r ? `${ar(h)} س ${ar(r)} د` : `${ar(h)} س`;
 }
 
-// "١١:٤٥ م" from "23:45" or a Date
+// "11:45 م" from "23:45" or a Date
 export function clock12(v){
   let h, m;
   if (v instanceof Date){ h = v.getHours(); m = v.getMinutes(); }
@@ -90,3 +90,31 @@ export function clock12(v){
 }
 
 export { ar as arNum };
+
+/* ---------- Western digits on screen ---------- */
+// The app writes 0-9 itself, but text it did not write can still carry Arabic-
+// Indic digits: plan days generated before the switch, old chat and reports, a
+// coach reply that ignored its instructions, an assignment SMS. Rather than
+// rewrite stored data, every text node is converted on its way to the screen.
+// Setting nodeValue fires one more mutation, which finds nothing left to change.
+const LATIN = { '٫': '.', '٪': '%' };
+const NON_LATIN = /[\u0660-\u066B\u06F0-\u06F9]/;
+const toLatin = t => t.replace(/[\u0660-\u066B\u06F0-\u06F9]/g, c =>
+  LATIN[c] ?? String((c.charCodeAt(0) - (c >= '\u06F0' ? 0x6F0 : 0x660))));
+
+export function latinDigits(root){
+  const fix = n => { if (NON_LATIN.test(n.nodeValue)) n.nodeValue = toLatin(n.nodeValue); };
+  const walk = el => {
+    if (el.nodeType === 3) return fix(el);
+    if (el.nodeType !== 1) return;
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) fix(n);
+  };
+  walk(root);
+  new MutationObserver(ms => {
+    for (const m of ms){
+      if (m.type === 'characterData') fix(m.target);
+      else m.addedNodes.forEach(walk);
+    }
+  }).observe(root, { childList: true, subtree: true, characterData: true });
+}
