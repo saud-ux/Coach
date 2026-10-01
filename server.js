@@ -277,6 +277,7 @@ async function health(req, res, url){
                          from «Get Contents of URL» to «Speak Text»
    The words are built by lib/today.js from the state row and last night's sleep. */
 const T = require('./lib/today');
+const N = require('./lib/nudges');
 async function today(req, res, url){
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
   const pass = clean(String(req.headers['x-passcode'] || url.searchParams.get('passcode') || ''));
@@ -346,7 +347,8 @@ async function markSent(key, date){
   catch (e) { console.error('sent-log write failed; a restart may repeat this reminder', redact(e && e.message)); }
 }
 
-const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'}, matchplan:{on:true} };
+const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'}, matchplan:{on:true},
+                   steps:{on:true, times:['12:00','16:00','20:00']}, water:{on:true, every:2, from:'09:00', to:'21:00'} };
 // the match-day plan is shared with the app (js/matchplan.js), loaded once on first use
 let MATCHPLAN = null;
 const pref = (prefs, kind) => ({ ...DEFAULTS[kind], ...((prefs||{})[kind] || {}) });
@@ -440,6 +442,22 @@ async function cron(req, res, url){
     } catch (e) { console.error('cron: match plan unavailable', redact(e && e.message)); }
   }
 
+  // water through the day, and walking until the steps target is closed (lib/nudges.js)
+  const due2 = N.slotsDue(now, { water: pref(prefs, 'water'), steps: pref(prefs, 'steps') }, matches, within);
+  let nudge = null;
+  if (due2.water != null || due2.steps != null) {
+    let line2 = null;
+    if (due2.steps != null) {
+      let steps = null, lastAt = null;
+      try {
+        const hg = (await rpc('coach_health_get', {p_since: now.date})) || {};
+        const d = (hg.days || []).find(x => x.day === now.date); steps = d ? d.steps : null; lastAt = hg.last_at || null;
+      } catch (e) { if (!missingFn(e)) console.error('cron: steps read failed', redact(e && e.message)); }
+      line2 = N.stepsLine(due2.steps, steps, lastAt, Date.now(), TZ);
+    }
+    nudge = N.compose(due2, now.date, line2);
+  }
+
   const wp = pref(prefs, 'weekly');
   if (wp.on && WD[Number(wp.day)] === now.wd && within(toMin(wp.time))) due.push(['weekly', 'ملخص الأسبوع', '/?tab=prog']);
 
@@ -458,6 +476,15 @@ async function cron(req, res, url){
     if (await alreadySent(key)) continue;
     await markSent(key, now.date);
     if (await push(p.sub, `خطة المباراة · ${title}`, body, key.split(':')[0], '/?tab=today')) fired.push(key.split(':')[0]);
+  }
+  if (nudge) {
+    let taken = false;
+    for (const k of nudge.keys) if (await alreadySent(k)) taken = true;
+    if (!taken) {
+      for (const k of nudge.keys) await markSent(k, now.date);
+      const tag = nudge.keys[0].split(':')[0];
+      if (await push(p.sub, nudge.title, nudge.body, tag, '/?tab=today')) fired.push(tag);
+    }
   }
   const clock = `${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`;
   console.log(`cron: tick ${clock} sent=${fired.length ? fired.join('+') : 'none'}`);

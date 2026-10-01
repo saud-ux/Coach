@@ -11,8 +11,8 @@
 import { state, save, $ } from './state.js';
 
 /* ---------- reminders ---------- */
-const PUSH_DEF = {ready:{on:true,time:'08:00'}, train:{on:true,time:'17:00'}, match:{on:true,before:120}, weekly:{on:true,day:6,time:'20:00'}, matchplan:{on:true}};
-const prefsOf = () => { const p=(state.push&&state.push.prefs)||{}; return {ready:{...PUSH_DEF.ready,...(p.ready||{})}, train:{...PUSH_DEF.train,...(p.train||{})}, match:{...PUSH_DEF.match,...(p.match||{})}, weekly:{...PUSH_DEF.weekly,...(p.weekly||{})}, matchplan:{...PUSH_DEF.matchplan,...(p.matchplan||{})}}; };
+const PUSH_DEF = {ready:{on:true,time:'08:00'}, train:{on:true,time:'17:00'}, match:{on:true,before:120}, weekly:{on:true,day:6,time:'20:00'}, matchplan:{on:true}, steps:{on:true,times:['12:00','16:00','20:00']}, water:{on:true,every:2,from:'09:00',to:'21:00'}};
+const prefsOf = () => { const p=(state.push&&state.push.prefs)||{}; return {ready:{...PUSH_DEF.ready,...(p.ready||{})}, train:{...PUSH_DEF.train,...(p.train||{})}, match:{...PUSH_DEF.match,...(p.match||{})}, weekly:{...PUSH_DEF.weekly,...(p.weekly||{})}, matchplan:{...PUSH_DEF.matchplan,...(p.matchplan||{})}, steps:{...PUSH_DEF.steps,...(p.steps||{})}, water:{...PUSH_DEF.water,...(p.water||{})}}; };
 const installed = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const b64 = s => { const pad='='.repeat((4-s.length%4)%4), raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/')); return Uint8Array.from(raw, c=>c.charCodeAt(0)); };
 
@@ -55,6 +55,8 @@ function renderNotif(){
   $('nMatch').checked=p.match.on; $('nMatchB').value=String(p.match.before);
   $('nWeek').checked=p.weekly.on; $('nWeekD').value=String(p.weekly.day); $('nWeekT').value=p.weekly.time;
   if ($('nPlan')) $('nPlan').checked=p.matchplan.on;
+  if ($('nSteps')) $('nSteps').checked=p.steps.on;
+  if ($('nWater')){ $('nWater').checked=p.water.on; $('nWaterE').value=String(p.water.every); }
 }
 function savePrefs(){
   if (!state.push) return;
@@ -63,7 +65,9 @@ function savePrefs(){
     train:{on:$('nTrain').checked, time:$('nTrainT').value||'17:00'},
     match:{on:$('nMatch').checked, before:Number($('nMatchB').value)||120},
     weekly:{on:$('nWeek').checked, day:Number($('nWeekD').value), time:$('nWeekT').value||'20:00'},
-    matchplan:{on:$('nPlan') ? $('nPlan').checked : true}
+    matchplan:{on:$('nPlan') ? $('nPlan').checked : true},
+    steps:{...PUSH_DEF.steps, on:$('nSteps') ? $('nSteps').checked : true},
+    water:{...PUSH_DEF.water, on:$('nWater') ? $('nWater').checked : true, every:$('nWaterE') ? Number($('nWaterE').value) || 2 : 2}
   };
   save();
 }
@@ -114,7 +118,7 @@ function initNotifications(){
     } catch(e){ box.innerHTML='<p class="note">ما قدرنا نجيب المفاتيح. تأكد من رمز الدخول وأعد المحاولة.</p>'; box.hidden=false; btn.textContent='إخفاء'; }
     finally { btn.disabled=false; }
   };
-  ['nReady','nTrain','nMatch','nWeek','nPlan'].forEach(id=>{ if ($(id)) $(id).onchange=savePrefs; });
+  ['nReady','nTrain','nMatch','nWeek','nPlan','nSteps','nWater','nWaterE'].forEach(id=>{ if ($(id)) $(id).onchange=savePrefs; });
   ['nReadyT','nTrainT','nMatchB','nWeekD','nWeekT'].forEach(id=>$(id).onchange=savePrefs);
 }
 

@@ -592,7 +592,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '26';
+const VERSION = '27';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1194,3 +1194,22 @@ Verified against a local Postgres through the mock Supabase:
 - Fourteen days of steps were stored, with the warning shown on a rest day at 16,240.
 - Four matches were stamped with their nights, and the panel showed 8.7 after 7+ hours against 7.8
   after shorter nights.
+
+## 21. Water and steps through the day
+
+`lib/nudges.js` holds the logic, and the cron uses it on every tick.
+
+- **Water:** a push every 1, 2 or 3 hours (`push.prefs.water.every`, 2 by default) from 09:00 to 21:00.
+  It goes quiet from an hour before kickoff to two hours after, because the match-day plan covers
+  that stretch.
+- **Steps:** a push at 12:00, 16:00 and 20:00, only when it has something to say. There is none once
+  the 8,000 target is closed, and none when the day is on pace: at least 90% of 8,000 spread evenly
+  from 07:00 to 21:00. Match days have no steps pushes.
+- **Combined:** when both are due on the same tick, they go out as one push («ماء وخطوات») that
+  claims both dedupe keys (`water:<date>:<slot>`, `steps:<date>:<slot>`).
+
+Steps reach the server only when the Shortcut runs. A count older than two hours (by `last_at`) is
+reported as «حسب آخر مزامنة (8:05 ص)…» instead of as the current count. SHORTCUT.md suggests three
+extra automations ten minutes before each steps time.
+
+Settings has two switches («الخطوات» and «شرب الماء») and the water interval. Both are on by default.

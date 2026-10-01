@@ -519,6 +519,9 @@ export function openSettings(focus){
           <label class="sw"><input type="checkbox" id="nMatch"><span>قبل المباراة</span></label>
           <select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select>
           <label class="sw"><input type="checkbox" id="nPlan"><span>خطة يوم المباراة: النوم، الماء، الأكل، الإحماء، والاستشفاء</span></label>
+          <label class="sw"><input type="checkbox" id="nSteps"><span>الخطوات: 12 الظهر و4 العصر و8 الليل، إذا كنت متأخر عن هدف 8,000</span></label>
+          <label class="sw"><input type="checkbox" id="nWater"><span>شرب الماء من 9 الصبح لين 9 الليل</span></label>
+          <select class="in sm" id="nWaterE"><option value="1">كل ساعة</option><option value="2">كل ساعتين</option><option value="3">كل 3 ساعات</option></select>
           <label class="sw"><input type="checkbox" id="nWeek"><span>ملخص الأسبوع</span></label>
           <div class="srow">
             <select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select>
