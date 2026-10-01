@@ -215,7 +215,13 @@ async function health(req, res, url){
       let raw=''; for await (const c of req){ raw+=c; if (raw.length>3000000) return send(res, 413, {error:'too large'}); }
       let body; try { body = JSON.parse(raw); } catch { return send(res, 400, {error:'bad json', message:'الاختصار أرسل شي مو JSON'}); }
       // the Shortcut can carry the passcode in the body, like /api/assign
-      const pass = clean(req.headers['x-passcode'] || (body && body.passcode));
+      // Shortcuts likes to nest the whole dictionary under one field ("data"), so
+      // a body with nothing of ours at the top level is unwrapped one level
+      if (body && body.data && typeof body.data === 'object' && !Array.isArray(body.data) &&
+          !body.sleep && !body.nights && !body.workouts) body = { ...body.data, passcode: body.data.passcode ?? body.passcode };
+      // a passcode typed as 1234 can arrive as a number, not text
+      const given = req.headers['x-passcode'] || (body && body.passcode);
+      const pass = clean(given == null ? '' : String(given));
       if (PASSCODE && pass !== PASSCODE) return send(res, 401, {error:'passcode', message:'رمز الدخول غلط'});
       const maxHr = await maxHrSetting();
       const { nights, workouts } = H.normalize(body, { maxHr, tz: TZ });
