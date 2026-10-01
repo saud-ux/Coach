@@ -598,7 +598,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '46';
+const VERSION = '47';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1438,3 +1438,27 @@ Verified: the push against a mock intervals.icu (two events, an identical tick s
 rest removed its event and left a non-`rc-` event alone); in Chromium, low HRV → light with the
 reason, undo → intervals with `noauto`; normal HRV → unchanged; calf pain yesterday → light; very low
 readiness → recovery. intervals.icu's parsing of the real workout text is not yet checked.
+
+## 27. Travel to an away match
+
+A match can carry `travel = { mode: 'car'|'plane', hours, stay }`, set under «السفر» in the match
+fields (`js/progress.js`). `hours` is door to stadium, with the airport included for a flight, and
+`stay` means a night there after the match.
+
+`travelPlan()` (`js/matchplan.js`) times the trip back from being at the stadium 90 minutes before
+kickoff, with 30 minutes of slack:
+
+- the trip moves to the day before (be there by 8 pm) when the same-day start would be before 8 am,
+  or the trip is over five hours;
+- the way back starts 150 minutes after kickoff, or at 11 am the next day with `stay`;
+- getting home after 1 am adds a suggestion to sleep there, and moves the recovery morning to 11.
+
+`planSteps()` adds `tr_pack`, `tr_leave`, `tr_snack` (trips of 2.5 hours or more), `tr_arrive` (the day
+before only) and `tr_back`. It moves the main meal to an hour before a same-day departure, and
+rewrites the sleep and kit lines to fit the trip. The steps keep their order by day and minute, so the
+Today timeline, the cron's pushes and Siri (`lib/today.js`: «والسفر اليوم، اطلع الساعة …» the day
+before) all read the same plan. The plan card's header gains the mode, hours and departure.
+
+Verified: plan output for 0.5 to 6 hours by car and a 4-hour flight with a night there; in Chromium,
+the card for a trip the day before and for a same-day trip, and the form saving `travel` on a new
+match.

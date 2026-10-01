@@ -21,7 +21,7 @@ import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
-import { planSteps, shiftDate } from './matchplan.js';
+import { planSteps, shiftDate, travelPlan, TRAVEL_MODES } from './matchplan.js';
 import { WATCH_NAME } from './garmin.js';
 import { recoveryHTML, bindRecovery } from './body.js';
 
@@ -398,7 +398,7 @@ function renderMatchPlan(){
   const teams = m.home || m.away ? `${m.home || '؟'} × ${m.away || '؟'}` : 'المباراة';
   box.innerHTML = `<section class="card mplan">
     <div class="mphead"><span class="mpic">${icon('flag')}</span>
-      <div><b>خطة يوم المباراة</b><small>${teams} · ${m.date === t ? 'اليوم' : m.date > t ? 'بكرة' : 'أمس'} ${clock12(m.time)}</small></div></div>
+      <div><b>خطة يوم المباراة</b><small>${teams} · ${m.date === t ? 'اليوم' : m.date > t ? 'بكرة' : 'أمس'} ${clock12(m.time)}</small>${travelLine(m, t)}</div></div>
     <ol class="mpl">${steps.map((s, i) => `<li class="${i < nextI || nextI < 0 ? 'done' : i === nextI ? 'next' : ''}">
       <span class="mpt">${when(s)}</span><i class="mpdot"></i>
       <div><b>${s.title}</b>${i === nextI ? `<small>${s.body}</small>` : ''}</div></li>`).join('')}</ol>
@@ -407,6 +407,16 @@ function renderMatchPlan(){
   </section>`;
   const ev = $('mpEval'); if (ev) ev.onclick = () => openDay(m.date);
   const rc = $('mpRec'); if (rc) rc.onclick = () => openSheet(sh => { sh.innerHTML = `<h2 class="sheeth">الاستشفاء بعد المباراة</h2>${recoveryHTML()}`; bindRecovery(sh); });
+}
+
+// an away match: how, how long, and when to leave
+function travelLine(m, t){
+  const tp = travelPlan(m);
+  if (!tp || m.date < t) return '';
+  const d = shiftDate(m.date, tp.leave.day);
+  const when = d === t ? 'اليوم' : d === shiftDate(t, 1) ? 'بكرة' : d > t ? 'بعد بكرة' : 'أمس';
+  const hh = `${Math.floor(tp.leave.min / 60)}:${String(tp.leave.min % 60).padStart(2, '0')}`;
+  return `<small class="mptrav">${icon('route')} ${TRAVEL_MODES[tp.mode]} · ${num(tp.hours)} س · الطلعة ${when} ${clock12(hh)}${tp.stay ? ' · مبيت' : ''}</small>`;
 }
 
 /* ---------- today's session ---------- */

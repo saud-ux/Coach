@@ -117,6 +117,12 @@ function matchFieldsHTML(m){
     <div class="two"><div><label class="f" for="mHome">المستضيف</label><input class="in" id="mHome"></div><div><label class="f" for="mAway">الضيف</label><input class="in" id="mAway"></div></div>
     <label class="f">دورك</label><div class="opts" id="mRole">${ROLES.map((r,i)=>`<button data-i="${i}" aria-pressed="${String(m&&String(m.role)===String(i))}">${r}</button>`).join('')}</div>
     <label class="f" for="mVenue">الملعب</label><input class="in" id="mVenue" placeholder="مثلًا: ملعب نادي الزلفي">
+    <label class="f">السفر</label><div class="opts" id="mTrav">${[['', 'في مدينتي'], ['car', 'سيارة'], ['plane', 'طيران']].map(([k, l]) => `<button type="button" data-k="${k}" aria-pressed="${String(((m && m.travel && m.travel.mode) || '') === k)}">${l}</button>`).join('')}</div>
+    <div id="mTravMore" ${m && m.travel && m.travel.mode ? '' : 'hidden'}>
+      <div class="two"><div><label class="f" for="mTravH">مدة الطريق بالساعات</label><input class="in" id="mTravH" inputmode="decimal" placeholder="مثلًا 3"></div>
+      <div><label class="f">بعد المباراة</label><div class="opts" id="mStay"><button type="button" data-s="0" aria-pressed="${String(!(m && m.travel && m.travel.stay))}">أرجع</button><button type="button" data-s="1" aria-pressed="${String(!!(m && m.travel && m.travel.stay))}">أبات</button></div></div></div>
+      <p class="snote">من بابك لين الملعب، وللطيران احسب المطار معها. أرتب لك وقت الطلعة والأكل والنوم والرجعة.</p>
+    </div>
     <label class="f" for="mCrew">طاقم التحكيم (اختياري)</label><input class="in" id="mCrew" placeholder="الحكم والمساعد الثاني">
     <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا 8.4"></div><div></div></div>
     <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea>
@@ -206,11 +212,19 @@ function bindMatchFields(sh, m){
     if (ev.score != null && scEl && !scEl.value) scEl.value = ev.score;
     btn.disabled = false; btn.textContent = '📷 أضف صور ثانية للتقييم'; e.target.value = '';
   };
+  let trav = m.travel ? { ...m.travel } : { mode: '' };
+  if (m.travel && m.travel.hours) set('#mTravH', m.travel.hours);
+  const press = (sel, b) => sh.querySelectorAll(sel).forEach(x => x.setAttribute('aria-pressed', x === b));
+  sh.querySelectorAll('#mTrav button').forEach(b => b.onclick = () => { trav.mode = b.dataset.k; press('#mTrav button', b); sh.querySelector('#mTravMore').hidden = !trav.mode; });
+  sh.querySelectorAll('#mStay button').forEach(b => b.onclick = () => { trav.stay = b.dataset.s === '1'; press('#mStay button', b); });
   let role = m.role;
   sh.querySelectorAll('#mRole button').forEach(b=>b.onclick=()=>{ role=b.dataset.i; sh.querySelectorAll('#mRole button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   return () => { const v=id=>(sh.querySelector(id)?.value||'').trim(); const sc=v('#mScore').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g,'.');
     Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''});
-    if (ev) m.eval = ev; };
+    if (ev) m.eval = ev;
+    const h = parseFloat(v('#mTravH').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g, '.'));
+    if (trav.mode && h > 0 && h <= 16) m.travel = { mode: trav.mode, hours: Math.round(h * 2) / 2, stay: !!trav.stay };
+    else delete m.travel; };
 }
 
 /* ---------- weather (Open-Meteo, works on the standalone site) ---------- */
