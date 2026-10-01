@@ -118,3 +118,15 @@ export function latinDigits(root){
     }
   }).observe(root, { childList: true, subtree: true, characterData: true });
 }
+
+/* ---------- day and night ---------- */
+// "auto" (the default) is night from 18:00 to 05:00, roughly sunset to dawn in
+// Riyadh through the year. index.html runs the same rule before the first paint;
+// this keeps it right while the app stays open across sunset.
+export function applyTheme(pref = 'auto'){
+  const h = new Date().getHours();
+  const night = pref === 'night' || (pref !== 'day' && (h >= 18 || h < 5));
+  if (night) document.documentElement.setAttribute('data-theme', 'night');
+  else document.documentElement.removeAttribute('data-theme');
+  return night;
+}

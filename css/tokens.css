@@ -1,84 +1,163 @@
-/* tokens.css — "Night 2".
+/* tokens.css — "Saudi green".
 
-   Dark only for now. The data-theme hooks are kept deliberately: every value is
-   declared once in :root and again under :root[data-theme="dark"], so adding a
-   light theme later means filling in :root[data-theme="light"] and flipping one
-   attribute — no rule below this file needs to change.
+   Two themes from one set of names. :root is the day theme: warm sand, white
+   cards, the flag green for actions and gold for what should stand out. Night
+   (:root[data-theme="night"]) is the same identity in deep green, switched on
+   automatically after sunset or by hand in Settings (js/theme.js). Every colour
+   below has a meaning; app.css only ever names the meaning.
+
+   The green band at the top of each tab carries a lattice and a Sadu edge
+   (app.css, .thead); its colours are the --band-* names.
 
    Loaded before app.css. */
 
 :root{
   /* surfaces */
-  --bg:#07080A;
-  --surface:#101216;
-  --surface-2:#14171C;
-  --track:#1E232B;        /* ring backgrounds, dividers, inactive fills */
+  --bg:#F5F2EA;           /* sand */
+  --surface:#FFFFFF;      /* cards */
+  --surface-2:#F7F4EC;    /* insets inside a card, quiet buttons */
+  --track:#EFEBE1;        /* ring backgrounds, dividers, inactive fills */
+  --border:#ECE6D8;       /* a card's edge */
+  --field:#FBFAF6;        /* inside a form field */
+  --field-line:#DCD4C3;   /* a form field's edge */
 
   /* text */
-  --ink:#F2F4F7;
-  --ink-2:#C9CED6;
-  --muted:#8B93A1;
-  --muted-2:#6E7684;      /* inactive tabs */
-  --on-ink:#07080A;       /* text on a fill of --ink: the primary button, a selected chip */
+  --ink:#14251B;
+  --ink-2:#3D4F43;
+  --muted:#6F7D73;
+  --muted-2:#8A968D;      /* inactive tabs */
+  --on-ink:#FFFFFF;       /* text on a strong fill */
+
+  /* identity */
+  --brand:#006C35;        /* the flag green: primary buttons, the selected tab */
+  --brand-soft:#E4F2E9;   /* a selected chip, the selected tab's pill */
+  --brand-ink:#0A4A2C;    /* text on --brand-soft */
+  --gold:#C9A13B;         /* what should stand out: today, the next match, due reviews */
+  --gold-soft:#FBF3DC;
+  --gold-line:#F0D79A;
+  --gold-ink:#6B5414;     /* text on --gold-soft or --gold */
+
+  /* the band at the top of every tab */
+  --band:#0A4A2C;
+  --band-ink:#FFFFFF;
+  --band-muted:#CFE3D6;
+  --band-accent:#E7C873;
 
   /* meaning */
-  --sleep:#9B8CFF;
-  --ready:#3DDC84;
-  --load:#4AA3FF;
-  --effort:#FF7A45;
-  --match:#F2C230;
-  --max:#FF4D5E;
+  --sleep:#5B4FCF;
+  --ready:#12A35A;        /* lighter than --brand so a readiness ring never reads as a button */
+  --load:#1F7AC9;
+  --effort:#E2702F;
+  --match:#C9A13B;
+  --max:#D93448;
 
   /* height of the docked tab bar, not counting the home-indicator inset:
      6px + the 44px tap target + 6px, and its 1px top edge */
   --tabbar:57px;
 
-  /* a form field's edge: a step brighter than --track, so it shows on --surface */
-  --field-line:#2C323C;
+  /* sleep stages, in depth order. Validated as a categorical set on --surface with
+     the dataviz checker: lightness band, colour-blind and normal-vision separation
+     of neighbours, and contrast all pass. */
+  --st-deep:#5B4FCF;
+  --st-core:#3D8FD8;
+  --st-rem:#119E78;
+  --st-awake:#E2702F;
 
-  /* sleep stages, in depth order. Checked as a categorical set on --surface with
-     the dataviz validator: lightness band, colour-blind separation of neighbours,
-     normal-vision separation and contrast all pass. */
+  /* session types */
+  --run:#1F7AC9;
+  --strength:#5B4FCF;
+  --intervals:#E2702F;
+  --yoyo:#119E8F;
+  --light:#4DB27A;
+  --rest:#A39C8C;
+  --recovery:#12A35A;
+  --test:#D93448;
+
+  /* legacy names still referenced by the SVG figures, charts and older components */
+  --pitch:#12A35A;
+  --pitch-soft:#E4F2E9;
+  --line:#ECE6D8;
+  --card:#C9A13B;
+  --card-ink:#3B2E08;
+  --red:#D93448;
+
+  /* shape */
+  --r-card:22px;
+  --r-tile:18px;
+  --r-field:14px;
+  --sh:0 1px 2px rgba(20,37,27,.05), 0 8px 22px rgba(10,74,44,.07);
+  --sh-lift:0 1px 2px rgba(20,37,27,.06), 0 14px 30px rgba(10,74,44,.13);
+  --tap:44px;             /* minimum touch target */
+
+  --font-display:"Noto Kufi Arabic","IBM Plex Sans Arabic",system-ui,sans-serif;
+
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+  background:var(--band);   /* the strip under the status bar continues the band */
+}
+
+/* Night: the same identity in deep green. Gold and the Sadu edge stay. */
+:root[data-theme="night"]{
+  --bg:#06140D;
+  --surface:#0E2419;
+  --surface-2:#12301F;
+  --track:#1C3A2A;
+  --border:#1C3A2A;
+  --field:#0A1D14;
+  --field-line:#2A4A38;
+
+  --ink:#EAF5EE;
+  --ink-2:#C4D9CB;
+  --muted:#8FAE9B;
+  --muted-2:#6F8C7A;
+  --on-ink:#FFFFFF;
+
+  --brand:#12874A;
+  --brand-soft:#123A25;
+  --brand-ink:#9FE0BC;
+  --gold:#C9A13B;
+  --gold-soft:#2E2710;
+  --gold-line:#5A4A1E;
+  --gold-ink:#F2D88C;
+
+  --band:#082F1D;
+
+  --sleep:#9B8CFF;
+  --ready:#3BD37F;
+  --load:#5DA9EE;
+  --effort:#FF8A4C;
+  --match:#E0B54A;
+  --max:#FF5C6C;
+
+  /* validated on the night --surface: all pass but deep's contrast, which is
+     relieved by the legend's labels and minutes */
   --st-deep:#6550D6;
   --st-core:#4796E2;
   --st-rem:#24A88E;
   --st-awake:#E46A3C;
 
-  /* session types. Distinct enough to read as dots on the week strip. */
-  --run:#4AA3FF;
+  --run:#5DA9EE;
   --strength:#9B8CFF;
-  --intervals:#FF7A45;
+  --intervals:#FF8A4C;
   --yoyo:#39D7C4;
   --light:#7FD17F;
-  --rest:#6E7684;
-  --recovery:#3DDC84;
-  --test:#FF4D5E;
+  --rest:#6F8C7A;
+  --recovery:#3BD37F;
+  --test:#FF5C6C;
 
-  /* legacy names still referenced by the SVG figures, charts and a few older
-     components. Mapped onto the palette above rather than left behind. */
-  --pitch:#3DDC84;
-  --pitch-soft:#14241C;
-  --line:#1E232B;
-  --card:#F2C230;
+  --pitch:#3BD37F;
+  --pitch-soft:#123A25;
+  --line:#1C3A2A;
+  --card:#E0B54A;
   --card-ink:#2A2100;
-  --red:#FF4D5E;
+  --red:#FF5C6C;
 
-  /* shape */
-  --r-card:22px;
-  --r-tile:16px;
-  --r-field:14px;
-  --sh:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
-  --tap:44px;             /* minimum touch target */
-
-  box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px);
-  padding-bottom:env(safe-area-inset-bottom,0px);
+  --sh:0 1px 2px rgba(0,0,0,.35), 0 8px 22px rgba(0,0,0,.3);
+  --sh-lift:0 1px 2px rgba(0,0,0,.4), 0 14px 30px rgba(0,0,0,.45);
   color-scheme:dark;
 }
-
-/* The app is dark whatever the system says, until a light theme exists. Both
-   selectors are here so the switch is a one-line change later. */
-:root[data-theme="dark"]{ color-scheme:dark; }
 
 *,*::before,*::after{box-sizing:border-box}
 

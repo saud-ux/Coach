@@ -743,6 +743,29 @@ of the UI was Arabic-Indic — is gone as a side effect.
 
 ---
 
+## 11b. "Saudi green" (replaces Night 2's palette)
+
+Designed on a canvas first (claude.ai design artifact "جدول الحكم · الأخضر السعودي"), then applied.
+
+- **Two themes from one set of token names** (`css/tokens.css`). Day is `:root`: sand `--bg`, white cards
+  with a `--border` edge, the flag green `--brand` for primary buttons and the selected tab, gold for what
+  should stand out (today, the next match, due reviews). Night is `:root[data-theme="night"]`: the same
+  identity in deep green. Gold and the band stay.
+- **Which one:** `settings.theme` = `auto` (default) | `day` | `night`, chosen in Settings → المظهر.
+  `auto` is night from 18:00 to 05:00. An inline script in `index.html` applies it before the first
+  paint; `applyTheme()` (`js/ui.js`) re-checks every 5 minutes and on return to the app.
+- **The band:** every tab's `.thead` is a full-bleed `--band` green with a faint lattice and a gold Sadu
+  zigzag edge (`::after`), the same in both themes. The status-bar strip above it is `:root`'s background,
+  so it continues the band.
+- **Today** puts the greeting, readiness and load as chips, and the week (today in gold, a match day
+  outlined) in the band; the sleep card overlaps its edge and is compact (ring beside the figures, a bar
+  of the night's stage totals, the coach line, «التفاصيل»). The two tiles are gone; their numbers are the
+  chips. The next match is a ticket with the teams' initials and a gold countdown stub.
+- **Type:** Noto Kufi Arabic (`--font-display`) for headings and big numbers, IBM Plex Sans Arabic for the
+  rest.
+- **Stage colours** were re-validated for each theme's surface; the night set's deep-sleep contrast is a
+  WARN relieved by the legend's labels.
+
 ## 12. Phase 1: what changed, and what to watch
 
 Done:

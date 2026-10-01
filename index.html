@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>جدول الحكم</title>
 <meta name="description" content="جدول تمارين ومدرب لياقة للحكم المساعد">
-<meta name="theme-color" content="#07080A">
+<meta name="theme-color" content="#0A4A2C">
+<!-- Night or day before the first paint, so the page never flashes the wrong
+     theme. Same rule as applyTheme() in js/ui.js: the setting wins, and "auto"
+     (the default) is night from 18:00 to 05:00. -->
+<script>
+(function(){ var p='auto'; try{ p=((JSON.parse(localStorage.getItem('referee-coach-v1')||'{}').settings)||{}).theme||'auto'; }catch(e){}
+  var h=new Date().getHours(); if(p==='night'||(p!=='day'&&(h>=18||h<5))) document.documentElement.setAttribute('data-theme','night'); })();
+</script>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-180.png">
@@ -16,16 +23,16 @@
 
 <!-- ?v= marks a file as immutable to the server, so bump it in index.html, sw.js
      and server.js together when any css changes -->
-<link rel="stylesheet" href="/css/tokens.css?v=20">
-<link rel="stylesheet" href="/css/app.css?v=20">
+<link rel="stylesheet" href="/css/tokens.css?v=21">
+<link rel="stylesheet" href="/css/app.css?v=21">
 
 <!-- loaded without blocking the first paint: text appears in the system fallback
      and swaps when the webfont lands -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'"
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700;800&display=swap"></noscript>
 
 <!-- No ?v= here, deliberately. The modules import each other by bare path, and a
      query string makes a DIFFERENT module identity: with ?v= on this tag the browser
@@ -41,15 +48,18 @@
 
   <!-- ===== اليوم ===== -->
   <section id="today" aria-label="اليوم">
-    <header class="thead">
-      <div>
-        <p class="tdate" id="todayDate"></p>
-        <h1>اليوم</h1>
+    <header class="thead tband">
+      <div class="thtop">
+        <div>
+          <p class="tdate" id="todayDate"></p>
+          <h1 id="todayHello">اليوم</h1>
+        </div>
+        <button class="iconbtn" id="gearBtn" aria-label="الإعدادات"></button>
       </div>
-      <button class="iconbtn" id="gearBtn" aria-label="الإعدادات"></button>
+      <div class="bchips" id="bandChips"></div>
+      <div class="bweek" id="bandWeek"></div>
     </header>
     <div id="sleepCard"></div>
-    <div id="todayTiles" class="tiles"></div>
     <div id="watchCard"></div>
     <div id="sessionCard"></div>
     <div id="wxLine" class="wxline" hidden></div>

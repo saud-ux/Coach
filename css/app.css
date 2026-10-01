@@ -1,4 +1,4 @@
-/* app.css — "Night 2".
+/* app.css — "Saudi green".
 
    Order: layout, chrome, primitives, then each screen. Colours only ever come
    from the tokens in tokens.css, so a light theme never has to touch this file. */
@@ -7,6 +7,8 @@
 .wrap{max-width:440px;margin:0 auto;padding:0 16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom,0px))}
 section[hidden]{display:none}
 #today,#sched,#chat,#prog{display:flex;flex-direction:column;gap:14px}
+/* an empty slot (no watch workout, no inbox) takes no gap */
+#today>div:empty,#sched>div:empty,#chat>div:empty{display:none}
 
 /* the sync line: written always, shown only when it is not a settled state */
 #status{
@@ -18,9 +20,46 @@ section[hidden]{display:none}
 #status.show{opacity:1}
 
 /* ============================= chrome ============================= */
-.thead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:22px 2px 2px}
-.thead h1{font-size:30px;font-weight:600;letter-spacing:-.4px;line-height:1.15}
-.tdate{font-size:13px;color:var(--muted);margin-bottom:4px}
+/* The band: every tab opens on a full-bleed green band with a faint lattice and a
+   gold Sadu edge (the zigzag under it, after Saudi Sadu weaving). It reaches past
+   .wrap's 16px gutters, and its colours stay the same in both themes. */
+.thead{
+  position:relative;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+  margin:0 -16px 6px;padding:20px 18px 22px;color:var(--band-ink);
+  background-color:var(--band);
+  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 1px,transparent 1px 16px),
+                   repeating-linear-gradient(-45deg,rgba(255,255,255,.05) 0 1px,transparent 1px 16px)
+}
+.thead::after{
+  content:"";position:absolute;left:0;right:0;bottom:-7px;height:7px;pointer-events:none;
+  background-color:var(--gold);
+  background-image:linear-gradient(135deg,var(--band) 25%,transparent 25%),linear-gradient(225deg,var(--band) 25%,transparent 25%);
+  background-size:14px 14px
+}
+.thead h1{font-family:var(--font-display);font-size:26px;font-weight:800;line-height:1.35;color:var(--band-ink)}
+.tdate{font-size:13px;color:var(--band-accent);font-weight:600;margin-bottom:2px}
+.thead .iconbtn{background:rgba(255,255,255,.1);color:var(--band-ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+.thead .iconbtn:active{background:rgba(255,255,255,.2)}
+
+/* Today's band carries more: the greeting, two chips, and the week */
+.tband{flex-direction:column;align-items:stretch;gap:12px;padding-bottom:60px}
+.thtop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.bchips{display:flex;gap:8px;flex-wrap:wrap}
+.bchip{display:flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px 4px 6px;border-radius:999px;
+  background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:var(--band-ink);font-size:12.5px}
+.bchip b{font-weight:700}
+.bchip .dial{width:20px;height:20px;border-radius:50%;flex:none}
+.bweek{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.bday{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;color:var(--band-muted)}
+.bday small{font-size:11px}
+.bday b{font-size:15px;color:var(--band-ink);font-weight:600}
+.bday i{width:5px;height:5px;border-radius:50%;display:block}
+.bday.now{background:var(--gold);color:var(--card-ink)}
+.bday.now b{color:var(--card-ink)}
+.bday.mt{box-shadow:inset 0 0 0 1px rgba(231,200,115,.55)}
+.bday.mt b{color:#F2D88C}
+.bday.dn b{opacity:.6}
+#sleepCard{position:relative;z-index:1;margin-top:-58px}
 
 .iconbtn{
   width:var(--tap);height:var(--tap);border-radius:50%;
@@ -48,15 +87,15 @@ nav.tabs button{
 }
 nav.tabs button .tabic{display:block;line-height:0}
 nav.tabs button .ic{width:23px;height:23px}
-nav.tabs button[aria-selected="true"]{color:var(--ink);background:var(--surface-2)}
+nav.tabs button[aria-selected="true"]{color:var(--brand);background:var(--brand-soft);font-weight:700}
 
 /* ============================= primitives ============================= */
 .card{
-  background:var(--surface);border-radius:var(--r-card);padding:18px;
+  background:var(--surface);border-radius:var(--r-card);padding:18px;border:1px solid var(--border);
   box-shadow:var(--sh);width:100%;text-align:right;color:inherit;display:block
 }
-.panel{background:var(--surface);border-radius:var(--r-card);padding:18px;box-shadow:var(--sh)}
-.panel h3,.card h3{font-size:16px;font-weight:600;margin-bottom:10px}
+.panel{background:var(--surface);border-radius:var(--r-card);padding:18px;border:1px solid var(--border);box-shadow:var(--sh)}
+.panel h3,.card h3{font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:10px}
 .phead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
 .phead h3{margin:0}
 .eyebrow{font-size:12px;color:var(--muted);letter-spacing:.2px}
@@ -67,8 +106,8 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);background:var(--surface-
   min-height:50px;padding:0 22px;border-radius:999px;
   font-size:16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px
 }
-.btn.primary{background:var(--ink);color:var(--on-ink)}
-.btn.primary:active{background:var(--ink-2)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--brand) 28%,transparent)}
+.btn.primary:active{filter:brightness(.92)}
 .btn.ghost{background:var(--surface-2);color:var(--ink)}
 .btn.card{background:var(--match);color:var(--card-ink)}
 .btn.danger{background:transparent;color:var(--max);box-shadow:inset 0 0 0 1.5px var(--max)}
@@ -110,7 +149,7 @@ label.f,.sw{display:block;font-size:13px;color:var(--muted);margin:16px 0 7px}
    sheet's own colour with no border, so an empty one looked like blank space.
    Every field is 16px: below that, iPhone zooms the page in when one is tapped. */
 input.in,textarea.in,select.in{
-  width:100%;min-height:var(--tap);background:var(--bg);border:1px solid var(--field-line);
+  width:100%;min-height:var(--tap);background:var(--field);border:1px solid var(--field-line);
   border-radius:var(--r-field);padding:11px 14px;font-size:16px;color:var(--ink);
   transition:border-color .15s,box-shadow .15s
 }
@@ -164,7 +203,7 @@ select.in{appearance:none;-webkit-appearance:none;padding-left:38px;
 .watchcard .wgo{color:var(--muted-2);flex:none}
 
 .session h2{font-size:21px;font-weight:600;margin:6px 0 10px;line-height:1.3}
-.session.ismatch h2{color:var(--match)}
+.session.ismatch{background:linear-gradient(160deg,var(--gold-soft),var(--surface) 70%);border-color:var(--gold-line)}
 .sessdur{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);margin-bottom:14px}
 .sessdur .ic{width:16px;height:16px;color:var(--muted)}
 .sessnote{font-size:14px;color:var(--muted);margin-bottom:16px;line-height:1.6}
@@ -205,8 +244,8 @@ select.in{appearance:none;-webkit-appearance:none;padding-left:38px;
 .wday small{font-size:11px;color:var(--muted-2)}
 .wday b{font-size:15px;font-weight:600}
 .wday i{width:5px;height:5px;border-radius:50%;display:block}
-.wday.now{background:var(--surface-2);color:var(--ink)}
-.wday.now small{color:var(--ink-2)}
+.wday.now{background:var(--gold-soft);color:var(--gold-ink);box-shadow:inset 0 0 0 1px var(--gold-line)}
+.wday.now small{color:var(--gold-ink)}
 .wday.dn b{opacity:.45}
 .wday.rst b{opacity:.4}
 
@@ -215,7 +254,7 @@ select.in{appearance:none;-webkit-appearance:none;padding-left:38px;
 .wkbar i{display:block;height:100%;background:var(--ready);border-radius:3px;transition:width .4s}
 
 .wlist{display:flex;flex-direction:column;gap:8px}
-.day{display:flex;align-items:center;gap:12px;width:100%;text-align:right;background:var(--surface);
+.day{display:flex;align-items:center;gap:12px;width:100%;text-align:right;background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r-tile);padding:12px 14px;box-shadow:var(--sh);color:inherit;min-height:var(--tap)}
 .day .dnum{width:40px;flex:none;text-align:center;line-height:1.15}
 .day .dnum b{display:block;font-size:18px;font-weight:600}
@@ -229,16 +268,17 @@ select.in{appearance:none;-webkit-appearance:none;padding-left:38px;
 .day .tick{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
   font-size:13px;color:var(--muted-2);background:var(--surface-2)}
 .day .tick.on{background:var(--ready);color:var(--on-ink);font-weight:700}
-.day.today{box-shadow:inset 0 0 0 1.5px var(--ink-2),var(--sh)}
+.day.today{border-color:transparent;box-shadow:inset 0 0 0 2px var(--brand),0 8px 20px color-mix(in srgb,var(--brand) 16%,transparent)}
+.day.today .dnum b,.day.today .dnum small{color:var(--brand);font-weight:700}
 .day.past:not(.dn){opacity:.5}
 .day.dn .ti{color:var(--muted)}
 .day.restd{background:transparent;box-shadow:inset 0 0 0 1px var(--track);padding:9px 14px}
 .day.restd .ti{font-weight:400;color:var(--muted);font-size:14px}
-.day.match{background:color-mix(in srgb,var(--match) 14%,var(--surface));
-  box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--match) 40%,transparent),var(--sh)}
-.day.match .ti{color:var(--match)}
+.day.match{background:linear-gradient(90deg,var(--surface),var(--gold-soft));border-color:var(--gold-line)}
+.day.match .ti{color:var(--ink);font-weight:600}
+.day.match .ty{color:var(--gold-ink)}
 .day.test{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--max) 45%,transparent),var(--sh)}
-.day.flash{box-shadow:inset 0 0 0 2px var(--ink),var(--sh)}
+.day.flash{box-shadow:inset 0 0 0 2px var(--gold),var(--sh)}
 @media (prefers-reduced-motion: no-preference){
   .wlist.in-next{animation:inN .25s ease-out}.wlist.in-prev{animation:inP .25s ease-out}
   @keyframes inN{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}
@@ -340,8 +380,8 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 /* ============================= coach ============================= */
 .msgs{display:flex;flex-direction:column;gap:10px;padding-bottom:170px}
 .msg{max-width:86%;padding:12px 15px;border-radius:20px;white-space:pre-line;font-size:15px;line-height:1.65}
-.msg.me{align-self:flex-start;background:var(--ink);color:var(--on-ink);border-bottom-right-radius:6px}
-.msg.ai{align-self:flex-end;background:var(--surface);border-bottom-left-radius:6px}
+.msg.me{align-self:flex-start;background:var(--brand);color:#fff;border-bottom-right-radius:6px}
+.msg.ai{align-self:flex-end;background:var(--surface);border:1px solid var(--border);border-bottom-left-radius:6px}
 .msg .chg{display:block;margin-top:8px;font-size:12px;color:var(--ready);font-weight:600}
 .msg.err{color:var(--max)}
 .msg.typing{display:flex;gap:5px;align-items:center;padding:16px}
@@ -391,9 +431,9 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .alert.grn{background:color-mix(in srgb,var(--ready) 12%,var(--surface));color:var(--ink)}
 
 /* ============================= progress ============================= */
-.seg{display:flex;gap:3px;background:var(--surface);border-radius:var(--r-tile);padding:4px}
+.seg{display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-tile);padding:4px}
 .seg button{flex:1;min-height:40px;border-radius:12px;font-size:14px;font-weight:500;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--surface-2);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--brand-soft);color:var(--brand-ink);font-weight:700}
 .pg{display:flex;flex-direction:column;gap:14px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .stat{background:var(--surface);border-radius:var(--r-tile);padding:16px;box-shadow:var(--sh)}
@@ -434,7 +474,7 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
   font-size:14px;color:var(--ink-2);min-height:var(--tap);line-height:1.5}
 .qopts button.ok{background:color-mix(in srgb,var(--ready) 20%,var(--surface-2));color:var(--ink);font-weight:600}
 .qopts button.no{background:color-mix(in srgb,var(--max) 18%,var(--surface-2));color:var(--ink)}
-.qopts button.sel{background:var(--ink);color:var(--on-ink);font-weight:600}
+.qopts button.sel{background:var(--brand);color:#fff;font-weight:600}
 .qopts button:disabled{opacity:1}
 .qwhy{font-size:14px;line-height:1.7;background:var(--surface-2);border-radius:var(--r-field);padding:12px 14px;
   margin-top:12px;color:var(--ink-2)}
@@ -473,7 +513,7 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .cfgline{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .cfgline span{font-size:12px;background:var(--surface-2);color:var(--ink-2);border-radius:999px;padding:5px 11px}
 .chiprow{display:flex;flex-wrap:wrap;gap:6px}
-.chip.on{background:var(--ink);color:var(--on-ink);font-weight:600}
+.chip.on{background:var(--brand-soft);color:var(--brand-ink);font-weight:700;box-shadow:inset 0 0 0 1.5px var(--brand)}
 .qopts button{display:flex;align-items:flex-start;gap:10px}
 .qopts .qk{flex:none;width:24px;height:24px;border-radius:8px;background:var(--track);color:var(--ink-2);
   font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
@@ -576,3 +616,49 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .wkcol.on i{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-2)}
 .wkcap{min-height:20px}
 .sleep .moreline{margin-top:-8px}
+
+/* ============================= Saudi green: today ============================= */
+.sleep2{display:flex;flex-direction:column;gap:12px;padding:14px 16px;box-shadow:var(--sh-lift)}
+.sl2top{display:flex;align-items:center;gap:16px}
+.ringnum.md{font-family:var(--font-display);font-size:30px;font-weight:800;letter-spacing:0;line-height:1.1}
+.ringcap{font-size:11px;color:var(--muted)}
+.sl2facts{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}
+.sl2facts>div{display:flex;justify-content:space-between;gap:8px;font-size:12.5px}
+.sl2facts>div span{color:var(--muted)}
+.sl2facts>div b{font-weight:600}
+.sl2dur{font-family:var(--font-display);font-size:18px;font-weight:700}
+.sl2bar{display:flex;gap:2px;height:10px}
+.sl2bar i{display:block;min-width:3px}
+.sl2bar i:first-child{border-radius:0 5px 5px 0}
+.sl2bar i:last-child{border-radius:5px 0 0 5px}
+.sl2bar i:only-child{border-radius:5px}
+.sl2line{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  background:var(--surface-2);border-radius:14px;padding:9px 12px;font-size:13px;color:var(--ink-2);text-align:right}
+.sl2line span{display:flex;align-items:center;gap:6px}
+.sl2line span svg{width:16px;height:16px}
+.sl2line b{flex:none;font-size:12.5px;color:var(--brand)}
+
+.sesshead{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.sessic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;flex:none}
+.sessic svg{width:24px;height:24px}
+.sesshead h2{font-family:var(--font-display);font-size:19px;font-weight:700;margin:2px 0 0}
+
+/* the next match as a ticket: teams on the left part, a gold stub with the countdown */
+.mticket{display:flex;align-items:stretch;width:100%;padding:0;overflow:hidden;text-align:right;color:inherit;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r-tile);box-shadow:var(--sh);min-height:62px}
+.mtmain{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 14px}
+.mtav{display:flex;flex:none}
+.mtav i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:700;font-size:13px;
+  background:color-mix(in srgb,var(--load) 14%,var(--surface));color:var(--load);border:2px solid var(--surface)}
+.mtav i+i{margin-inline-start:-8px;background:var(--gold-soft);color:var(--gold-ink)}
+.mticket .mtx{min-width:0;display:flex;flex-direction:column}
+.mticket .mtx b{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mticket .mtx small{font-size:12px;color:var(--muted)}
+.mticket .mic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:none;background:var(--gold-soft);color:var(--gold-ink)}
+.mtstub{width:78px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--gold-soft);border-inline-start:2px dashed var(--gold-line);color:var(--gold-ink)}
+.mtstub small{font-size:11px}
+.mtstub b{font-family:var(--font-display);font-size:15px;font-weight:700}
+
+/* type dots in the band sit on dark green in both themes: use the bright set */
+.bweek{--run:#5DA9EE;--strength:#A99BF0;--intervals:#FF9A5C;--yoyo:#39D7C4;--light:#7FD17F;--recovery:#3BD37F;--test:#FF6B7A;--match:#F2D88C}

@@ -9,8 +9,8 @@
 // live element into a sheet, because closing one replaces its contents and the
 // element would not survive.
 
-import { state, num, parse, todayISO, fFull, fDm, AR, $ } from './state.js';
-import { ring, ringWith, icon, hhmm, clock12 } from './ui.js';
+import { state, num, parse, addDays, todayISO, fFull, fDm, AR, $ } from './state.js';
+import { ring, ringWith, icon, hhmm, clock12, applyTheme } from './ui.js';
 import { TYPES, defDur, openDay, sessionParts, openAddMatch } from './schedule.js';
 import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
@@ -21,10 +21,51 @@ import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
 
-/* ---------- header ---------- */
+/* ---------- the band: greeting, two chips, the week ---------- */
+const NAME = 'سعود';
+function greeting(h){
+  if (h >= 4 && h < 12) return `صباح الخير يا ${NAME}`;
+  if (h >= 12 && h < 17) return `هلا ${NAME}`;
+  return `مساء الخير يا ${NAME}`;
+}
 function renderTodayHead(){
   const el = $('todayDate');
   if (el) el.textContent = fFull.format(parse(todayISO()));
+  const h = $('todayHello');
+  if (h) h.textContent = greeting(new Date().getHours());
+}
+
+// A ring drawn as one conic gradient: small enough that an SVG would be overkill.
+const dial = (pct, color) => `<i class="dial" style="background:conic-gradient(${color} 0 ${Math.round(pct)}%, rgba(255,255,255,.18) ${Math.round(pct)}% 100%)"></i>`;
+
+// Readiness and load used to be two tiles under the sleep card. They are two chips
+// in the band now: the same numbers, one tap away, and the sleep card moves up.
+function renderBand(){
+  const chips = $('bandChips'), week = $('bandWeek');
+  if (!chips || !week) return;
+  const t = todayISO(), r = state.readiness[t];
+  const pct = r ? readyPct(readyNow(r)) : null;
+  const L = loadStatus();
+  const word = !L.enough || L.ratio == null ? '' : L.ratio > 1.3 ? 'مرتفع' : L.ratio >= 0.8 ? 'متوازن' : 'منخفض';
+  chips.innerHTML = `
+    <button class="bchip" id="chipReady">${dial(pct ?? 0, '#3BD37F')}${pct == null ? 'عبّي الجاهزية' : `الجاهزية <b>${num(pct)}%</b>`}</button>
+    <button class="bchip" id="chipLoad">${dial(L.ratio == null ? 0 : Math.min(100, 100 * L.ratio / 1.6), '#5DB2F2')}${
+      L.enough && L.ratio != null ? `الحمل <b>${num(L.ratio.toFixed(2))}</b> ${word}` : 'الحمل: بيانات قليلة'}</button>`;
+  $('chipReady').onclick = openReadySheet;
+  $('chipLoad').onclick = () => switchTab('prog');
+
+  // the week, Sunday first like الجدول; today in gold, a match day outlined
+  const DAY = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+  const ws = addDays(t, -parse(t).getDay());
+  week.innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(ws, i), s = state.sessions[d], lg = state.logs[d];
+    const isMatch = state.matches.some(m => m.date === d);
+    const dot = s && s.type !== 'rest' ? (TYPES[s.type] || TYPES.rest).c : 'rgba(255,255,255,.3)';
+    const cls = ['bday', d === t ? 'now' : '', isMatch && d !== t ? 'mt' : '', lg && lg.done && d < t ? 'dn' : ''].filter(Boolean).join(' ');
+    return `<button class="${cls}" data-d="${d}" aria-label="${fFull.format(parse(d))}${s ? '، ' + s.title : ''}">
+      <small>${d === t ? 'اليوم' : DAY[i]}</small><b>${num(parse(d).getDate())}</b><i style="background:${d === t ? 'currentColor' : dot}"></i></button>`;
+  }).join('');
+  week.querySelectorAll('.bday').forEach(b => b.onclick = () => openDay(b.dataset.d));
 }
 
 /* ---------- sleep hero ---------- */
@@ -45,28 +86,42 @@ function renderSleep(){
   const night = lastNightSleep();
 
   if (!night || night.score == null){
-    box.innerHTML = `<section class="card sleep empty">
-      ${ringWith({ size:176, pct:0, color:'var(--sleep)', width:14 },
-        `<span class="ringlabel">${icon('moon')} النوم</span><b class="ringnum dim">–</b>`)}
-      <p class="sleepnone">ما وصلت بيانات النوم</p>
-      <button class="linkbtn" id="sleepHelp">${icon('info')} كيف أربط ساعتي؟</button>
+    box.innerHTML = `<section class="card sleep2">
+      <div class="sl2top">
+        ${ringWith({ size:96, pct:0, color:'var(--sleep)', width:10 }, `<b class="ringnum md dim">–</b><small class="ringcap">النوم</small>`)}
+        <div class="sl2facts"><b class="sl2dur">ما وصلت بيانات النوم</b>
+          <span class="snote">شغّل اختصار الساعة، أو خلّ قارمن يزامن مع تطبيق الصحة.</span></div>
+      </div>
+      <button class="sl2line" id="sleepHelp"><span>${icon('info')} كيف أربط ساعتي؟</span><b>الإعدادات ‹</b></button>
     </section>`;
     $('sleepHelp').onclick = () => openSettings('health');
     return;
   }
 
-  box.innerHTML = `<section class="card sleep tappable" id="sleepOpen" role="button" tabindex="0" aria-label="تفاصيل النوم">
-    ${ringWith({ size:176, pct:night.score/100, color:'var(--sleep)', width:14 },
-      `<span class="ringlabel">${icon('moon')} النوم</span>
-       <b class="ringnum">${num(night.score)}</b>
-       <span class="ringsub">${hhmm(night.asleep_min || 0)}</span>`)}
-    <div class="stat3">
-      <div><span>النوم العميق</span><b>${night.deep_min != null ? hhmm(night.deep_min) : '–'}</b></div>
-      <div><span>وقت النوم</span><b>${night.in_bed_start ? clock12(new Date(night.in_bed_start)) : '–'}</b></div>
-      <div><span>نبض الراحة</span><b>${night.resting_hr != null ? num(night.resting_hr) : '–'}</b></div>
+  // the night's stages as one bar of totals; the watch sends minutes per stage,
+  // not their order through the night, so this does not pretend to be a timeline
+  let stages = '';
+  if (Number.isFinite(night.deep_min)){
+    const deep = night.deep_min || 0, rem = night.rem_min || 0, awake = night.awake_min || 0;
+    const core = Math.max(0, night.asleep_min - deep - rem);
+    stages = `<div class="sl2bar" role="img" aria-label="عميق ${hhmm(deep)}، خفيف ${hhmm(core)}، أحلام ${hhmm(rem)}، صاحي ${hhmm(awake)}">
+      ${[[deep,'--st-deep'],[core,'--st-core'],[rem,'--st-rem'],[awake,'--st-awake']].filter(([m]) => m > 0)
+        .map(([m, c]) => `<i style="flex:${m};background:var(${c})"></i>`).join('')}</div>`;
+  }
+
+  box.innerHTML = `<section class="card sleep2 tappable" id="sleepOpen" role="button" tabindex="0" aria-label="تفاصيل النوم">
+    <div class="sl2top">
+      ${ringWith({ size:96, pct:night.score/100, color:'var(--sleep)', width:10 },
+        `<b class="ringnum md">${num(night.score)}</b><small class="ringcap">النوم</small>`)}
+      <div class="sl2facts">
+        <b class="sl2dur">${hhmm(night.asleep_min || 0)}</b>
+        <div><span>العميق</span><b>${night.deep_min != null ? hhmm(night.deep_min) : '–'}</b></div>
+        <div><span>وقت النوم</span><b>${night.in_bed_start ? clock12(new Date(night.in_bed_start)) : '–'}</b></div>
+        <div><span>نبض الراحة</span><b>${night.resting_hr != null ? num(night.resting_hr) : '–'}</b></div>
+      </div>
     </div>
-    <p class="coachline">${sleepLine(night.score, night)}</p>
-    <p class="moreline">التفاصيل ${icon('back')}</p>
+    ${stages}
+    <div class="sl2line"><span>${sleepLine(night.score, night)}</span><b>التفاصيل ‹</b></div>
   </section>`;
   const open = $('sleepOpen');
   open.onclick = () => openSleepSheet(night);
@@ -197,37 +252,6 @@ export function openSleepSheet(night){
   });
 }
 
-/* ---------- the two small tiles ---------- */
-function renderTiles(){
-  const box = $('todayTiles');
-  if (!box) return;
-  const r = state.readiness[todayISO()];
-  const pct = r ? readyPct(readyNow(r)) : null;
-  const L = loadStatus();
-
-  const word = !L.enough || L.ratio == null ? '—'
-    : L.ratio > 1.3 ? 'مرتفع'
-    : L.ratio >= 0.8 ? 'متوازن'
-    : 'منخفض';
-  // 1.6 reads as a full ring, so the safe band sits a bit past halfway round
-  const loadPct = L.ratio == null ? 0 : Math.min(1, L.ratio / 1.6);
-
-  box.innerHTML = `
-    <button class="card tile" id="tileReady">
-      ${ring({ size:62, pct:(pct ?? 0)/100, color:'var(--ready)', width:7 })}
-      <span class="tiletx"><small>الجاهزية</small><b>${pct == null ? 'عبّيها' : num(pct) + '%'}</b></span>
-    </button>
-    <button class="card tile" id="tileLoad">
-      ${ring({ size:62, pct:loadPct, color:'var(--load)', width:7 })}
-      <span class="tiletx"><small>حمل التدريب</small>
-        <b>${L.enough && L.ratio != null ? num(L.ratio.toFixed(2)) : '–'}</b>
-        <i>${word}</i></span>
-    </button>`;
-
-  $('tileReady').onclick = openReadySheet;
-  $('tileLoad').onclick = () => switchTab('prog');
-}
-
 // The readiness conversation is a sheet now rather than a block on Today. The
 // #ready container is created inside the sheet, and renderReady() no-ops when it
 // is not in the document, so renderAll() stays safe while the sheet is closed.
@@ -290,14 +314,16 @@ function renderSessionCard(){
   const parts = sessionParts(t, s);
   const total = parts.reduce((a, p) => a + p.min, 0) || 1;
 
+  const ICON = { run: 'route', intervals: 'bolt', yoyo: 'bolt', strength: 'spark', light: 'heart', recovery: 'heart', test: 'timer' };
   box.innerHTML = `<section class="card session">
-    <p class="eyebrow">تمرين اليوم · ${ty.l}</p>
-    <h2>${s.title}</h2>
-    <p class="sessdur">${icon('clock')}<span>${num(defDur(t, s))} دقيقة</span></p>
+    <div class="sesshead">
+      <span class="sessic" style="color:${ty.c};background:color-mix(in srgb,${ty.c} 14%,transparent)">${icon(ICON[s.type] || 'bolt')}</span>
+      <div><p class="eyebrow">تمرين اليوم · ${ty.l} · ${num(defDur(t, s))} دقيقة</p><h2>${s.title}</h2></div>
+    </div>
     <div class="segbar" role="img" aria-label="أجزاء الحصة">
       ${parts.map(p => `<i style="flex:${p.min / total};background:${p.color}"></i>`).join('')}
     </div>
-    <div class="seglabels">${parts.map(p => `<span>${p.label}</span>`).join('')}</div>
+    <div class="seglabels">${parts.map(p => `<span>${p.label}${p.min ? ' ' + num(Math.round(p.min)) + ' د' : ''}</span>`).join('')}</div>
     <button class="btn primary" id="sessGo">${done ? 'أنهيته ✓' : 'ابدأ التمرين'}</button>
   </section>`;
   $('sessGo').onclick = () => openDay(t);
@@ -320,17 +346,22 @@ function renderNextMatch(){
   }
 
   const days = Math.round((parse(next.date) - parse(t)) / 864e5);
-  const badge = days === 0 ? 'اليوم' : days === 1 ? 'بكرة' : '';
-  // Arabic counts the dual separately, and 11+ takes the singular
-  const away = days === 2 ? 'بعد يومين'
-    : days <= 10 ? `بعد ${num(days)} أيام`
-    : `بعد ${num(days)} يوم`;
+  // the stub of the ticket. Arabic counts the dual separately, and 11+ takes the singular
+  const [pre, big] = days === 0 ? ['', 'اليوم'] : days === 1 ? ['', 'بكرة'] : days === 2 ? ['بعد', 'يومين']
+    : days <= 10 ? ['بعد', `${num(days)} أيام`] : ['بعد', `${num(days)} يوم`];
   const teams = next.home || next.away ? `${next.home || '؟'} × ${next.away || '؟'}` : 'مباراة';
-  box.innerHTML = `<button class="matchline" id="goMatch">
-    <span class="mic">${icon('flag')}</span>
-    <span class="mtx"><b>${teams}</b>
-      <small>${fDm.format(parse(next.date))}${next.time ? ' · ' + clock12(next.time) : ''}</small></span>
-    ${badge ? `<span class="mbadge">${badge}</span>` : `<span class="mdays">${away}</span>`}
+  // a team's initial, without the article: الهلال -> هـ
+  const ini = n => { const w = String(n || '').trim().replace(/^ال/, ''); return w ? (w[0] === 'ه' ? 'هـ' : w[0]) : ''; };
+  const role = next.role !== undefined && next.role !== '' ? ['حكم مساعد أول','حكم مساعد ثاني','حكم رابع','حكم ساحة'][+next.role] : '';
+  box.innerHTML = `<button class="mticket" id="goMatch">
+    <span class="mtmain">
+      ${next.home || next.away
+        ? `<span class="mtav"><i>${ini(next.home)}</i><i>${ini(next.away)}</i></span>`
+        : `<span class="mic">${icon('flag')}</span>`}
+      <span class="mtx"><b>${teams}</b>
+        <small>${[fDm.format(parse(next.date)), next.time ? clock12(next.time) : '', role].filter(Boolean).join(' · ')}</small></span>
+    </span>
+    <span class="mtstub">${pre ? `<small>${pre}</small>` : ''}<b>${big}</b></span>
   </button>`;
   $('goMatch').onclick = () => openDay(next.date);
 }
@@ -344,6 +375,16 @@ const CITIES_OPT = [['zulfi','الزلفي'],['riyadh','الرياض'],['majmaah
 export function openSettings(focus){
   openSheet(sh => {
     sh.innerHTML = `<h2 class="sheeth">الإعدادات</h2>
+
+      <section class="sgroup">
+        <h3>المظهر</h3>
+        <p class="snote">التلقائي ليلي من 6 المغرب إلى 5 الفجر.</p>
+        <div class="chiprow" id="themeRow" style="margin-top:10px">
+          <button class="chip" data-t="auto">تلقائي</button>
+          <button class="chip" data-t="day">نهاري</button>
+          <button class="chip" data-t="night">ليلي</button>
+        </div>
+      </section>
 
       <section class="sgroup">
         <h3>المدينة</h3>
@@ -397,6 +438,17 @@ export function openSettings(focus){
         </div>
         <input type="file" id="impFile" accept="application/json,.json" hidden>
       </section>`;
+
+    // appearance
+    const paintTheme = () => sh.querySelectorAll('#themeRow .chip').forEach(b =>
+      b.classList.toggle('on', b.dataset.t === ((state.settings && state.settings.theme) || 'auto')));
+    sh.querySelectorAll('#themeRow .chip').forEach(b => b.onclick = () => {
+      state.settings = { ...(state.settings || {}), theme: b.dataset.t };
+      applyTheme(b.dataset.t);
+      paintTheme();
+      import('./state.js').then(m => m.save());
+    });
+    paintTheme();
 
     // city
     const city = sh.querySelector('#citySel');
@@ -475,7 +527,7 @@ export function openSettings(focus){
 export function renderToday(){
   renderTodayHead();
   renderSleep();
-  renderTiles();
+  renderBand();
   renderWatchCard();
   renderSessionCard();
   renderNextMatch();

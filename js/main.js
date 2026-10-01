@@ -23,7 +23,7 @@ import { renderProgress, renderCareer, renderMonth, renderLoad, renderMatches,
          loadWeather } from './progress.js';
 import { renderNotif } from './notifications.js';
 import { syncHealth } from './health.js';
-import { icon, latinDigits } from './ui.js';
+import { icon, latinDigits, applyTheme } from './ui.js';
 
 /* ---------- sheets ---------- */
 // `bare` suppresses the corner close button for sheets that carry their own
@@ -128,7 +128,12 @@ function wire(){
 
   // a new assignment, or last night from the watch, may have landed while the app
   // was in the background. syncHealth() throttles itself to once a minute.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden){ loadInbox(); syncHealth(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    loadInbox(); syncHealth();
+    applyTheme(state.settings && state.settings.theme);
+    renderAll();          // the greeting and the week strip follow the clock
+  });
 }
 
 // a tapped reminder opens straight to its tab
@@ -162,6 +167,8 @@ if ('serviceWorker' in navigator) {
 // phase one: offline, synchronous, paints immediately
 latinDigits(document.body);
 bootLocal();
+applyTheme(state.settings && state.settings.theme);
+setInterval(() => applyTheme(state.settings && state.settings.theme), 5 * 60e3);
 wire();
 renderAll();
 requestAnimationFrame(scrollToday);
