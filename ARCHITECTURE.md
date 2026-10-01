@@ -594,7 +594,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '33';
+const VERSION = '34';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1288,7 +1288,8 @@ Recover, Rest, Cool Down, Other, plus Repeat.
   - A 20 m sprint at 90% is 5 s, side-then-sprint is 10 s, back-then-sprint is 8 s, and a
     change-of-direction run is 15 s.
   - ARIET is 75 m in 15 s with a 25 m walk in 18 s, and each rep is there and back.
-- **Jumps.** Jump drills cannot be timed, so they are «Other» steps ended with the Lap button.
+- **Jumps.** Jump drills cannot be timed, so the yoyo day keeps them as one «Other» step: done from
+  the phone's pictures and ended with Lap. The watch times only the running.
 - **Covered sessions.** Intervals, the yoyo/reaction day, the endurance run (zone 2 in the middle),
   the light day and the 12-minute test get a card. Strength, rest, recovery and match days get none.
 - **Weekly counts.** Repeat counts follow the week's parameters. When they change, the card says to

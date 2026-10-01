@@ -11,6 +11,9 @@
 // from the distances in the session (js/figures.js) at match pace, and ARIET uses
 // its own test times (75 m in 15 s, 25 m walk in 18 s).
 //
+// Jump drills cannot be timed, so the yoyo day keeps them as one Lap step done
+// from the phone, and the watch times only the running.
+//
 // A step: { k, sec, zone, label }
 //   k     warmup | run | recover | rest | cooldown | other   (Garmin's step types)
 //   sec   duration in seconds; null means «Lap Button Press»
@@ -47,21 +50,19 @@ export function watchWorkout(type, p){
         rep(p.light ? 2 : 4, st('run', 15, 'تغيير الاتجاه: أمام، جانبي، جانبي، أمام'), st('recover', 45, 'مشي')),
         st('cooldown', 300, 'مشي وإطالات'),
       ]};
-    case 'yoyo': {
-      const sets = p.light ? 2 : 3;
-      return {
-        name: 'حكم · ارتدادات وتحمّل',
-        steps: [
-          st('warmup', 600, 'ركض خفيف وحركات كاحل', 1),
-          rep(sets, st('other', null, 'ارتدادات الكاحل 20 قفزة'), st('rest', 60, 'راحة')),
-          rep(sets, st('other', null, 'قفز جانبي 10 لكل جهة'), st('rest', 60, 'راحة')),
-          rep(sets * 5, st('other', null, 'قفزة طويلة'), st('rest', 30, 'راحة')),
-          rep(8, st('run', 4, 'رد فعل: انطلق 5 م'), st('recover', 20, 'رجوع للوسط')),
-          st('rest', 120, 'راحة قبل التحمّل'),
-          rep((p.ar || 6) * 2, st('run', 15, '75 م بجهد 80–85%'), st('recover', 18, '25 م مشي')),
-          st('cooldown', 300, 'مشي وإطالات'),
-        ]};
-    }
+    case 'yoyo': return {
+      // the jumps cannot be timed, so they are one step ended with Lap: done from
+      // the phone's pictures, then the watch takes over for the running parts
+      name: 'حكم · ارتدادات وتحمّل',
+      steps: [
+        st('warmup', 600, 'ركض خفيف وحركات كاحل', 1),
+        st('other', null, 'تمارين القفز من الجوال، واضغط Lap لما تخلص'),
+        st('rest', 120, 'راحة'),
+        rep(8, st('run', 4, 'رد فعل: انطلق 5 م'), st('recover', 20, 'رجوع للوسط')),
+        st('rest', 120, 'راحة قبل التحمّل'),
+        rep((p.ar || 6) * 2, st('run', 15, '75 م بجهد 80–85%'), st('recover', 18, '25 م مشي')),
+        st('cooldown', 300, 'مشي وإطالات'),
+      ]};
     case 'run': {
       const total = p.run || 30;
       return {
