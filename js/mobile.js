@@ -3,9 +3,13 @@
 //   - a sheet follows the finger down and closes past a threshold, like iOS sheets
 //   - pulling the top of Today or الجدول down re-syncs the plan and the watch
 //   - with the keyboard up, the tab bar steps aside and the composer sits on top of it
+//   - the screen stays on through a workout, and the rest timer speaks
+//   - the app icon carries a count of what is waiting
+//   - opened in Safari, a hint says how to put it on the home screen
 //
 // main.js calls initMobile() once with what these need from it, so this module
-// imports nothing and cannot join an import cycle.
+// imports nothing and cannot join an import cycle. keepAwake, speak and setBadge
+// are exported for the screens that need them.
 
 const DISMISS = 110;            // px of drag that closes a sheet
 const PULL = 72;                // px of pull that refreshes
@@ -88,4 +92,67 @@ function keyboard(){
   };
   vv.addEventListener('resize', update);
   vv.addEventListener('scroll', update);
+}
+
+/* ---------- keep the screen on during a workout ---------- */
+// Screen Wake Lock (iOS 16.4+). Reasons are counted, so the rest timer ending does
+// not let the screen sleep while the session sheet is still open. The system
+// drops the lock when the app goes to the background; it is taken again on return.
+const awake = new Set();
+let lock = null;
+async function applyLock(){
+  if (!('wakeLock' in navigator)) return;
+  try {
+    if (awake.size && !lock && document.visibilityState === 'visible'){
+      lock = await navigator.wakeLock.request('screen');
+      lock.addEventListener('release', () => { lock = null; });
+    } else if (!awake.size && lock){ const l = lock; lock = null; await l.release(); }
+  } catch (e) { lock = null; }
+}
+export function keepAwake(reason, on = true){
+  if (on) awake.add(reason); else awake.delete(reason);
+  applyLock();
+}
+document.addEventListener('visibilitychange', applyLock);
+// a session sheet holds the screen only while it is open
+const scrim = document.getElementById('scrim');
+if (scrim) new MutationObserver(() => { if (scrim.hidden) keepAwake('session', false); })
+  .observe(scrim, { attributes: true, attributeFilter: ['hidden'] });
+
+/* ---------- a spoken rest timer ---------- */
+// Arabic speech through the phone's own voices. iOS only lets speech start from a
+// tap, so the first line is spoken as the timer starts (a tap), which unlocks the
+// one at the end.
+export function speak(text){
+  try {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ar-SA'; u.rate = 1;
+    const v = speechSynthesis.getVoices().find(x => /^ar/i.test(x.lang));
+    if (v) u.voice = v;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+/* ---------- the number on the app icon ---------- */
+// Badging API (iOS 16.4+ for an installed app with notifications allowed).
+export function setBadge(n){
+  try {
+    if (!('setAppBadge' in navigator)) return;
+    if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge();
+  } catch (e) {}
+}
+
+/* ---------- opened in Safari, not from the home screen ---------- */
+// Notifications, the badge and full screen all need the app on the home screen.
+export function installHint(){
+  const standalone = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  let seen = false; try { seen = localStorage.getItem('rc-install-hint') === '1'; } catch (e) {}
+  if (standalone || !ios || seen) return;
+  const d = document.createElement('div');
+  d.className = 'ihint';
+  d.innerHTML = `<b>ثبّت التطبيق على جوالك</b><span>اضغط زر المشاركة <i>⬆︎</i> تحت، ثم «إضافة إلى الشاشة الرئيسية». كذا توصلك التنبيهات ويفتح بملء الشاشة.</span><button aria-label="إغلاق">✕</button>`;
+  d.querySelector('button').onclick = () => { d.remove(); try { localStorage.setItem('rc-install-hint', '1'); } catch (e) {} };
+  document.body.appendChild(d);
 }

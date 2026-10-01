@@ -593,7 +593,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '31';
+const VERSION = '32';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1242,3 +1242,32 @@ Verified in Chromium with emulated touch:
 - re-tapping Today scrolled to 0.
 
 The keyboard part cannot be emulated there and is untested.
+
+**Phone features (also in `js/mobile.js`).**
+
+- **Screen stays on.** `keepAwake(reason)` uses Screen Wake Lock (iOS 16.4+). Reasons are counted, so
+  the lock holds while any reason is active, and it is taken again when the app returns to the
+  foreground. Two reasons exist:
+  - `session`: taken by `openDay()` for today's training and released when the sheet closes;
+  - `timer`: held while the rest timer runs.
+- **Spoken rest timer.** `speak()` uses the phone's Arabic voice. «ارتاح دقيقة ونص» is spoken as the
+  timer starts, from the tap, because iOS only lets speech start from one. «خلصت الراحة، انطلق» is
+  spoken at the end. Settings ← التمرين ← صوت المؤقت turns it off (`settings.voice`).
+- **App icon badge.** `setBadge(waiting())` runs on every `renderAll()`. It counts today's readiness
+  check not filled, watch workouts not confirmed, and matches in the last 7 days not rated. Badging
+  API, installed app with notifications allowed.
+- **Install hint.** Opened in iOS Safari rather than from the home screen, a one-time card explains
+  «إضافة إلى الشاشة الرئيسية». Notifications, the badge and full screen all need it.
+- **The next match.** Today's match card adds «أضف للتقويم» and «الاتجاهات للملعب».
+  - The calendar link is `GET /api/ics` (`server.js`). It is stateless: the event comes from the link,
+    starts in UTC (Riyadh is UTC+3 all year, so no VTIMEZONE), lasts two hours, and alerts three hours
+    before.
+  - Directions open Apple Maps with the venue.
+
+Verified in Chromium with stand-ins for the phone APIs:
+
+- today's session took the wake lock and closing the sheet released it;
+- a 2-second timer spoke at its start and end, and was silent with the switch off;
+- the badge read 2 with readiness missing and an unrated match, and cleared once they were done;
+- the hint showed for an iPhone user agent and stayed closed after dismissal;
+- the calendar file parsed, with 19:30 Riyadh written as 16:30Z.

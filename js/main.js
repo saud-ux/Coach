@@ -22,9 +22,9 @@ import { renderQuiz, renderLaw } from './quiz.js';
 import { renderProgress, renderCareer, renderMonth, renderLoad, renderMatches,
          loadWeather } from './progress.js';
 import { renderNotif } from './notifications.js';
-import { syncHealth } from './health.js';
+import { syncHealth, pendingWorkouts } from './health.js';
 import { icon, latinDigits, applyTheme } from './ui.js';
-import { initMobile } from './mobile.js';
+import { initMobile, setBadge, installHint } from './mobile.js';
 
 /* ---------- sheets ---------- */
 // `bare` suppresses the corner close button for sheets that carry their own
@@ -107,6 +107,16 @@ function renderAll(){
   renderMatches();
   renderChat();
   renderNotif();        // no-op unless the settings sheet is open
+  setBadge(waiting());
+}
+
+// What the number on the app icon counts: today's readiness check not filled, a
+// watch workout not confirmed, and a match in the last week not rated.
+function waiting(){
+  const t = todayISO(), wk = addDays(t, -7);
+  const ready = state.readiness && state.readiness[t] ? 0 : 1;
+  const unrated = state.matches.filter(m => m.date < t && m.date >= wk && !(state.logs[m.date] && state.logs[m.date].done)).length;
+  return ready + pendingWorkouts().length + unrated;
 }
 
 /* ---------- wiring: every DOM listener in the app, in one place ---------- */
@@ -202,6 +212,7 @@ applyTheme(state.settings && state.settings.theme);
 setInterval(() => applyTheme(state.settings && state.settings.theme), 5 * 60e3);
 wire();
 renderAll();
+installHint();
 requestAnimationFrame(scrollToday);
 openDeepLinkTab();
 

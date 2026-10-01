@@ -16,6 +16,7 @@ import { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, restHTML, flowHTML, ne
 import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js';
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
 import { icon } from './ui.js';
+import { keepAwake } from './mobile.js';
 import { send } from './coach.js';
 
 /* ---------- plan ---------- */
@@ -187,6 +188,8 @@ function defDur(d,s){ if(!s) return 0; if(s.type==='run') return weekParams(d).r
 
 function openDay(d){
   const s = state.sessions[d]; const log = {...(state.logs[d]||{})};
+  // following today's session on the phone: the screen stays on until the sheet closes
+  if (d === todayISO() && s && !['rest','match'].includes(s.type)) setTimeout(() => keepAwake('session'), 0);
   openSheet(sh => {
     const ty0 = TYPES[s.type]||TYPES.rest, keys0 = DIAGRAMS[s.type]||[];
     const EFF = {run:'60–70%',intervals:'90%',yoyo:'80–90%',strength:'متوسط',light:'50%',recovery:'خفيف',test:'أقصى جهد',match:'مباراة',rest:'راحة'};

@@ -8,7 +8,8 @@
 //   3. the rest-countdown bar at the bottom of the screen.
 //
 // Nothing here touches app state, so it has no cycle with any other module.
-import { num, $ } from './state.js';
+import { state, num, $ } from './state.js';
+import { keepAwake, speak } from './mobile.js';
 
 /* ---------- diagrams ---------- */
 let _sid = 0;
@@ -203,13 +204,26 @@ const FLOW = {
 const fmtS = s => { if(s<60) return `${num(s)} ثانية`; const m=Math.floor(s/60), r=s%60; const base = m===1?'دقيقة':m===2?'دقيقتين':`${num(m)} دقايق`; return r===30 ? base+' ونص' : r ? `${base} و${num(r)} ثانية` : base; };
 /* rest timer */
 let tmr=null;
+// The rest timer keeps the screen on, and says when the rest ends (Settings ←
+// التمرين ← صوت المؤقت). The first line is spoken here, from the tap, because
+// iOS only lets speech start from one.
+const voiceOn = () => !(state.settings && state.settings.voice === false);
+// 60 -> دقيقة, 90 -> دقيقة ونص, 120 -> دقيقتين, 180 -> 3 دقايق, 45 -> 45 ثانية
+const spokenRest = sec => {
+  const m = Math.floor(sec / 60), half = sec % 60 === 30;
+  if (sec < 60 || (sec % 60 && !half)) return `${sec} ثانية`;
+  const mins = m === 1 ? 'دقيقة' : m === 2 ? 'دقيقتين' : `${m} دقايق`;
+  return half ? `${mins} ونص` : mins;
+};
 function startTimer(sec,label){
   stopTimer(); let left=sec; const bar=$('timer'); bar.hidden=false;
+  keepAwake('timer');
+  if (voiceOn()) speak(`ارتاح ${spokenRest(sec)}`);
   const draw=()=>{ bar.querySelector('.tl').textContent=label; bar.querySelector('.tv').textContent=`${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`; bar.style.setProperty('--p',(1-left/sec)*100+'%'); };
   draw();
   tmr=setInterval(()=>{ left--; if(left<=0){ stopTimer(true); } else { if(left<=3) beep(600,.08); draw(); } },1000);
 }
-function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} const bar=$('timer'); if(done){ beep(880,.35); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='0:00'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
+function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} keepAwake('timer', false); const bar=$('timer'); if(done){ beep(880,.35); if (voiceOn()) speak('خلصت الراحة، انطلق'); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='0:00'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
 let actx=null;
 function beep(f,d){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); const o=actx.createOscillator(), g=actx.createGain(); o.frequency.value=f; o.connect(g); g.connect(actx.destination); g.gain.value=.15; o.start(); o.stop(actx.currentTime+d);}catch(e){} }
 function restHTML(k){ const r=REST[k]; if(!r) return ''; return `<div class="rests">${r.map(([l,s,extra])=>s?`<button class="rbtn" data-s="${s}" data-l="${l}">⏱ ${l}: ${fmtS(s)}${extra?' '+extra:''}</button>`:`<span class="rbtn off">⏸ ${l}</span>`).join('')}</div>`; }

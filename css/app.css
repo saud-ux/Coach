@@ -881,3 +881,19 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
 .kb nav.tabs{visibility:hidden}
 .kb .composer{bottom:var(--kb,0px)}
 .kb .msgs{padding-bottom:calc(var(--kb,0px) + 120px)}
+
+/* the next match: add it to the phone's calendar, or get directions */
+.mtacts{display:flex;gap:8px;margin-top:8px}
+.mtacts:empty{display:none}
+.mtact{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:999px;font-size:13px;font-weight:600;
+  background:var(--surface);color:var(--ink-2);border:1px solid var(--border);text-decoration:none}
+.mtact svg{width:16px;height:16px;color:var(--brand)}
+.mtact:active{transform:scale(.97)}
+
+/* opened in Safari: how to put the app on the home screen */
+.ihint{position:fixed;left:12px;right:12px;bottom:calc(var(--tabbar) + 12px + env(safe-area-inset-bottom,0px));z-index:66;
+  display:flex;flex-direction:column;gap:3px;padding:12px 14px 12px 44px;border-radius:18px;background:var(--band);color:#fff;
+  box-shadow:0 10px 28px rgba(0,0,0,.28);font-size:13px;line-height:1.6}
+.ihint b{font-size:14px;color:var(--band-accent,#E7C873)}
+.ihint i{font-style:normal;display:inline-block;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.16)}
+.ihint button{position:absolute;top:8px;left:8px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff}

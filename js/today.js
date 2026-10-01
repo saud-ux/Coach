@@ -434,6 +434,13 @@ function renderSessionCard(){
 }
 
 /* ---------- next match line ---------- */
+// The phone's Calendar opens a .ics link with an «Add» sheet. The server writes
+// the file (GET /api/ics), with an alert three hours before kickoff.
+function icsLink(m, teams){
+  const role = m.role !== undefined && m.role !== '' ? ['حكم مساعد أول','حكم مساعد ثاني','حكم رابع','حكم ساحة'][+m.role] : '';
+  const q = new URLSearchParams({ t: `مباراة: ${teams}`, d: m.date, h: m.time, l: m.venue || '', n: [m.comp, role].filter(Boolean).join(' · ') });
+  return `/api/ics?${q}`;
+}
 function renderNextMatch(){
   const box = $('nextMatchLine');
   if (!box) return;
@@ -466,7 +473,11 @@ function renderNextMatch(){
         <small>${[fDm.format(parse(next.date)), next.time ? clock12(next.time) : '', role].filter(Boolean).join(' · ')}</small></span>
     </span>
     <span class="mtstub">${pre ? `<small>${pre}</small>` : ''}<b>${big}</b></span>
-  </button>`;
+  </button>
+  <div class="mtacts">
+    ${next.time ? `<a class="mtact" href="${icsLink(next, teams)}">${icon('calendar')} أضف للتقويم</a>` : ''}
+    ${next.venue ? `<a class="mtact" href="https://maps.apple.com/?q=${encodeURIComponent(next.venue)}" target="_blank" rel="noopener">${icon('route')} الاتجاهات للملعب</a>` : ''}
+  </div>`;
   $('goMatch').onclick = () => openDay(next.date);
 }
 
@@ -488,6 +499,12 @@ export function openSettings(focus){
           <button class="chip" data-t="day">نهاري</button>
           <button class="chip" data-t="night">ليلي</button>
         </div>
+      </section>
+
+      <section class="sgroup scard">
+        <h3><span class="sgi">${icon('timer')}</span>التمرين</h3>
+        <label class="sw" style="margin-top:4px"><input type="checkbox" id="voiceSw"><span>صوت المؤقت: يقول لك متى تبدأ الراحة ومتى تنطلق</span></label>
+        <p class="snote">الشاشة تبقى شغالة وأنت فاتح تمرين اليوم أو المؤقت شغّال.</p>
       </section>
 
       <section class="sgroup scard">
@@ -549,6 +566,11 @@ export function openSettings(focus){
       import('./state.js').then(m => m.save());
     });
     paintTheme();
+
+    // the rest timer's voice
+    const vs = sh.querySelector('#voiceSw');
+    vs.checked = !(state.settings && state.settings.voice === false);
+    vs.onchange = () => { state.settings = { ...(state.settings || {}), voice: vs.checked }; import('./state.js').then(m => m.save()); };
 
     // city
     const city = sh.querySelector('#citySel');

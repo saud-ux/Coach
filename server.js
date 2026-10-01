@@ -271,6 +271,36 @@ async function health(req, res, url){
   }
 }
 
+/* ---------- a match for the phone's calendar ----------
+   GET /api/ics?t=title&d=YYYY-MM-DD&h=HH:MM&l=venue&n=note -> one event, two
+   hours long, with an alert three hours before. Stateless: everything is in the
+   link the app builds, so nothing private is read here. */
+function ics(req, res, url){
+  const q = k => String(url.searchParams.get(k) || '').slice(0, 200);
+  const d = q('d'), h = q('h');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{1,2}:\d{2}$/.test(h)) return send(res, 400, 'bad date', 'text/plain');
+  // Riyadh is UTC+3 all year, so the start is written in UTC and no VTIMEZONE is needed
+  const start = new Date(`${d}T${h.padStart(5, '0')}:00+03:00`);
+  if (isNaN(start)) return send(res, 400, 'bad date', 'text/plain');
+  const utc = t => t.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const esc = v => v.replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\r?\n/g, '\\n');
+  const body = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//referee-coach//AR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${d}-${h.replace(':', '')}@referee-coach`,
+    `DTSTAMP:${utc(new Date())}`,
+    `DTSTART:${utc(start)}`,
+    `DTEND:${utc(new Date(start.getTime() + 2 * 3600e3))}`,
+    `SUMMARY:${esc(q('t') || 'مباراة')}`,
+    q('l') ? `LOCATION:${esc(q('l'))}` : '',
+    q('n') ? `DESCRIPTION:${esc(q('n'))}` : '',
+    'BEGIN:VALARM', 'TRIGGER:-PT3H', 'ACTION:DISPLAY', `DESCRIPTION:${esc('مباراتك بعد 3 ساعات')}`, 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].filter(Boolean).join('\r\n') + '\r\n';
+  res.writeHead(200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `inline; filename="match-${d}.ics"` });
+  res.end(body);
+}
+
 /* ---------- Siri: the day read out loud ----------
    GET /api/today        {text, date}
    GET /api/today?plain  the same text as text/plain, so a Shortcut can go straight
@@ -518,6 +548,7 @@ async function route(req, res){
   if (url.pathname === '/api/push/test' && req.method === 'POST') return pushTest(req, res);
   if (url.pathname === '/api/cron') return cron(req, res, url);
   if (url.pathname === '/api/today' && req.method === 'GET') return today(req, res, url);
+  if (url.pathname === '/api/ics' && req.method === 'GET') return ics(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
   const base = path.basename(file), ext0 = path.extname(file).toLowerCase();
