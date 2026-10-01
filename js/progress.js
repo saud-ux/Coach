@@ -134,7 +134,9 @@ const hr12 = h => `${num(h>12?h-12:h)} ${h>=12?'م':'ص'}`;
 function renderWx(){
   const el=$('wxLine'); if(!el) return; if(!WX){ el.hidden=true; return; }
   el.hidden=false; const b=WX.H[WX.best];
-  el.textContent=`🌡️ ${WX.city}: الساعة ٦ م ${num(Math.round(WX.at18.t))}° (تحسها ${num(Math.round(WX.at18.f))}°)، أنسب وقت ${hr12(WX.best)} (${num(Math.round(b.f))}°)`;
+  // no emoji in the chrome: the line is plain text and the heat warning, when it
+  // matters, is the coloured alert on المدرب
+  el.textContent=`${WX.city}: الساعة ٦ م ${num(Math.round(WX.at18.t))}° (تحسها ${num(Math.round(WX.at18.f))}°)، أنسب وقت ${hr12(WX.best)} (${num(Math.round(b.f))}°)`;
 }
 
 /* ---------- monthly report (shareable image) ---------- */
@@ -170,39 +172,42 @@ function renderMonth(){
     } catch(e){ out.innerHTML='<p class="note">تعذّر إنشاء الصورة.</p>'; } };
 }
 async function drawMonth(S){
-  try { await Promise.all(['400','600','700'].map(w=>document.fonts.load(`${w} 40px "Readex Pro"`))); } catch(e){}
+  try { await Promise.all(['400','600','700'].map(w=>document.fonts.load(`${w} 40px "IBM Plex Sans Arabic"`))); } catch(e){}
   const W=1080,H=1350,c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d'); x.direction='rtl';
-  const F=(w,s)=>`${w} ${s}px "Readex Pro", system-ui, sans-serif`;
+  const F=(w,s)=>`${w} ${s}px "IBM Plex Sans Arabic", system-ui, sans-serif`;
   const rr=(X,Y,w,h,r)=>{ x.beginPath(); x.moveTo(X+r,Y); x.arcTo(X+w,Y,X+w,Y+h,r); x.arcTo(X+w,Y+h,X,Y+h,r); x.arcTo(X,Y+h,X,Y,r); x.arcTo(X,Y,X+w,Y,r); x.closePath(); };
-  x.fillStyle='#F4F6F2'; x.fillRect(0,0,W,H);
-  const g=x.createLinearGradient(0,0,0,520); g.addColorStop(0,'#2A8456'); g.addColorStop(1,'#15503A'); x.fillStyle=g; rr(0,-40,W,560,60); x.fill();
-  x.globalAlpha=.08; x.fillStyle='#fff'; for(let i=0;i<8;i++) x.fillRect(0,i*70,W,35); x.globalAlpha=1;
+  // the shareable image follows the app: near-black page, one surface panel per tile
+  x.fillStyle='#07080A'; x.fillRect(0,0,W,H);
+  const g=x.createLinearGradient(0,0,0,520); g.addColorStop(0,'#14171C'); g.addColorStop(1,'#101216'); x.fillStyle=g; rr(0,-40,W,560,60); x.fill();
+  x.globalAlpha=.05; x.fillStyle='#9B8CFF'; for(let i=0;i<8;i++) x.fillRect(0,i*70,W,35); x.globalAlpha=1;
   // flag
   x.save(); x.translate(90,90); x.rotate(-.12); x.fillStyle='#EDEDED'; x.fillRect(0,0,10,120); x.fillStyle='#FFD21F'; x.fillRect(10,4,80,60); x.fillStyle='#E0301E'; x.fillRect(10,4,40,30); x.fillRect(50,34,40,30); x.restore();
-  x.textAlign='right'; x.fillStyle='#fff';
-  x.font=F(700,68); x.fillText('تقريري الشهري',W-70,130);
-  x.font=F(400,40); x.fillStyle='rgba(255,255,255,.85)'; x.fillText(fMon.format(parse(S.ym+'-01')),W-70,190);
-  x.font=F(400,32); x.fillText('سعود، حكم مساعد',W-70,240);
+  x.textAlign='right'; x.fillStyle='#F2F4F7';
+  x.font=F(600,68); x.fillText('تقريري الشهري',W-70,130);
+  x.font=F(400,40); x.fillStyle='#C9CED6'; x.fillText(fMon.format(parse(S.ym+'-01')),W-70,190);
+  x.font=F(400,32); x.fillStyle='#8B93A1'; x.fillText('سعود، حكم مساعد',W-70,240);
   // big adherence
-  x.fillStyle='#fff'; x.font=F(700,150); x.fillText(num(S.adh)+'٪',W-70,420);
-  x.font=F(400,36); x.fillStyle='rgba(255,255,255,.85)'; x.fillText('التزام بالتمارين',W-70,470);
+  x.fillStyle='#F2F4F7'; x.font=F(600,150); x.fillText(num(S.adh)+'٪',W-70,420);
+  x.font=F(400,36); x.fillStyle='#8B93A1'; x.fillText('التزام بالتمارين',W-70,470);
   // ring
-  const cx=230,cy=340,R=110; x.lineWidth=26; x.strokeStyle='rgba(255,255,255,.2)'; x.beginPath(); x.arc(cx,cy,R,0,Math.PI*2); x.stroke();
-  x.strokeStyle='#FFD21F'; x.lineCap='round'; x.beginPath(); x.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+Math.PI*2*S.adh/100); x.stroke();
-  x.textAlign='center'; x.fillStyle='#fff'; x.font=F(700,52); x.fillText(`${num(S.done)}/${num(S.planned)}`,cx,cy+10); x.font=F(400,26); x.fillText('تمرين',cx,cy+50);
+  const cx=230,cy=340,R=110; x.lineWidth=26; x.strokeStyle='#1E232B'; x.beginPath(); x.arc(cx,cy,R,0,Math.PI*2); x.stroke();
+  x.strokeStyle='#3DDC84'; x.lineCap='round'; x.beginPath(); x.arc(cx,cy,R,-Math.PI/2,-Math.PI/2+Math.PI*2*S.adh/100); x.stroke();
+  x.textAlign='center'; x.fillStyle='#F2F4F7'; x.font=F(600,52); x.fillText(`${num(S.done)}/${num(S.planned)}`,cx,cy+10); x.font=F(400,26); x.fillStyle='#8B93A1'; x.fillText('تمرين',cx,cy+50);
   // tiles
-  const tiles=[['🏃','دقائق التدريب',num(Math.round(S.mins))],['🟨','مباريات',num(S.matches)],['⭐','متوسط التقييم',S.score!=null?num(S.score.toFixed(1)):'–'],
-    ['💪','متوسط الجاهزية',S.ready!=null?num(S.ready)+'٪':'–'],['⚖️','دقة القانون',S.qacc!=null?num(S.qacc)+'٪':'–'],['📝','أفضل اختبار',S.exam!=null?num(S.exam)+'٪':'–']];
+  // no emoji: each tile is labelled, and a small colour bar carries the meaning
+  const tiles=[['#4AA3FF','دقائق التدريب',num(Math.round(S.mins))],['#F2C230','مباريات',num(S.matches)],['#9B8CFF','متوسط التقييم',S.score!=null?num(S.score.toFixed(1)):'–'],
+    ['#3DDC84','متوسط الجاهزية',S.ready!=null?num(S.ready)+'٪':'–'],['#FF7A45','دقة القانون',S.qacc!=null?num(S.qacc)+'٪':'–'],['#FF4D5E','أفضل اختبار',S.exam!=null?num(S.exam)+'٪':'–']];
   tiles.forEach((tl,i)=>{ const col=i%2, row=Math.floor(i/2), tw=450, th=150, X=W-70-tw-col*(tw+40), Y=560+row*(th+26);
-    x.fillStyle='rgba(16,40,28,.06)'; rr(X,Y+6,tw,th,30); x.fill(); x.fillStyle='#fff'; rr(X,Y,tw,th,30); x.fill();
-    x.textAlign='right'; x.font=F(400,40); x.fillText(tl[0],X+tw-30,Y+62); x.fillStyle='#5E6B63'; x.font=F(400,30); x.fillText(tl[1],X+tw-90,Y+60);
-    x.fillStyle='#1E6A43'; x.font=F(700,60); x.fillText(tl[2],X+tw-30,Y+125); });
+    x.fillStyle='#101216'; rr(X,Y,tw,th,30); x.fill();
+    x.fillStyle=tl[0]; rr(X+tw-34,Y+30,6,36,3); x.fill();
+    x.textAlign='right'; x.fillStyle='#8B93A1'; x.font=F(400,30); x.fillText(tl[1],X+tw-52,Y+60);
+    x.fillStyle='#F2F4F7'; x.font=F(600,60); x.fillText(tl[2],X+tw-52,Y+125); });
   // weekly minutes bars
   const wk=Object.entries(S.weeks).sort(), mx=Math.max(60,...wk.map(w=>w[1])); const bx0=70, bw=W-140, by=1255, bh=100;
-  x.textAlign='right'; x.fillStyle='#5E6B63'; x.font=F(400,28); x.fillText('دقائق التدريب كل أسبوع',W-70,by-bh-24); if(!wk.length){ x.textAlign='center'; x.fillStyle='#9AA9A0'; x.fillText('ما فيه تمارين مسجلة هالشهر',W/2,by-40); }
+  x.textAlign='right'; x.fillStyle='#8B93A1'; x.font=F(400,28); x.fillText('دقائق التدريب كل أسبوع',W-70,by-bh-24); if(!wk.length){ x.textAlign='center'; x.fillStyle='#6E7684'; x.fillText('ما فيه تمارين مسجلة هالشهر',W/2,by-40); }
   const n=Math.max(wk.length,1), gap=24, w1=(bw-gap*(n-1))/n;
-  wk.forEach(([ws,v],i)=>{ const X=W-70-(i+1)*w1-i*gap, hh=Math.max(8,bh*v/mx); x.fillStyle='#1E6A43'; rr(X,by-hh,w1,hh,10); x.fill(); x.textAlign='center'; x.fillStyle='#5E6B63'; x.font=F(400,22); x.fillText(num(Math.round(v)),X+w1/2,by+30); });
-  x.textAlign='center'; x.fillStyle='#9AA9A0'; x.font=F(400,24); x.fillText('جدول الحكم',W/2,H-30);
+  wk.forEach(([ws,v],i)=>{ const X=W-70-(i+1)*w1-i*gap, hh=Math.max(8,bh*v/mx); x.fillStyle='#4AA3FF'; rr(X,by-hh,w1,hh,10); x.fill(); x.textAlign='center'; x.fillStyle='#8B93A1'; x.font=F(400,22); x.fillText(num(Math.round(v)),X+w1/2,by+30); });
+  x.textAlign='center'; x.fillStyle='#6E7684'; x.font=F(400,24); x.fillText('جدول الحكم',W/2,H-30);
   return c.toDataURL('image/png');
 }
 

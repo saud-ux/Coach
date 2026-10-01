@@ -1,36 +1,87 @@
-/* tokens.css — palette, dark-mode variants and base element styles.
-   Loaded before app.css. The data-theme hooks are deliberate: the dark
-   palette is defined twice so a future light/dark switch can set
-   data-theme on <html> without the media query fighting it. */
+/* tokens.css — "Night 2".
+
+   Dark only for now. The data-theme hooks are kept deliberately: every value is
+   declared once in :root and again under :root[data-theme="dark"], so adding a
+   light theme later means filling in :root[data-theme="light"] and flipping one
+   attribute — no rule below this file needs to change.
+
+   Loaded before app.css. */
+
 :root{
-  --bg:#F4F6F2; --surface:#FFFFFF; --ink:#18201B; --muted:#5E6B63; --line:#DDE3DC;
-  --pitch:#1E6A43; --pitch-soft:#E3EFE7; --card:#F2C230; --card-ink:#3B2E00; --red:#C8372D;
-  --run:#1E6A43; --strength:#2F5D8A; --intervals:#B4561C; --yoyo:#7A3E9D; --light:#6E8B7A;
-  --rest:#A3ADA6; --recovery:#4E9A8C; --test:#C8372D; --match:#F2C230;
+  /* surfaces */
+  --bg:#07080A;
+  --surface:#101216;
+  --surface-2:#14171C;
+  --track:#1E232B;        /* ring backgrounds, dividers, inactive fills */
+
+  /* text */
+  --ink:#F2F4F7;
+  --ink-2:#C9CED6;
+  --muted:#8B93A1;
+  --muted-2:#6E7684;      /* inactive tabs */
+
+  /* meaning */
+  --sleep:#9B8CFF;
+  --ready:#3DDC84;
+  --load:#4AA3FF;
+  --effort:#FF7A45;
+  --match:#F2C230;
+  --max:#FF4D5E;
+
+  /* session types. Distinct enough to read as dots on the week strip. */
+  --run:#4AA3FF;
+  --strength:#9B8CFF;
+  --intervals:#FF7A45;
+  --yoyo:#39D7C4;
+  --light:#7FD17F;
+  --rest:#6E7684;
+  --recovery:#3DDC84;
+  --test:#FF4D5E;
+
+  /* legacy names still referenced by the SVG figures, charts and a few older
+     components. Mapped onto the palette above rather than left behind. */
+  --pitch:#3DDC84;
+  --pitch-soft:#14241C;
+  --line:#1E232B;
+  --card:#F2C230;
+  --card-ink:#2A2100;
+  --red:#FF4D5E;
+
+  /* shape */
+  --r-card:22px;
+  --r-tile:16px;
+  --r-field:14px;
+  --sh:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+  --tap:44px;             /* minimum touch target */
+
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#101612; --surface:#18211B; --ink:#E8EEE9; --muted:#9AA9A0; --line:#2A362E;
-    --pitch:#4FB57F; --pitch-soft:#1C3326; --card-ink:#2A2100; --rest:#56625A; --light:#7FA08C;
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#101612; --surface:#18211B; --ink:#E8EEE9; --muted:#9AA9A0; --line:#2A362E;
-  --pitch:#4FB57F; --pitch-soft:#1C3326; --card-ink:#2A2100; --rest:#56625A; --light:#7FA08C;
-}
-*,*::before,*::after{box-sizing:border-box}
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
-  font-family:"Readex Pro",system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;font-size:16px;line-height:1.6;
-  -webkit-tap-highlight-color:transparent}
-button,input,textarea,select{font:inherit;color:inherit}
-button{cursor:pointer}
-:focus-visible{outline:3px solid var(--pitch);outline-offset:2px}
 
-/* shadow + radius tokens (from the design-refresh layer) */
-:root{--sh:0 1px 2px rgba(16,40,28,.05),0 6px 20px rgba(16,40,28,.07);--r:18px}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sh:0 0 0 1px var(--line)}}
-:root[data-theme="dark"]{--sh:0 0 0 1px var(--line)}
+/* The app is dark whatever the system says, until a light theme exists. Both
+   selectors are here so the switch is a one-line change later. */
+:root[data-theme="dark"]{ color-scheme:dark; }
+
+*,*::before,*::after{box-sizing:border-box}
+
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+
+body{
+  margin:0;min-height:100%;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;
+  font-size:16px;line-height:1.6;
+  font-feature-settings:"ss01";
+  -webkit-tap-highlight-color:transparent;
+  -webkit-font-smoothing:antialiased;
+}
+
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+h1,h2,h3,h4{margin:0;font-weight:600;line-height:1.3}
+p{margin:0}
+[hidden]{display:none !important}

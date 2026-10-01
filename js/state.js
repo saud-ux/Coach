@@ -26,10 +26,22 @@ export { pad, iso, parse, addDays, todayISO, AR, fWd, fDm, fFull, fMon, num, PLA
 
 /* ---------- dom helpers ---------- */
 export const $ = id => document.getElementById(id);
-export const setStatus = t => { const el = $('status'); if (el) el.textContent = t; };
+// The sync line is only worth the user's attention while something is happening
+// or has gone wrong. The settled states are written but kept invisible, so the
+// Today header stays as specified: date, title, gear.
+const QUIET = ['محفوظ', 'محفوظ في حسابك', 'محفوظ على هذا الجهاز'];
+export const setStatus = t => {
+  const el = $('status');
+  if (!el) return;
+  el.textContent = t;
+  el.classList.toggle('show', !QUIET.includes(t));
+};
 
 /* ---------- state ---------- */
-export let state = {v:6, sessions:{}, matches:[], logs:{}, tests:[], chat:[], readiness:{}, reports:{}, quiz:{answers:{},daily:{}}, settings:{city:'zulfi'}, push:null};
+// v7 adds `health`, a cache of sleep nights and watch workouts. It is additive:
+// a v6 backup simply has no health key and gets an empty one, which is why the
+// destructive migration gate in adopt() still reads `< 6` and not `< 7`.
+export let state = {v:7, sessions:{}, matches:[], logs:{}, tests:[], chat:[], readiness:{}, reports:{}, quiz:{answers:{},daily:{}}, settings:{city:'zulfi'}, push:null, health:null};
 export function setState(next){ state = next; }
 
 export const LS = 'referee-coach-v1';

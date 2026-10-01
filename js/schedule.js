@@ -15,6 +15,7 @@ import { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, restHTML, flowHTML, ne
          startTimer, setHL, mediaHTML, applyView, rounds } from './figures.js';
 import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js';
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
+import { icon } from './ui.js';
 import { send } from './coach.js';
 
 /* ---------- plan ---------- */
@@ -143,7 +144,7 @@ function renderSchedule(){
     b.dataset.date = d; if (d===t) b.id = 'todayRow';
     const dur = defDur(d,s);
     b.innerHTML = `<span class="dnum"><b>${num(parse(d).getDate())}</b><small></small></span>
-      <span class="dic" style="--c:${ty.c}">${TICON[s.type]||'•'}</span>
+      <span class="dic" style="--c:${ty.c}" aria-hidden="true"></span>
       <span class="t"><div class="ti"></div><div class="ty"></div></span>
       ${isRest?'':`<span class="tick ${log&&log.done?'on':''}">${log&&log.done?'✓':(d===t?'‹':'')}</span>`}`;
     b.querySelector('small').textContent = fWd.format(parse(d));
@@ -160,6 +161,26 @@ function renderSchedule(){
   list.addEventListener('touchend',e=>{ if(sx==null) return; const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy; sx=null; if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5) go(dx>0?1:-1); },{passive:true});
 }
 
+/* ---------- session shape, for the Today card ---------- */
+// Warm-up / main / cool-down in minutes, so the Today card can draw a segmented
+// bar. The split mirrors what FLOW already tells the user in the session sheet;
+// it is presentational and nothing computes load from it.
+const WARMCOOL = {
+  intervals:[10,5], yoyo:[10,5], strength:[5,5], run:[5,5], test:[10,5],
+  light:[0,0], recovery:[0,0], rest:[0,0], match:[0,0]
+};
+function sessionParts(date, s){
+  const ty = TYPES[s.type] || TYPES.rest, c = ty.c;
+  const total = defDur(date, s) || 0;
+  const [w, cd] = WARMCOOL[s.type] || [0,0];
+  const main = Math.max(1, total - w - cd);
+  const out = [];
+  if (w)  out.push({ label:'إحماء',  min:w,    color:`color-mix(in srgb, ${c} 40%, var(--track))` });
+  out.push({ label:'التمرين', min:main, color:c });
+  if (cd) out.push({ label:'تبريد', min:cd,   color:`color-mix(in srgb, ${c} 25%, var(--track))` });
+  return out;
+}
+
 /* ---------- session sheet ---------- */
 const EFFORT = ['سهل جدًا','سهل','متوسط','صعب','مرهق'];
 function defDur(d,s){ if(!s) return 0; if(s.type==='run') return weekParams(d).run; return ({strength:35,intervals:35,yoyo:40,light:20,recovery:25,rest:0,test:25,match:105})[s.type] ?? 30; }
@@ -169,8 +190,8 @@ function openDay(d){
   openSheet(sh => {
     const ty0 = TYPES[s.type]||TYPES.rest, keys0 = DIAGRAMS[s.type]||[];
     const EFF = {run:'٦٠–٧٠٪',intervals:'٩٠٪',yoyo:'٨٠–٩٠٪',strength:'متوسط',light:'٥٠٪',recovery:'خفيف',test:'أقصى جهد',match:'مباراة',rest:'راحة'};
-    sh.innerHTML = `<div class="shero ${s.type==='match'?'match':''}" style="--hc:${ty0.c}"><span class="sty">${TICON[s.type]||''} ${ty0.l}</span><h2></h2><div class="sub"></div>
-        <div class="schips">${defDur(d,s)?`<span>⏱ ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>📋 ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>🔥 ${EFF[s.type]||''}</span></div></div>
+    sh.innerHTML = `<div class="shero ${s.type==='match'?'match':''}" style="--hc:${ty0.c}"><span class="sty">${ty0.l}</span><h2></h2><div class="sub"></div>
+        <div class="schips">${defDur(d,s)?`<span>${icon('clock')} ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>${icon('scale')} ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>${icon('bolt')} ${EFF[s.type]||''}</span></div></div>
       <div id="dgs"></div>
       <details class="dtl" ${keys0.length?'':'open'}><summary>التفاصيل المكتوبة</summary><div class="details"></div></details>
       <div class="logcard"><h3 id="logH">${s.type==='match'?'قيّم المباراة':'سجّل تمرينك'}</h3>
@@ -307,7 +328,7 @@ async function loadInbox(){ if(!hasInbox()) return; try { INBOX = await inboxLis
 function renderInbox(){
   const box=$('inbox'); if(!box) return; box.innerHTML='';
   INBOX.forEach(it=>{ const c=document.createElement('div'); c.className='rcard inb';
-    c.innerHTML=`<span class="cav">📩</span><div><b>تكليف جديد</b><small></small></div><button class="chip card">أضفه</button><button class="chip">تجاهل</button>`;
+    c.innerHTML=`<span class="cav">${icon('inbox')}</span><div><b>تكليف جديد</b><small></small></div><button class="chip card">أضفه</button><button class="chip">تجاهل</button>`;
     c.querySelector('small').textContent = it.home ? `${it.home} × ${it.away}` : it.text.slice(0,60);
     const [add,skip]=c.querySelectorAll('.chip');
     add.onclick=()=>openAddMatch({home:it.home,away:it.away,link:it.link,text:it.text,inboxId:it.id});
@@ -333,24 +354,7 @@ function openAddTest(){
   });
 }
 
-/* ---------- hero ---------- */
-function renderHero(){
-  const box=$('hero'), t=todayISO(), s=state.sessions[t], lg=state.logs[t], ty=s?(TYPES[s.type]||TYPES.rest):TYPES.rest;
-  const col = s ? getComputedStyle(document.documentElement).getPropertyValue(ty.c.slice(4,-1)).trim() : '';
-  const sun=addDays(t,-parse(t).getDay()), letters=['ح','ن','ث','ر','خ','ج','س'];
-  const dots = letters.map((l,i)=>{ const d=addDays(sun,i), ss=state.sessions[d], ll=state.logs[d]; const on = ll&&ll.done; const cls = on?'on':(d===t?'now':''); return `<span><i class="${cls}" style="${!on&&ss&&ss.type==='rest'?'opacity:.35':''}"></i>${l}</span>`; }).join('');
-  const isMatch = s && s.type==='match', isRest = !s || s.type==='rest';
-  box.innerHTML = `<div class="hero${isMatch?' match':''}" style="${!isMatch&&!isRest&&col?`--hc:${col}`:''}${isRest?';--hc:#4E6B5A':''}">
-    <div class="lbl">تمرين اليوم</div>
-    <h2>${isRest?'يوم راحة 😌':s.title}</h2>
-    <span class="ty">${isRest?'استمتع بيومك':ty.l}${lg&&lg.done?'، أنهيته ✓':''}</span>
-    <div class="hbtns">${s?`<button class="go" id="hGo">${isRest?'التفاصيل':(lg&&lg.done?'شوف التمرين':'ابدأ التمرين')}</button>`:''}${s&&!isRest&&!(lg&&lg.done)?`<button class="ok" id="hDone">${isMatch?'قيّم المباراة':'أنهيته ✓'}</button>`:''}</div>
-    <div class="wkdots">${dots}</div><div class="wx" id="wxLine" hidden></div></div>`;
-  const g=$('hGo'); if(g) g.onclick=()=>openDay(t);
-  const d=$('hDone'); if(d) d.onclick=()=>openDay(t);
-  renderWx();
-}
 
 export { TYPES, HARD, TICON, EFFORT, weekParams, defaultSession, ensureHorizon, defDur,
-         applyMatch, removeMatch, renderSchedule, renderHero, openDay, openAddMatch,
+         sessionParts, applyMatch, removeMatch, renderSchedule, openDay, openAddMatch,
          openAddTest, loadInbox, parseAssignText, getViewWeek, setViewWeek };

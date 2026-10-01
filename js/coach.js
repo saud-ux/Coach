@@ -18,6 +18,9 @@ import { switchTab, renderAll } from './main.js';
 /* ---------- readiness ---------- */
 const RQ=[['sleep','النوم',['سيء جدًا','سيء','عادي','زين','ممتاز']],['sore','ألم العضلات',['شديد','واضح','خفيف','بسيط','ما فيه']],['energy','الطاقة',['منهك','تعبان','عادي','نشيط','ممتاز']]];
 const readyScore = r => (r.sleep+r.sore+r.energy)/3;
+// The gauge has always been shown as a percentage of 5, so its floor is 20%, not
+// 0%. Kept in one place now that both the Today tile and the card draw it.
+const readyPct = sc => Math.round(sc/5*100);
 const readyLabel = sc => sc>=4?['جاهز تمامًا','var(--pitch)']:sc>=3?['جاهزية متوسطة','#C99A1E']:['جاهزية منخفضة','var(--red)'];
 function lighten(d, toRecovery){
   const s=state.sessions[d]; if(!s||!HARD.has(s.type)||s.type==='test') return;
@@ -57,7 +60,10 @@ function coachReply(t, r){
 }
 function bubble(txt, me){ const b=document.createElement('div'); b.className='cb '+(me?'me':'ai'); b.textContent=txt; return b; }
 function renderReady(){
-  const box=$('ready'), t=todayISO(), hr=new Date().getHours(), r=state.readiness[t], s=state.sessions[t];
+  // #ready only exists while the readiness sheet is open, so this is a no-op the
+  // rest of the time and renderAll() can keep calling it unconditionally.
+  const box=$('ready'); if(!box) return;
+  const t=todayISO(), hr=new Date().getHours(), r=state.readiness[t], s=state.sessions[t];
   box.innerHTML='';
   const c=document.createElement('div'); c.className='rcard coach';
   const head=document.createElement('div'); head.className='chead'; head.innerHTML='<span class="cav">🟨</span><b>مدربك</b>'; c.appendChild(head);
@@ -101,7 +107,7 @@ function renderReady(){
 
 /* ---------- alerts + report prompt ---------- */
 function renderAlerts(){
-  const box=$('alerts'); box.innerHTML='';
+  const box=$('alerts'); if(!box) return; box.innerHTML='';
   { const t0=todayISO(), s0=state.sessions[t0], WX=getWX();
     if (WX && WX.hot && s0 && HARD.has(s0.type) && s0.type!=='test' && !(state.logs[t0]&&state.logs[t0].done)){
       const a=document.createElement('div'); a.className='alert yel';
@@ -280,6 +286,6 @@ export function chatBusy(){ return busy; }
 export function abortChat(){ ctl?.abort(); }
 export const CHAT_CHIPS = ['عندي مباراة بكرة','رجولي تعبانة اليوم','فاتني تمرين أمس','عندي مباراتين هالأسبوع','الجو حار جدًا اليوم','وش أسوي قبل المباراة؟'];
 
-export { RQ, RQ2, readyScore, readyLabel, lighten, restoreOrig, greet, coachReply, bubble,
+export { RQ, RQ2, readyScore, readyPct, readyLabel, lighten, restoreOrig, greet, coachReply, bubble,
          renderReady, renderAlerts, weekSummary, genReport, renderReport, renderChat,
          applyChanges, send, context, RULES, setReadyEdit };

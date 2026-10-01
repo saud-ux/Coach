@@ -1,8 +1,8 @@
 # ARCHITECTURE — جدول الحكم (referee-coach)
 
-Map of the app. **Current as of Phase 1** (the split into modules, WebP images, the new service
-worker, and compression on the server). Sections 3, 6 and 7 — the state shape, the RPE scale and
-readiness — describe behaviour that Phase 1 deliberately did not change.
+Map of the app. **Current as of Phase 2** (the "Night 2" redesign: a dark design system, four tabs,
+the Today and Workout Summary screens, and settings moved into a sheet). Sections 6 and 7 — the RPE
+scale and readiness — describe behaviour neither phase changed.
 
 Written in English on purpose: it is a developer map full of identifiers. All *user-facing* copy stays
 Arabic / RTL / Saudi dialect, as the project rules require.
@@ -16,7 +16,7 @@ Arabic / RTL / Saudi dialect, as the project rules require.
 | `index.html` | 7 730 B · 119 lines | Markup only. Links two stylesheets and one entry module. |
 | `css/tokens.css` | 1 974 B | Palette, dark-mode variants, base element styles, shadow/radius tokens. |
 | `css/app.css` | 28 488 B | Every component rule, in the original cascade order. |
-| `js/*.js` | 10 modules, 174 KB | The app. See §2. |
+| `js/*.js` | 13 modules, ~200 KB | The app. See §2. |
 | `server.js` | 22 KB | Node `http` server, no framework. Static serving with brotli/gzip + 11 API routes. |
 | `sw.js` | 6 310 B | Service worker: versioned shell cache, cache-first media, network-first `/api/state`, push. |
 | `manifest.webmanifest` | 613 B | PWA manifest. `theme_color #1E6A43`, `background_color #F4F6F2`, `dir: rtl`, `lang: ar`. |
@@ -50,14 +50,17 @@ one entry module and the browser resolves the rest.
 | File | Lines | Contents |
 |---|---|---|
 | `js/state.js` | 59 | Bottom of the graph, imports nothing. Dates (`iso parse addDays todayISO`, the four `Intl` formatters, `num`), `$`/`setStatus`, the `state` object, `save()`, and the `hooks` object other modules register into. |
-| `js/storage-sync.js` | 139 | `initRuntime()` (the `window.claude` shim: `sample`, `db`, `user`, `RC_INBOX`), the `rt` coach handle, `adopt()`, and the two-phase load: `bootLocal()` then `syncRemote()`. |
+| `js/storage-sync.js` | ~165 | `initRuntime()` (the `window.claude` shim: `sample`, `db`, `user`, `RC_INBOX`), the `rt` coach handle, `adopt()`, the two-phase load (`bootLocal()` then `syncRemote()`), and `exportBackup`/`importBackup`. |
+| `js/ui.js` | ~110 | Design primitives: `ring()`/`ringWith()` (SVG circle on a `--track` circle, round caps, rotated -90deg), the stroke `icon()` set, and the Arabic formatters `hhmm` and `clock12`. Imports nothing. |
+| `js/today.js` | ~290 | The Today screen — sleep hero, the two tiles, the watch card, the session card, the next-match line — plus the readiness sheet and the settings sheet. |
+| `js/workout.js` | ~145 | The Workout Summary screen, and `effortFrom10()`, the one place the 1-10 picker is mapped onto the stored 1-5. |
 | `js/figures.js` | 334 | All the inline-SVG artwork and the stick-figure rig, the per-exercise metadata (`D DOSE MUS IMG REST AFTER FLOW DIAGRAMS`), the rest timer, and the image helpers `mediaHTML/applyView/stylesFor/precacheSelectedStyle`. |
 | `js/schedule.js` | 356 | The plan (`weekParams defaultSession ensureHorizon defDur`), matches, `renderSchedule`, `renderHero`, `openDay`, `openAddMatch`, `openAddTest`, and the assignment inbox. |
 | `js/coach.js` | 283 | Readiness (`readyScore lighten renderReady`), `renderAlerts`, the weekly report, and chat (`RULES context send applyChanges renderChat`). |
 | `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
 | `js/quiz.js` | 212 | The 92-question bank, the daily question, the mock exam, per-article practice, and `renderLaw`. |
 | `js/notifications.js` | 120 | Push subscription, the four reminder preferences, and `initNotifications()`. |
-| `js/health.js` | 26 | Stub for Phase 3. Exports no-ops that `main.js` already calls. |
+| `js/health.js` | ~150 | The read side of sleep and watch workouts: the `state.health` shape, `sleepScore()`, and the accessors Today and the Workout Summary read. Phase 3 fills it from `/api/health`. |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -114,11 +117,11 @@ flight, so a snapshot taken before their edit cannot erase it.
 
 ## 3. State shape
 
-One object, `state`, declared at `js/state.js`. `v` is the schema version, currently **6**.
+One object, `state`, declared at `js/state.js`. `v` is the schema version, currently **7**.
 
 ```js
 state = {
-  v: 6,
+  v: 7,
 
   // the plan. key = "YYYY-MM-DD". every day from PLAN_START to today+56 is filled by ensureHorizon().
   sessions: {
@@ -157,6 +160,11 @@ state = {
         duration_min, distance_km, avg_hr, max_hr, calories,   // Number | null
         summary: String                                        // <=200 chars Arabic
       },
+      rpe10?: 1..10,                     // v7, watch-confirmed sessions: the raw picker
+                                         // answer. `effort` above stays the value
+                                         // dayLoad() reads -- see section 6.
+      distance?, avg_hr?, max_hr?,       // v7, copied off the watch workout
+      source?: "watch",
       // match days only:
       legs?:    1..5 | null,             // 1 مرتاحة ... 5 منهكة
       weather?: 1..3 | null,             // 1 معتدل, 2 حار, 3 حار ورطب
@@ -194,6 +202,23 @@ state = {
 
   settings: { city: "zulfi" | "riyadh" | "majmaah" },
 
+  // v7. A CACHE of what the watch sent, not a source of truth: the server keeps the
+  // authoritative rows and phase 3 deliberately does not let it write the main state
+  // row. Cached here so the sleep card still has something to show offline.
+  health: null | {
+    nights: { "YYYY-MM-DD": {                    // keyed by night_of
+      in_bed_start, in_bed_end,                  // ISO strings
+      asleep_min, deep_min, rem_min, awake_min,  // numbers
+      resting_hr
+    }},
+    workouts: [{                                 // newest first
+      id, start, end, type, duration_min, distance_km,
+      avg_hr, max_hr, zones: {z2,z3,z4,z5},      // minutes per zone
+      confirmed: false
+    }],
+    syncedAt: ISO string | null
+  },
+
   // web-push state. null until the user enables reminders.
   push: {
     sub: <PushSubscription.toJSON()>,
@@ -213,6 +238,13 @@ silently dropped**, including on backup import. Adding a new top-level key (e.g.
 phase means adding it to `adopt()` too, or it vanishes on the next load.
 
 It bails out entirely when `!data.sessions`, which is also the validity check the import button relies on.
+
+### v7 (Phase 2)
+`health` was added, plus three optional fields on a log entry (`rpe10`, the watch numbers, `source`).
+All of it is additive: a v6 backup simply has no `health` key and `adopt()` gives it `null`, and a log
+without `rpe10` behaves exactly as before. **The destructive migration gate below still reads `< 6`,
+not `< 7`**, so bumping the version did not re-trigger it. Verified by importing both a v6 and a v5
+backup: the v6 one keeps every key untouched, and the v5 one still wipes future non-match days.
 
 ### Existing migration (`v < 6`)
 When loading data stamped below 6, every session from today forward whose `type !== 'match'` is
@@ -246,10 +278,11 @@ Import (`#impFile`) → `JSON.parse` → requires `d.sessions` → `adopt(d)` �
 Nothing else touches `localStorage`; there is no `sessionStorage` or IndexedDB use.
 
 ### Theme
-`css/tokens.css` defines a full dark palette under both `@media (prefers-color-scheme: dark)` and
-`:root[data-theme="dark"]`, and guards the media query with `:root:not([data-theme="light"])`.
-**No JavaScript ever sets `data-theme`** — there is no toggle UI and no stored preference. The hooks
-are inert scaffolding, which is exactly what Phase 2 has to preserve.
+The app is **dark only** as of Phase 2. `css/tokens.css` declares every value once in `:root` and
+again under `:root[data-theme="dark"]`, and **no JavaScript ever sets `data-theme`**. The hooks are
+deliberately inert scaffolding: adding a light theme later means filling in
+`:root[data-theme="light"]` and flipping one attribute, and no rule in `app.css` has to change,
+because nothing there hard-codes a colour.
 
 ---
 
@@ -593,7 +626,67 @@ strength session went from fourteen possible JPEGs to seven WebPs.
 
 ---
 
-## 11. Phase 1: what changed, and what to watch
+## 11. Phase 2: the "Night 2" design system
+
+### Tokens
+Everything is in `css/tokens.css` and nothing below it hard-codes a colour.
+
+| | |
+|---|---|
+| surfaces | `--bg #07080A` · `--surface #101216` · `--surface-2 #14171C` · `--track #1E232B` |
+| text | `--ink #F2F4F7` · `--ink-2 #C9CED6` · `--muted #8B93A1` · `--muted-2 #6E7684` |
+| meaning | `--sleep #9B8CFF` · `--ready #3DDC84` · `--load #4AA3FF` · `--effort #FF7A45` · `--match #F2C230` · `--max #FF4D5E` |
+| shape | cards 22px, tiles 16px, primary button fully rounded at 50px, `--tap: 44px` minimum |
+| type | IBM Plex Sans Arabic 400/500/600/700, system fallback |
+
+The session-type colours (`--run`, `--strength`, …) and the legacy names the SVG figures still
+reference (`--pitch`, `--line`, `--card`, `--red`) are mapped onto that palette rather than left
+behind, so the exercise artwork and the charts came across without edits.
+
+Rings are SVG: a `--track` circle with a coloured circle over it, `stroke-dasharray` carrying the
+value, round caps, `rotate(-90)` so the arc starts at twelve o'clock. `ring()` in `js/ui.js` is the
+only implementation. No emoji anywhere in the chrome — `icon()` holds ~22 inline stroke paths.
+
+### Navigation
+Four tabs: **اليوم / الجدول / المدرب / التقدم**. Settings left التقدم and became a sheet behind the
+gear in the Today header.
+
+Three things moved off Today, as specified:
+
+| moved | from | to |
+|---|---|---|
+| assignment inbox | Today | top of الجدول |
+| daily law question | Today | التقدم → القانون |
+| alert stack | Today | top of المدرب, plus the load tile turns «مرتفع» |
+
+### Sheets build their own markup
+A sheet's contents are replaced when it closes, so **nothing moves a live element into one**. The
+readiness conversation and the settings panel each render fresh on open, and `closeSheet()` empties
+the sheet. `renderReady()` and `renderNotif()` both no-op when their container is absent, which is
+what lets `renderAll()` keep calling them unconditionally.
+
+`openSheet(build, { bare: true })` suppresses the corner close button for a screen that carries its
+own back control, so Workout Summary never shows two ways out.
+
+### The 1-10 effort picker
+Workout Summary asks «كيف حسيت بالمجهود؟» on a 1-10 scale. `dayLoad()` has always computed
+`minutes x RPE[effort]` with `RPE = [0,2,4,6,8,10]` indexed 1-5, so every past ACWR figure is built
+on the 1-5 scale.
+
+`effortFrom10()` in `js/workout.js` is the only mapping: `Math.round(answer / 2)` clamped to 1-5 —
+the exact inverse of that table. A 7 becomes effort 4 and a 38-minute session scores `38 x 8 = 304`.
+The raw answer is kept beside it as `rpe10` for later, and **nothing computes load from that field**.
+Changing either the table or what `effort` means would silently rewrite every historical comparison.
+
+### Known cosmetic gap
+A match session's stored `title` is built by `applyMatch()` as `مباراة الساعة ${time}` straight from
+the `<input type="time">` value, so it carries Western digits while the rest of the UI uses
+Arabic-Indic. It is stored text, not display text, and the coach prompt reads it, so it was left
+alone rather than changed under the redesign.
+
+---
+
+## 12. Phase 1: what changed, and what to watch
 
 Done:
 1. `index.html` split into markup, two stylesheets and ten ES modules; behaviour identical.

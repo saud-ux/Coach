@@ -77,7 +77,7 @@ export const hasCoach = () => !!rt.sample;
 // the next load, so this function is the one to edit when the shape grows.
 export function adopt(data){
   if (!data || !data.sessions) return;
-  setState({v:6, sessions:data.sessions, matches:data.matches||[], logs:data.logs||{}, tests:(data.tests||[]).filter(x=>x.kind==='cooper'), chat:data.chat||[], readiness:data.readiness||{}, reports:data.reports||{}, quiz:data.quiz||{answers:{},daily:{}}, settings:data.settings||{city:'zulfi'}, push:data.push||null});
+  setState({v:7, sessions:data.sessions, matches:data.matches||[], logs:data.logs||{}, tests:(data.tests||[]).filter(x=>x.kind==='cooper'), chat:data.chat||[], readiness:data.readiness||{}, reports:data.reports||{}, quiz:data.quiz||{answers:{},daily:{}}, settings:data.settings||{city:'zulfi'}, push:data.push||null, health:data.health||null});
   if ((data.v||1) < 6){
     // plan template changed: replace every upcoming non-match day with the ongoing plan
     const t = todayISO();
@@ -139,6 +139,31 @@ export async function syncRemote(){
   } catch(e){
     setStatus(lastStatus);        // offline is normal here, not an error worth shouting about
   }
+}
+
+/* ---------- backup ---------- */
+// The export is a bare JSON.stringify(state) and the import goes through adopt(),
+// which is what keeps every older backup readable. They live here rather than in
+// main.js so the settings sheet can call them without reaching into the entry.
+export function exportBackup(){
+  const blob = new Blob([JSON.stringify(state)], {type:'application/json'});
+  const a = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = 'referee-backup-' + todayISO() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function importBackup(file){
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d.sessions) return false;
+    adopt(d);
+    ensureHorizon();
+    save();
+    return true;
+  } catch(e){ return false; }
 }
 
 /* ---------- assignment inbox ---------- */

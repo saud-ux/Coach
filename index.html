@@ -5,28 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>جدول الحكم</title>
 <meta name="description" content="جدول تمارين ومدرب لياقة للحكم المساعد">
-<meta name="theme-color" content="#1E6A43">
+<meta name="theme-color" content="#07080A">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="جدول الحكم">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
 <!-- ?v= marks a file as immutable to the server, so bump it in index.html, sw.js
-     and server.js together when any css or js changes -->
-<link rel="stylesheet" href="/css/tokens.css?v=11">
-<link rel="stylesheet" href="/css/app.css?v=11">
+     and server.js together when any css changes -->
+<link rel="stylesheet" href="/css/tokens.css?v=12">
+<link rel="stylesheet" href="/css/app.css?v=12">
 
-<!-- the font is loaded without blocking the first paint: text appears in the
-     system fallback and swaps when the webfont lands. Only the four weights the
-     app actually uses are requested. -->
+<!-- loaded without blocking the first paint: text appears in the system fallback
+     and swaps when the webfont lands -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" media="print" onload="this.media='all'"
-      href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap"></noscript>
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
 
 <!-- No ?v= here, deliberately. The modules import each other by bare path, and a
      query string makes a DIFFERENT module identity: with ?v= on this tag the browser
@@ -35,89 +34,102 @@
 <script type="module" src="/js/main.js"></script>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="brand"><span class="logo"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="17" y="10" width="4" height="46" rx="2" transform="rotate(8 19 33)" fill="#EDEDED"/><g transform="rotate(8 19 33)"><rect x="21" y="12" width="30" height="24" fill="#FFD21F"/><rect x="21" y="12" width="15" height="12" fill="#E0301E"/><rect x="36" y="24" width="15" height="12" fill="#E0301E"/></g></svg></span><div><b>جدول الحكم</b><small id="status">جاري التحميل…</small></div><span class="hi" id="hiDate"></span></div>
-    <div class="nextm" id="nextm"></div>
-  </header>
 
-  <section id="sched">
+<p id="status" role="status" aria-live="polite"></p>
+
+<main class="wrap">
+
+  <!-- ===== اليوم ===== -->
+  <section id="today" aria-label="اليوم">
+    <header class="thead">
+      <div>
+        <p class="tdate" id="todayDate"></p>
+        <h1>اليوم</h1>
+      </div>
+      <button class="iconbtn" id="gearBtn" aria-label="الإعدادات"></button>
+    </header>
+    <div id="sleepCard"></div>
+    <div id="todayTiles" class="tiles"></div>
+    <div id="watchCard"></div>
+    <div id="sessionCard"></div>
+    <div id="wxLine" class="wxline" hidden></div>
+    <div id="nextMatchLine"></div>
+  </section>
+
+  <!-- ===== الجدول ===== -->
+  <section id="sched" hidden aria-label="الجدول">
+    <header class="thead">
+      <div><p class="tdate">خطتك الأسبوعية</p><h1>الجدول</h1></div>
+      <button class="iconbtn" id="addMatchBtn" aria-label="أضف مباراة"></button>
+    </header>
     <div id="inbox"></div>
-    <div id="hero"></div>
-    <div id="ready"></div>
-    <div id="quiz"></div>
-    <div id="alerts"></div>
-    <div class="sechead"><h2>جدولك</h2><div><button class="chip" id="todayBtn">اليوم</button><button class="chip card" id="addMatchBtn">+ مباراة</button></div></div>
     <div id="weeks"></div>
   </section>
 
-  <section id="chat" hidden>
+  <!-- ===== المدرب ===== -->
+  <section id="chat" hidden aria-label="المدرب">
+    <header class="thead">
+      <div><p class="tdate">يرتّب جدولك معك</p><h1>المدرب</h1></div>
+    </header>
+    <div id="alerts"></div>
     <div class="msgs" id="msgs"></div>
   </section>
 
-  <section id="prog" hidden>
-    <div class="seg" id="progSeg" role="tablist"><button data-g="ov" aria-pressed="true">نظرة عامة</button><button data-g="mt" aria-pressed="false">المباريات</button><button data-g="law" aria-pressed="false">القانون</button><button data-g="set" aria-pressed="false">الإعدادات</button></div>
+  <!-- ===== التقدم ===== -->
+  <section id="prog" hidden aria-label="التقدم">
+    <header class="thead">
+      <div><p class="tdate">وين وصلت</p><h1>التقدم</h1></div>
+    </header>
+    <div class="seg" id="progSeg" role="tablist">
+      <button data-g="ov" aria-pressed="true">نظرة عامة</button>
+      <button data-g="mt" aria-pressed="false">المباريات</button>
+      <button data-g="law" aria-pressed="false">القانون</button>
+    </div>
+
     <div class="pg" data-g="ov">
       <div class="stats" id="stats"></div>
-      <div class="panel" id="monthPanel"></div>
-      <div class="panel" id="reportPanel"></div>
       <div class="panel" id="loadPanel"></div>
+      <div class="panel" id="reportPanel"></div>
+      <div class="panel" id="monthPanel"></div>
       <div class="panel">
-        <div class="phead"><h3>اختبار ١٢ دقيقة</h3><button class="chip" id="addTestBtn">+ سجّل نتيجة</button></div>
+        <div class="phead"><h3>اختبار ١٢ دقيقة</h3><button class="chip" id="addTestBtn">سجّل نتيجة</button></div>
         <div id="chartCooper"></div>
         <ul class="tlist" id="listCooper"></ul>
       </div>
     </div>
+
     <div class="pg" data-g="mt" hidden>
       <div class="panel" id="careerPanel"></div>
       <div class="panel" id="matchPanel"></div>
     </div>
+
     <div class="pg" data-g="law" hidden>
+      <div id="quiz"></div>
       <div class="panel" id="lawPanel"></div>
     </div>
-    <div class="pg" data-g="set" hidden>
-      <div class="panel"><h3>الإعدادات</h3><label class="f" for="citySel">مدينتك (للطقس)</label><select class="in" id="citySel"><option value="zulfi">الزلفي</option><option value="riyadh">الرياض</option><option value="majmaah">المجمعة</option></select></div>
-      <div class="panel" id="notifPanel"><h3>التنبيهات</h3>
-        <p class="note" id="notifState">…</p>
-        <div class="row"><button class="btn primary" id="notifOn">فعّل التنبيهات</button><button class="btn ghost" id="notifTest" hidden>جرّب تنبيه</button></div>
-        <div id="notifOpts" hidden>
-          <label class="f"><input type="checkbox" id="nReady"> فحص الجاهزية الصباحي</label>
-          <input class="in sm" type="time" id="nReadyT">
-          <label class="f"><input type="checkbox" id="nTrain"> تذكير التمرين</label>
-          <input class="in sm" type="time" id="nTrainT">
-          <label class="f"><input type="checkbox" id="nMatch"> قبل المباراة</label>
-          <select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select>
-          <label class="f"><input type="checkbox" id="nWeek"> ملخص الأسبوع</label>
-          <div class="row"><select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select><input class="in sm" type="time" id="nWeekT"></div>
-          <p class="note">التنبيه يكتبه المدرب حسب جدولك والطقس. تذكير التمرين يتخطى أيام الراحة والمباريات تلقائيًا.</p>
-        </div>
-        <div class="row" style="margin-top:10px"><button class="btn ghost" id="vapidBtn">أظهر مفاتيح التنبيهات الثابتة</button></div>
-        <div id="vapidBox" hidden></div>
-      </div>
-      <div class="panel"><h3>نسخة احتياطية</h3><p class="note">بياناتك محفوظة على هذا الجهاز. صدّر نسخة من وقت لآخر، أو استورد نسخة من جهاز ثاني.</p>
-      <div class="row"><button class="btn ghost" id="expBtn">تصدير نسخة</button><button class="btn ghost" id="impBtn">استيراد نسخة</button></div>
-      <input type="file" id="impFile" accept="application/json,.json" hidden></div>
-    </div>
   </section>
-</div>
+
+</main>
 
 <div class="composer" id="composer" hidden>
   <div class="in-wrap">
     <div class="chips" id="chips"></div>
     <div class="send">
-      <textarea class="in" id="chatIn" placeholder="اكتب للمدرب… مثلًا: عندي مباراة الخميس الساعة ٨"></textarea>
-      <button class="btn primary" id="sendBtn">إرسال</button>
+      <textarea class="in" id="chatIn" rows="1" placeholder="اكتب للمدرب…"></textarea>
+      <button class="btn primary sendbtn" id="sendBtn">إرسال</button>
     </div>
   </div>
 </div>
 
-<nav class="tabs" role="tablist">
-  <button role="tab" data-tab="sched" aria-selected="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>الجدول</span></button>
-  <button role="tab" data-tab="chat" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4A2.5 2.5 0 0 1 4 13.5z"/></svg><span>المدرب</span></button>
-  <button role="tab" data-tab="prog" aria-selected="false"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V5M16 20v-6M22 20H2"/></svg><span>التقدم</span></button>
+<nav class="tabs" role="tablist" aria-label="التنقل">
+  <button role="tab" data-tab="today" aria-selected="true"><span class="tabic"></span><span>اليوم</span></button>
+  <button role="tab" data-tab="sched" aria-selected="false"><span class="tabic"></span><span>الجدول</span></button>
+  <button role="tab" data-tab="chat"  aria-selected="false"><span class="tabic"></span><span>المدرب</span></button>
+  <button role="tab" data-tab="prog"  aria-selected="false"><span class="tabic"></span><span>التقدم</span></button>
 </nav>
 
 <div id="timer" hidden><span class="tv"></span><span class="tl"></span><button>إيقاف</button></div>
 <div class="scrim" id="scrim" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+
 </body>
 </html>
