@@ -24,13 +24,26 @@ import { exportBackup, importBackup } from './storage-sync.js';
 import { planSteps, shiftDate } from './matchplan.js';
 
 /* ---------- the band: title, three tiles, the week ---------- */
-// No greeting: the header is titled like every other tab («اليوم», «الجدول»…),
-// with the date above it.
+// The header says what today is: the match countdown when one is three days off
+// or less, otherwise the kind of day. No greeting.
+const DAY_KIND = { intervals: 'يوم سرعات', run: 'يوم تحمّل', strength: 'يوم قوة', yoyo: 'يوم ارتدادات',
+  light: 'يوم تنشيط', rest: 'يوم راحة', recovery: 'يوم استشفاء', test: 'يوم الاختبار', match: 'يوم المباراة' };
+function dayTitle(){
+  const t = todayISO();
+  const next = state.matches.filter(m => m.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const days = next ? Math.round((parse(next.date) - parse(t)) / 864e5) : null;
+  if (days === 0) return 'يوم المباراة';
+  if (days === 1) return 'بكرة مباراة';
+  if (days === 2) return 'باقي يومين على المباراة';
+  if (days === 3) return 'باقي 3 أيام على المباراة';
+  const s = state.sessions[t];
+  return (s && DAY_KIND[s.type]) || 'اليوم';
+}
 function renderTodayHead(){
   const el = $('todayDate');
   if (el) el.textContent = fFull.format(parse(todayISO()));
   const h = $('todayHello');
-  if (h) h.textContent = 'اليوم';
+  if (h) h.textContent = dayTitle();
 }
 
 
