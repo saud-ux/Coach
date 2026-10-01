@@ -23,18 +23,14 @@ import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
 import { planSteps, shiftDate } from './matchplan.js';
 
-/* ---------- the band: greeting, three tiles, the week ---------- */
-const NAME = 'سعود';
-// One short greeting all day: the longer «مساء الخير يا سعود» filled the band's
-// whole width and read heavier than the rest of the header.
-function greeting(){
-  return `هلا ${NAME}`;
-}
+/* ---------- the band: title, three tiles, the week ---------- */
+// No greeting: the header is titled like every other tab («اليوم», «الجدول»…),
+// with the date above it.
 function renderTodayHead(){
   const el = $('todayDate');
   if (el) el.textContent = fFull.format(parse(todayISO()));
   const h = $('todayHello');
-  if (h) h.textContent = greeting(new Date().getHours());
+  if (h) h.textContent = 'اليوم';
 }
 
 
