@@ -132,10 +132,10 @@ export function allNights(){
   for (const k in h.nights) out[k] = { ...h.nights[k] };
   for (const d in h.wellness){
     const w = h.wellness[d], k = addDays(d, -1);
-    if (!out[k] && !w.sleep_min) continue;
+    if (!out[k] && !(w.sleep_min > 0)) continue;
     const n = out[k] || (out[k] = { asleep_min: w.sleep_min, deep_min: null, rem_min: null, awake_min: null, resting_hr: null, from: 'garmin' });
     if (n.resting_hr == null && w.resting_hr != null) n.resting_hr = w.resting_hr;
-    if (w.sleep_score != null) n.garmin_score = w.sleep_score;
+    if (w.sleep_score > 0) n.garmin_score = w.sleep_score;          // 0 means Garmin has not scored it yet
     if (w.hrv != null) n.hrv = w.hrv;
   }
   return out;
