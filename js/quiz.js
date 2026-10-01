@@ -28,6 +28,7 @@ import { state, save, num, parse, addDays, todayISO, fDm, $ } from './state.js';
 import { openSheet, closeSheet } from './main.js';
 import { LAW_BANK, LAW_CATS } from './lawbank.js';
 import { PITCH_QS, pitchSVG } from './pitch.js';
+import { icon } from './ui.js';
 
 /* ---------- the bank ---------- */
 const AR_GUIDE = [
@@ -425,7 +426,11 @@ function renderLaw(){
     </div>
 
     <p class="note" style="margin:16px 0 6px">اختر مادة تختبر فيها:</p>
-    <div class="qcats">${cats.map(k => `<button data-c="${k.s}"><b>${QCAT[k.s]}</b><small>${num(k.mast)}/${num(k.n)} أتقنتها${k.acc != null ? `، دقة ${num(k.acc)}%` : ''}</small><i style="width:${Math.round(100 * k.mast / k.n)}%"></i></button>`).join('')}</div>
+    <div class="qcats">${cats.map(k => { const law = /^\d+$/.test(k.s);
+      const nm = law ? QCAT[k.s].replace(/^المادة\s*\d+\s*/, '') : QCAT[k.s];
+      return `<button data-c="${k.s}"><span class="qnum${law ? '' : ' ic'}">${law ? num(k.s) : icon(k.s === 'p' ? 'route' : 'flag')}</span>
+        <span class="qtx"><b>${nm}</b><span class="qtr"><i style="width:${Math.round(100 * k.mast / k.n)}%"></i></span></span>
+        <small class="qcount">${num(k.mast)}/${num(k.n)}${k.acc != null ? `<br>${num(k.acc)}%` : ''}</small></button>`; }).join('')}</div>
 
     ${Q.exams.length ? `<p class="note" style="margin:16px 0 6px">آخر نتائجك:</p><div class="exhist">${Q.exams.slice(-6).reverse().map(e => { const p = Math.round(100 * e.right / e.total);
       return `<span class="${p >= 70 ? 'pass' : 'fail'}">${num(e.right)}/${num(e.total)}<small>${e.scope ? scopeName(e.scope) + ' · ' : ''}${fDm.format(parse(e.date))}</small></span>`; }).join('')}</div>` : ''}

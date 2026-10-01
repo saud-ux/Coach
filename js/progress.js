@@ -8,7 +8,7 @@
 // 0-10 axis, so changing either the table or the 1-5 input changes every past
 // figure the ACWR compares against.
 import { state, save, num, iso, parse, addDays, todayISO, fDm, fMon, $ } from './state.js';
-import { defDur, openDay } from './schedule.js';
+import { defDur, openDay, openAddMatch } from './schedule.js';
 import { quizState } from './quiz.js';
 import { readyScore, renderAlerts } from './coach.js';
 import { renderAll } from './main.js';
@@ -18,7 +18,8 @@ import { hhmm, icon } from './ui.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
-  if (points.length < 2) return `<p class="note">${points.length? 'سجّل نتيجة ثانية عشان يظهر الرسم.' : 'ما فيه نتائج بعد.'}</p>`;
+  if (points.length < 2) return points.length ? `<p class="note">سجّل نتيجة ثانية عشان يظهر الرسم.</p>`
+    : emptyBox('timer', 'ما فيه نتائج بعد', 'سجّل مسافتك في اختبار 12 دقيقة، وتطلع لك هنا مع كل اختبار جديد.');
   const W=560,H=160,P=28, vals=points.map(p=>p.value), mn=Math.min(...vals), mx=Math.max(...vals), span=(mx-mn)||1;
   const xs=i=>P+(W-2*P)*i/(points.length-1), ys=v=>H-P-(H-2*P)*(v-mn)/span;
   // RTL: newest on the left
@@ -26,7 +27,13 @@ function chart(points, unit){
   const dots=points.map((p,i)=>`<circle cx="${W-xs(i)}" cy="${ys(p.value)}" r="5" fill="var(--pitch)"/><text x="${W-xs(i)}" y="${ys(p.value)-10}" text-anchor="middle" font-size="13" fill="var(--ink)">${num(p.value)}</text>`).join('');
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="تطور ${unit}"><polyline points="${pts}" fill="none" stroke="var(--pitch)" stroke-width="3" stroke-linejoin="round"/>${dots}</svg>`;
 }
+// An empty panel says what will appear there and, when it can, offers the first step.
+function emptyBox(ic, title, text, action){
+  return `<div class="emptybox"><span class="ebic">${icon(ic)}</span><b>${title}</b><p>${text}</p>${action ? `<button class="btn primary sm">${action}</button>` : ''}</div>`;
+}
 function renderProgress(){
+  const ch = $('addTestBtn') && $('addTestBtn').previousElementSibling;
+  if (ch && !ch.querySelector('.hic')) ch.insertAdjacentHTML('afterbegin', `<span class="hic">${icon('timer')}</span>`);
   const t = todayISO(), sun = addDays(t,-parse(t).getDay());
   const trainDays = Object.entries(state.sessions).filter(([d,s]) => d<=t && !['rest','match'].includes(s.type));
   const doneAll = trainDays.filter(([d]) => state.logs[d]?.done).length;
@@ -89,13 +96,13 @@ function renderCareer(){
   const byRole={}; ms.forEach(m=>{ if(m.role) byRole[m.role]=(byRole[m.role]||0)+1; });
   const byComp={}; ms.forEach(m=>{ if(m.comp) byComp[m.comp]=(byComp[m.comp]||0)+1; });
   const topComp=Object.entries(byComp).sort((a,b)=>b[1]-a[1])[0];
-  box.innerHTML=`<div class="wkh"><div><b>مسيرتي التحكيمية</b><small>موسم ${careerSeason.split('/').map(x=>Number(x).toLocaleString('ar-SA-u-nu-latn',{useGrouping:false})).reverse().join(' – ')}</small></div>${seasons.length>1?'<select class="in sm" id="seasonSel" style="width:auto"></select>':''}</div>
+  box.innerHTML=`<div class="wkh"><div><b><span class="hic">${icon('flag')}</span>مسيرتي التحكيمية</b><small>موسم ${careerSeason.split('/').map(x=>Number(x).toLocaleString('ar-SA-u-nu-latn',{useGrouping:false})).reverse().join(' – ')}</small></div>${seasons.length>1?'<select class="in sm" id="seasonSel" style="width:auto"></select>':''}</div>
     <div class="stats" style="margin-top:10px"><div class="stat"><b>${num(ms.length)}</b><span>مباريات</span></div><div class="stat"><b>${avg!=null?num(avg.toFixed(1)):'–'}</b><span>متوسط التقييم</span></div></div>
     ${Object.keys(byRole).length?`<p class="note" style="margin-top:10px">${Object.entries(byRole).map(([r,n])=>`${ROLES[r]}: ${num(n)}`).join('، ')}</p>`:''}
     ${topComp?`<p class="note">أكثر بطولة: ${topComp[0]} (${num(topComp[1])})</p>`:''}`;
   const sel=box.querySelector('#seasonSel'); if(sel){ seasons.forEach(s=>{ const o=document.createElement('option'); o.value=s; o.textContent=s.split('/').map(x=>Number(x).toLocaleString('ar-SA-u-nu-latn',{useGrouping:false})).reverse().join(' – '); if(s===careerSeason) o.selected=true; sel.appendChild(o); }); sel.onchange=()=>{ careerSeason=sel.value; renderCareer(); }; }
   const ul=document.createElement('ul'); ul.className='mlist';
-  if (!ms.length){ box.insertAdjacentHTML('beforeend','<p class="note">لما تضيف مباراة وتقيّمها، تطلع هنا مع بيانات البطولة والفريقين وتقييم المقيّم.</p>'); return; }
+  if (!ms.length) return;                 // the panel under it says how to start
   ms.forEach(m=>{ const li=document.createElement('li'); li.className='cm'; li.onclick=()=>openDay(m.date);
     const teams = m.home||m.away ? `${m.home||'؟'} × ${m.away||'؟'}` : 'مباراة';
     li.innerHTML=`<div><b></b><small></small></div>${m.score?`<span class="sc">${num(m.score)}</span>`:'<span class="sc none">قيّم</span>'}`;
@@ -251,7 +258,7 @@ function renderMonth(){
   const months=[...new Set([cur, ...Object.keys(state.logs).map(d=>d.slice(0,7)), ...state.matches.map(x=>x.date.slice(0,7))])].filter(x=>x<=cur).sort().reverse();
   if (!monthSel || !months.includes(monthSel)) monthSel=months[0];
   const S=monthStats(monthSel);
-  box.innerHTML=`<div class="phead"><h3>تقرير الشهر</h3><select class="in sm" id="monSel" style="width:auto"></select></div>
+  box.innerHTML=`<div class="phead"><h3><span class="hic">${icon('calendar')}</span>تقرير الشهر</h3><select class="in sm" id="monSel" style="width:auto"></select></div>
     <p class="note">التزامك ${num(S.adh)}%، ${num(S.done)} من ${num(S.planned)} تمارين، ${num(S.matches)} ${S.matches===1?'مباراة':'مباريات'}، ${num(Math.round(S.mins))} دقيقة تدريب.</p>
     <button class="btn primary" id="monBtn" style="width:100%;margin-top:10px">🖼️ أنشئ صورة التقرير للمشاركة</button><div id="monOut"></div>`;
   const sel=box.querySelector('#monSel'); months.forEach(mo=>{ const o=document.createElement('option'); o.value=mo; o.textContent=fMon.format(parse(mo+'-01')); if(mo===monthSel) o.selected=true; sel.appendChild(o); });
@@ -308,7 +315,7 @@ function renderLoad(){
   const weeks=[]; for(let i=5;i>=0;i--){ const ws=addDays(sun,-7*i); weeks.push({ws,v:sumLoad(ws,addDays(ws,6))}); }
   const mx=Math.max(1,...weeks.map(w=>w.v)), W=560,H=150,bw=60,gap=(W-6*bw)/7;
   const bars=weeks.map((w,i)=>{ const x=W-gap-(i+1)*bw-i*gap, hgt=Math.max(2,(H-40)*w.v/mx); return `<rect x="${x}" y="${H-22-hgt}" width="${bw}" height="${hgt}" rx="6" fill="${i===5?'var(--pitch)':'var(--line)'}"/><text x="${x+bw/2}" y="${H-6}" text-anchor="middle" font-size="13" fill="var(--muted)">${fDm.format(parse(w.ws))}</text>${w.v?`<text x="${x+bw/2}" y="${H-28-hgt}" text-anchor="middle" font-size="12" fill="var(--ink)">${num(Math.round(w.v))}</text>`:''}`; }).join('');
-  box.innerHTML=`<h3>حمل التدريب</h3>
+  box.innerHTML=`<h3><span class="hic">${icon('bolt')}</span>حمل التدريب</h3>
     <div class="gauge"><b style="color:${L.cls==='red'?'var(--red)':L.cls==='yel'?'#C99A1E':'var(--pitch)'}">${L.enough&&L.ratio!=null?num(L.ratio.toFixed(2)):'–'}</b><span>${L.lbl}</span></div>
     <p class="note">${L.enough?'نسبة حمل آخر 7 أيام إلى معدل آخر 4 أسابيع. المنطقة الآمنة بين 0.8 و1.3.':'يحتاج أسبوعين من تسجيل التمارين عشان تظهر النسبة.'} الحمل = مدة التمرين × الجهد.</p>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="الحمل الأسبوعي">${bars}</svg>`;
@@ -316,8 +323,12 @@ function renderLoad(){
 function renderMatches(){
   const box=$('matchPanel'), t=todayISO();
   const ms=state.matches.filter(m=>m.date<=t).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
-  box.innerHTML='<h3>تقييم المباريات</h3>';
-  if (!ms.length){ box.insertAdjacentHTML('beforeend','<p class="note">بعد كل مباراة، افتحها من الجدول وقيّمها.</p>'); return; }
+  box.innerHTML=`<h3><span class="hic">${icon('check')}</span>تقييم المباريات</h3>`;
+  if (!ms.length){
+    box.insertAdjacentHTML('beforeend', emptyBox('flag', 'ما فيه مباريات للحين', 'أضف مباراتك الجاية، وبعدها قيّمها هنا: جهدك، رجولك، وتقييم المقيّم.', 'أضف مباراة'));
+    box.querySelector('.emptybox button').onclick = () => openAddMatch();
+    return;
+  }
   const ul=document.createElement('ul'); ul.className='mlist';
   let secondHalf=0, heavy=0;
   ms.forEach(m=>{ const l=state.logs[m.date]; const li=document.createElement('li');

@@ -11,6 +11,7 @@
 // refuses anything dated before today, so the coach can never rewrite history.
 import { state, save, num, parse, addDays, todayISO, fWd, fDm, $ } from './state.js';
 import { rt } from './storage-sync.js';
+import { icon } from './ui.js';
 import { TYPES, HARD, defDur, applyMatch, removeMatch, openDay } from './schedule.js';
 import { loadStatus, dayLoad, getWX, hr12, assessorTrends } from './progress.js';
 import { switchTab, renderAll } from './main.js';
@@ -76,7 +77,7 @@ function renderReady(){
   const t=todayISO(), hr=new Date().getHours(), r=state.readiness[t], s=state.sessions[t];
   box.innerHTML='';
   const c=document.createElement('div'); c.className='rcard coach';
-  const head=document.createElement('div'); head.className='chead'; head.innerHTML='<span class="cav">🟨</span><b>مدربك</b>'; c.appendChild(head);
+  const head=document.createElement('div'); head.className='chead'; head.innerHTML=`<span class="cav coachbadge">${icon('flag')}</span><b>مدربك</b>`; c.appendChild(head);
   box.appendChild(c);
   if (!r || readyEdit){
     c.appendChild(bubble(greet(hr)));
@@ -177,7 +178,7 @@ function renderReport(){
   const box=$('reportPanel'), t=todayISO(), dow=parse(t).getDay();
   const ws = reportWeek || addDays(t,-dow-7);
   const sum=weekSummary(ws), rep=state.reports[ws];
-  box.innerHTML=`<h3>تقرير أسبوع ${fDm.format(parse(ws))}</h3>
+  box.innerHTML=`<h3><span class="hic">${icon('inbox')}</span>تقرير أسبوع ${fDm.format(parse(ws))}</h3>
     <p class="note">${num(sum.done)} من ${num(sum.planned)} تمارين، ${num(sum.matches.length)} ${sum.matches.length===1?'مباراة':'مباريات'}، الحمل ${num(Math.round(sum.load))}${sum.ready?`، متوسط الجاهزية ${num(Math.round(sum.ready/5*100))}%`:''}</p>`;
   if (reportBusy){ box.insertAdjacentHTML('beforeend','<div class="report">المدرب يكتب التقرير…</div>'); return; }
   if (rep && rep.text){ const r=document.createElement('div'); r.className='report'; r.textContent=rep.text; box.appendChild(r); }
@@ -227,7 +228,7 @@ function context(){
 function renderChat(){
   const box = $('msgs'); box.innerHTML='';
   if (!state.chat.length){
-    const p=document.createElement('p'); p.className='empty';
+    const p=document.createElement('p'); p.className='empty chatempty';
     p.textContent = rt.sample ? greet(new Date().getHours())+'\nقولي وش عندك اليوم، مباراة؟ تعب؟ أي شي، وأنا أرتب جدولك على حسبه.' : 'المدرب غير متاح حاليًا. تأكد من الاتصال بالإنترنت.';
     box.appendChild(p);
   }
