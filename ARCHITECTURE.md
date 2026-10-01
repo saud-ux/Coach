@@ -588,7 +588,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '18';
+const VERSION = '19';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -678,6 +678,11 @@ only implementation. No emoji anywhere in the chrome — `icon()` holds ~22 inli
 ### Navigation
 Four tabs: **اليوم / الجدول / المدرب / التقدم**. Settings left التقدم and became a sheet behind the
 gear in the Today header.
+
+The tab bar is **docked**: full width, solid `--surface`, a 1px top edge, flush with the bottom of the
+screen above the home-indicator inset. It first shipped floating (inset, rounded, translucent), and the
+page showed around and through it. Its height is `--tabbar` in `css/tokens.css`, and the page's bottom
+padding, the rest timer and the chat composer are all positioned from that one value.
 
 Three things moved off Today, as specified:
 

@@ -28,6 +28,10 @@
   --match:#F2C230;
   --max:#FF4D5E;
 
+  /* height of the docked tab bar, not counting the home-indicator inset:
+     6px + the 44px tap target + 6px, and its 1px top edge */
+  --tabbar:57px;
+
   /* a form field's edge: a step brighter than --track, so it shows on --surface */
   --field-line:#2C323C;
 
