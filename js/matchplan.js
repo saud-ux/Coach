@@ -16,7 +16,7 @@
 // An away match carries match.travel = { mode: 'car'|'plane', hours, stay }:
 // hours is door to stadium (the airport included for a flight), stay is a night
 // there after the match. travelPlan() times the trip back from arriving at the
-// stadium 90 minutes before kickoff; a start before 8 am, or a trip over five
+// stadium 90 minutes before kickoff; a start before 8 am, or a drive over five
 // hours, moves the trip to the day before. Its steps (keys tr_*) join the plan
 // and the meal moves before the departure.
 
@@ -42,7 +42,7 @@ export function travelPlan(match){
   if (!tr || !TRAVEL_MODES[tr.mode] || !(hours > 0 && hours <= 16) || K == null) return null;
   const door = Math.round(hours * 60);
   const same = K - ARRIVE - door - BUFFER;
-  const early = same < 8 * 60 || hours > 5;
+  const early = same < 8 * 60 || (tr.mode === 'car' && hours > 5);    // a long drive is split by a night; a flight only by the clock
   // the day before: be there by 8 pm, leaving no earlier than 8 am
   const leave = early ? at(-1, Math.max(8 * 60, 20 * 60 - door - BUFFER)) : at(0, same);
   const arrive = early ? at(leave.day, leave.min + door + BUFFER) : at(0, K - ARRIVE);
@@ -50,7 +50,7 @@ export function travelPlan(match){
   const back = tr.stay ? at(1, 11 * 60) : at(0, K + 150);
   const backHome = tr.stay ? null : at(back.day, back.min + door);
   const late = !!backHome && (backHome.day > 0 && backHome.min >= 60);    // home after 1 am
-  return { mode: tr.mode, hours, stay: !!tr.stay, early, leave, arrive, back, backHome, late };
+  return { mode: tr.mode, hours, stay: !!tr.stay, airport: tr.airport || '', early, leave, arrive, back, backHome, late };
 }
 
 export function planSteps(match, kitBefore = 120){
@@ -92,9 +92,9 @@ function withTravel(steps, tp){
   const add = (key, p, title, body) => steps.push({ key, day: p.day, min: p.min, push: true, title, body });
   add('tr_pack', at(L.day, tp.early ? L.min - 90 : -150), 'جهّز شنطة السفر',
     `بكرة${tp.early ? '' : ' الصبح'} سفر. حط بالشنطة: طقمين، الراية، شاحن الساعة، الهوية، قارورة ماء، وتمر أو موز.`);
-  add('tr_leave', L, byCar ? 'وقت الطلعة' : 'اطلع للمطار',
+  add('tr_leave', L, byCar ? 'وقت الطلعة' : `اطلع ${tp.airport ? 'لمطار ' + tp.airport : 'للمطار'}`,
     byCar ? `اطلع الحين، الطريق ${road}. ${tp.hours >= 2 ? 'وقف كل ساعتين وامشِ 5 دقائق تفك رجولك، ' : ''}خلّ الماء جنبك واشرب بالطريق.`
-      : `اطلع الحين. في الطيارة قم وامشِ كل ساعة، واشرب كوب ماء كل ساعة، والبس جوارب ضاغطة إذا عندك.`);
+      : `اطلع الحين${tp.airport ? ' لمطار ' + tp.airport : ''}، وكن هناك قبل الإقلاع بساعة ونص. في الطيارة قم وامشِ كل ساعة، واشرب كوب ماء كل ساعة، والبس جوارب ضاغطة إذا عندك.`);
   if (tp.hours >= 2.5) add('tr_snack', at(L.day, L.min + Math.round(tp.hours * 30)), 'سناك الطريق',
     'نص الطريق: كل موزة أو تمر واشرب كوب ماء. لا تاكل أكل ثقيل.');
   if (tp.early) add('tr_arrive', tp.arrive, 'وصلت السكن؟',

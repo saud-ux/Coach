@@ -13,6 +13,7 @@
 // Coordinates are city centres, enough for distances in tens of kilometres.
 
 export const HOME = { name: 'الزلفي', lat: 26.2994, lon: 44.8154 };
+export const HOME_AIRPORT = 'الرياض';           // the referee always flies from King Khalid, Riyadh
 export const LOCAL_KM = 40, FLY_KM = 300;
 const ROAD = 1.15;                         // road distance over straight-line, when no route is known
 
@@ -110,8 +111,11 @@ export function travelFor(place, from = HOME, route = null){
   if (road <= FLY_KM) return { ...base, mode: 'car', hours: half(route && route.hours > 0 ? route.hours * 1.1 : road / 90) };
   // door to stadium by air: drive to the airport, an hour and a half there, the
   // flight, half an hour for the bags, then the drive to the stadium
-  const a = nearestAirport(from), b = nearestAirport(place);
-  const drive = (p, q) => Math.max(0.5, km(p, q) * ROAD / 85);
+  const [n, lat, lon] = AIRPORTS.find(x => x[0] === HOME_AIRPORT);
+  const a = { n, lat, lon }, b = nearestAirport(place);
+  // a stadium whose nearest airport is the one he flies from is a drive, however far
+  if (b.n === a.n) return { ...base, mode: 'car', hours: half(route && route.hours > 0 ? route.hours * 1.1 : road / 90) };
+  const drive = (p, q) => Math.max(0.5, km(p, q) * ROAD / 100);
   const hours = drive(from, a) + 1.5 + km(a, b) / 700 + 0.5 + 0.5 + drive(b, place);
   return { ...base, mode: 'plane', hours: half(hours), airports: [a.n, b.n] };
 }

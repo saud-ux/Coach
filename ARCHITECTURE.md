@@ -599,7 +599,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '48';
+const VERSION = '49';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1450,11 +1450,11 @@ fields (`js/progress.js`). `hours` is door to stadium, with the airport included
 kickoff, with 30 minutes of slack:
 
 - the trip moves to the day before (be there by 8 pm) when the same-day start would be before 8 am,
-  or the trip is over five hours;
+  or a drive is over five hours (a flight moves only by the clock);
 - the way back starts 150 minutes after kickoff, or at 11 am the next day with `stay`;
 - getting home after 1 am adds a suggestion to sleep there, and moves the recovery morning to 11.
 
-`planSteps()` adds `tr_pack`, `tr_leave`, `tr_snack` (trips of 2.5 hours or more), `tr_arrive` (the day
+`travel.airport` names the airport in «اطلع لمطار الرياض». `planSteps()` adds `tr_pack`, `tr_leave`, `tr_snack` (trips of 2.5 hours or more), `tr_arrive` (the day
 before only) and `tr_back`. It moves the main meal to an hour before a same-day departure, and
 rewrites the sleep and kit lines to fit the trip. The steps keep their order by day and minute, so the
 Today timeline, the cron's pushes and Siri (`lib/today.js`: «والسفر اليوم، اطلع الساعة …» the day
@@ -1480,9 +1480,10 @@ If none of these match, the home club decides, since a match is played at its gr
 - up to 300 km by road: car, with the hours from the road at 90 km/h;
 - beyond 300 km: plane. The referee lives in Zulfi and flies beyond 300 km.
 
-A flight's door-to-stadium hours add up:
+A flight always leaves from Riyadh (`HOME_AIRPORT`, King Khalid). A stadium whose nearest airport is
+Riyadh's stays a drive, however far. A flight's door-to-stadium hours add up:
 
-- the drive to the nearest airport;
+- the drive to Riyadh's airport (100 km/h on the highway);
 - an hour and a half at the airport;
 - the flight at 700 km/h;
 - half an hour for the bags;

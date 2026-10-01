@@ -15,7 +15,7 @@ import { renderAll } from './main.js';
 import { rt } from './storage-sync.js';
 import { sleepVsScore } from './health.js';
 import { hhmm, icon } from './ui.js';
-import { locate, travelFor, FLY_KM } from './places.js';
+import { locate, travelFor, FLY_KM, HOME_AIRPORT } from './places.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
@@ -227,7 +227,7 @@ function bindMatchFields(sh, m){
   const home = CITIES[(state.settings && state.settings.city) || 'zulfi'] || CITIES.zulfi;
   const apply = r => {
     if (!r || !r.found){ note.hidden = false; note.textContent = 'ما عرفت مكان الملعب. اختر السفر ومدته بنفسك.'; return; }
-    trav = { mode: r.mode, hours: r.hours, stay: !!trav.stay, auto: true };
+    trav = { mode: r.mode, hours: r.hours, stay: !!trav.stay, auto: true, ...(r.airports ? { airport: r.airports[0] } : {}) };
     if (r.hours) set('#mTravH', r.hours); else set('#mTravH', '');
     showMode();
     const how = r.mode === 'plane' ? `طيران (أكثر من ${num(FLY_KM)} كم)${r.airports ? ` · من مطار ${r.airports[0]} إلى ${r.airports[1]}` : ''}`
@@ -258,7 +258,7 @@ function bindMatchFields(sh, m){
     Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''});
     if (ev) m.eval = ev;
     const h = parseFloat(v('#mTravH').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g, '.'));
-    if (trav.mode && h > 0 && h <= 16) m.travel = { mode: trav.mode, hours: Math.round(h * 2) / 2, stay: !!trav.stay, auto };
+    if (trav.mode && h > 0 && h <= 16) m.travel = { mode: trav.mode, hours: Math.round(h * 2) / 2, stay: !!trav.stay, auto, ...(trav.mode === 'plane' ? { airport: trav.airport || HOME_AIRPORT } : {}) };
     else if (!trav.mode && auto && trav.auto) m.travel = { mode: '', hours: 0, auto: true };   // checked: a local match
     else delete m.travel; };
   read.locate = locateTravel;
