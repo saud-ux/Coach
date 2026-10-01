@@ -284,6 +284,7 @@ async function today(req, res, url){
   catch (e) { if (!missingFn(e)) console.error('today: sleep read failed', redact(e && e.message)); }
   try { MATCHPLAN ||= await import('./js/matchplan.js'); } catch (e) { console.error('today: match plan unavailable', redact(e && e.message)); }
   const text = T.brief(data, nights, now, MATCHPLAN && MATCHPLAN.planSteps);
+  console.log(`today: answered ${text.length} characters${url.searchParams.has('plain') ? ' as plain text' : ''}`);   // so a silent Siri can be traced
   if (url.searchParams.has('plain')) return send(res, 200, text, 'text/plain; charset=utf-8');
   send(res, 200, {text, date: now.date});
 }
