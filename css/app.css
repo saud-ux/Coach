@@ -955,3 +955,29 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
 .warmyt{flex:none;display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 8px;border-radius:999px;background:var(--surface);
   border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--ink-2);text-decoration:none}
 .warmyt i{width:16px;height:12px;border-radius:3px;background:#E62117;color:#fff;font-style:normal;font-size:7px;display:grid;place-items:center}
+
+/* the pain check (js/body.js) */
+.paincard{border:1.5px solid color-mix(in srgb,var(--max) 30%,var(--border))}
+.paincard h4{display:flex;align-items:center;gap:7px}.paincard h4 svg{width:17px;height:17px;color:var(--max)}
+.painopts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.painopts button{min-height:38px;padding:0 14px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);font:inherit;font-size:13.5px;color:var(--ink)}
+.painopts button[aria-pressed="true"]{background:var(--max);border-color:var(--max);color:#fff;font-weight:700}
+.painopts.need{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.painq{margin:8px 0 0;font-size:13px;font-weight:600;color:var(--ink-2)}
+.painok{margin:4px 0;color:var(--ready);font-weight:600;font-size:14px}
+.painres{margin:4px 0 8px;font-size:13.5px;line-height:1.7;color:var(--ink-2)}
+.painres b{display:block;font-size:14.5px;color:var(--max)}
+.painredo{background:none;border:0;padding:4px 0;font:inherit;font-size:12.5px;color:var(--muted);text-decoration:underline}
+.dgcard.painhit>*:not(.dghead):not(.painflag){opacity:.4}
+.dgcard.painhit .painflag,.dgcard.painlight .painflag{margin:2px 0 8px;padding:7px 10px;border-radius:10px;font-size:13px;font-weight:700;
+  background:color-mix(in srgb,var(--max) 10%,transparent);color:var(--max)}
+.dgcard.painlight .painflag{background:color-mix(in srgb,var(--gold) 16%,transparent);color:var(--gold-ink)}
+
+/* the recovery routine */
+.reccard{border:1.5px solid color-mix(in srgb,var(--sleep) 35%,var(--border));background:color-mix(in srgb,var(--sleep) 5%,var(--surface))}
+.reccard h4{display:flex;align-items:center;gap:7px}.reccard h4 svg{width:17px;height:17px;color:var(--sleep)}
+.recsteps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.recsteps li{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:var(--surface)}
+.rect{flex:1;min-width:0;font-size:14px;line-height:1.45}.rect small{display:block;font-size:12px;color:var(--muted)}
+.recsteps .rbtn{min-width:40px;justify-content:center}

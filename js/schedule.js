@@ -18,7 +18,8 @@ import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
 import { icon } from './ui.js';
 import { keepAwake } from './mobile.js';
 import { watchWorkout, totalSec, clockOf, KIND, WATCH_NAME } from './garmin.js';
-import { send } from './coach.js';
+import { painCardHTML, bindPain, recoveryHTML, bindRecovery } from './body.js';
+import { send, lighten } from './coach.js';
 
 /* ---------- plan ---------- */
 const TYPES = {
@@ -239,16 +240,19 @@ function openDay(d){
     if (keys){
       const wp = weekParams(d);
       const exList = keys.filter(k=>k!=='zones');
-      sh.querySelector('#dgs').innerHTML = `${flowHTML(s.type, keys)}${warmupHTML(s.type)}${LEGEND_FOR.has(s.type)?LEGEND:''}` + keys.map(k => {
+      const training = !['rest','recovery','match'].includes(s.type);
+      sh.querySelector('#dgs').innerHTML = `${training && !(state.logs[d]&&state.logs[d].done) ? painCardHTML(d) : ''}${!training ? recoveryHTML() : ''}${flowHTML(s.type, keys)}${warmupHTML(s.type)}${LEGEND_FOR.has(s.type)?LEGEND:''}` + keys.map(k => {
         setHL(MUS[k] ? MUS[k][0] : []);
         const art = D[k][1](); setHL([]);
         const body = mediaHTML(k, art);
         const nxt = nextHTML(s.type, keys, keys.indexOf(k));
         const exn = exList.indexOf(k);
-        return `<div class="dgcard"><div class="dghead"><h4>${exn>=0&&exList.length>1?`<span class="exn">${num(exn+1)}</span>`:''}${D[k][0]}</h4>${DOSE[k]?`<span class="dose">${DOSE[k](wp)}</span>`:''}</div>${restHTML(k)}${body}${MUS[k]?`<div class="mus"><i></i>${MUS[k][1]}</div>`:''}<p>${D[k][2]}</p>${ytLink(k) ? `<a class="ytbtn" href="${ytLink(k)}" target="_blank" rel="noopener"><i>▶</i>شوف مقطع للتمرين</a>` : ''}${nxt}</div>`;
+        return `<div class="dgcard" data-k="${k}"><div class="dghead"><h4>${exn>=0&&exList.length>1?`<span class="exn">${num(exn+1)}</span>`:''}${D[k][0]}</h4>${DOSE[k]?`<span class="dose">${DOSE[k](wp)}</span>`:''}</div>${restHTML(k)}${body}${MUS[k]?`<div class="mus"><i></i>${MUS[k][1]}</div>`:''}<p>${D[k][2]}</p>${ytLink(k) ? `<a class="ytbtn" href="${ytLink(k)}" target="_blank" rel="noopener"><i>▶</i>شوف مقطع للتمرين</a>` : ''}${nxt}</div>`;
       }).join('');
       sh.querySelectorAll('.rbtn[data-s]').forEach(b => b.onclick = () => b.dataset.v
         ? startTimer(+b.dataset.s, b.dataset.l, b.dataset.v) : startTimer(+b.dataset.s, 'راحة: '+b.dataset.l));
+      bindPain(sh, d, () => { lighten(d, true); save(); renderAll(); closeSheet(); openDay(d); });
+      bindRecovery(sh);
       // switching style re-points the <img> that is already on the card instead of
       // revealing a second one that had been downloaded alongside it
       sh.querySelectorAll('.vsw button').forEach(b => b.onclick = () => applyView(sh, b.dataset.v));

@@ -69,6 +69,7 @@ one entry module and the browser resolves the rest.
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
 | `js/mobile.js` | ~110 | Phone behaviour: drag a sheet down to close, pull to refresh, the keyboard (§22). |
 | `js/garmin.js` | ~110 | A session as Garmin structured-workout steps, for the «للساعة» card (§23). |
+| `js/body.js` | ~150 | The pain check before training and the recovery routine (§25). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
 | `lib/intervals.js` | ~110 | Server side: wellness and activities from intervals.icu (§24). |
@@ -596,7 +597,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '44';
+const VERSION = '45';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1358,3 +1359,37 @@ Postgres:
 - a wrong key reported «refused (401)» in Settings.
 
 Pushing planned workouts to the watch through intervals.icu is the next step and is not built yet.
+
+## 25. Pain check, water in rests, recovery routine
+
+`js/body.js` holds the first and the last of these.
+
+**Pain check.** A training session that is not done yet opens with «فيك ألم أو شد اليوم؟». A «نعم»
+asks where (calf, hamstring, quad, knee, ankle, hip, lower back) and how much (خفيف / متوسط / قوي).
+
+- The answer is kept in `logs[d].pain`, so the coach sees it through `recentLogs`.
+- `LOADS` maps each area to the exercises that load it. Those exercise cards are flagged:
+  - mild: «بنص العدد»;
+  - medium: «تخطّاه اليوم», with the card dimmed under the flag;
+  - strong: «حوّل اليوم استشفاء», which runs `lighten(d, true)`.
+
+**Water in rests.** A rest of a minute or more adds «· اشرب ماء» to the timer bar, and the voice says
+«ارتاح دقيقتين، واشرب شوية ماء». Shorter rests are unchanged. `startTimer(sec, label, said, end)` also
+takes the start and end lines, for the warm-up and the recovery routine.
+
+**Recovery routine.** Ten steps, each with a timer and a YouTube search:
+
+- a walk;
+- foam rolling for the calves, hamstrings, quads and glutes;
+- four stretches;
+- legs up the wall.
+
+It is the first card on rest and recovery days. The match-day plan's morning after has
+«افتح روتين الاستشفاء».
+
+Verified in Chromium:
+
+- the day after a match shows the button, and the routine timer speaks;
+- a medium calf answer flagged the four sprint drills and was stored;
+- a strong hamstring answer turned the day into recovery, which then opened with the routine;
+- a 2-minute rest said to drink, and a 30-second rest did not.

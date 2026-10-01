@@ -269,10 +269,14 @@ const spokenRest = sec => {
   const mins = m === 1 ? 'دقيقة' : m === 2 ? 'دقيقتين' : `${m} دقايق`;
   return half ? `${mins} ونص` : mins;
 };
-function startTimer(sec,label,said){
+// A rest of a minute or more is also the moment to drink: the voice says so, and
+// the bar shows it.
+function startTimer(sec,label,said,end){
   stopTimer(); let left=sec; const bar=$('timer'); bar.hidden=false;
-  keepAwake('timer'); endLine = said ? 'خلص الإحماء، ابدأ التمرين' : 'خلصت الراحة، انطلق';
-  if (voiceOn()) speak(said || `ارتاح ${spokenRest(sec)}`);
+  keepAwake('timer'); endLine = end || (said ? 'خلص الإحماء، ابدأ التمرين' : 'خلصت الراحة، انطلق');
+  const drink = !said && sec >= 60;
+  if (drink) label += ' · اشرب ماء';
+  if (voiceOn()) speak(said || `ارتاح ${spokenRest(sec)}${drink ? '، واشرب شوية ماء' : ''}`);
   const draw=()=>{ bar.querySelector('.tl').textContent=label; bar.querySelector('.tv').textContent=`${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`; bar.style.setProperty('--p',(1-left/sec)*100+'%'); };
   draw();
   tmr=setInterval(()=>{ left--; if(left<=0){ stopTimer(true); } else { if(left<=3) beep(600,.08); draw(); } },1000);

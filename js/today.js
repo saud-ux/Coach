@@ -23,6 +23,7 @@ import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
 import { planSteps, shiftDate } from './matchplan.js';
 import { WATCH_NAME } from './garmin.js';
+import { recoveryHTML, bindRecovery } from './body.js';
 
 /* ---------- the band: title, three tiles, the week ---------- */
 // The header says what today is: the match countdown when one is three days off
@@ -399,9 +400,11 @@ function renderMatchPlan(){
     <ol class="mpl">${steps.map((s, i) => `<li class="${i < nextI || nextI < 0 ? 'done' : i === nextI ? 'next' : ''}">
       <span class="mpt">${when(s)}</span><i class="mpdot"></i>
       <div><b>${s.title}</b>${i === nextI ? `<small>${s.body}</small>` : ''}</div></li>`).join('')}</ol>
-    ${m.date < t && !(state.logs[m.date] && state.logs[m.date].done) ? '<button class="btn ghost sm" id="mpEval" style="width:100%;margin-top:10px">قيّم مباراة أمس</button>' : ''}
+    ${m.date < t ? '<button class="btn primary sm" id="mpRec" style="width:100%;margin-top:10px">افتح روتين الاستشفاء</button>' : ''}
+    ${m.date < t && !(state.logs[m.date] && state.logs[m.date].done) ? '<button class="btn ghost sm" id="mpEval" style="width:100%;margin-top:8px">قيّم مباراة أمس</button>' : ''}
   </section>`;
   const ev = $('mpEval'); if (ev) ev.onclick = () => openDay(m.date);
+  const rc = $('mpRec'); if (rc) rc.onclick = () => openSheet(sh => { sh.innerHTML = `<h2 class="sheeth">الاستشفاء بعد المباراة</h2>${recoveryHTML()}`; bindRecovery(sh); });
 }
 
 /* ---------- today's session ---------- */
