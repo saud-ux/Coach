@@ -588,7 +588,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '19';
+const VERSION = '20';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -829,30 +829,45 @@ nights and 40 workouts. A pending workout older than 3 days stops showing its ca
 backfill does not bury Today.
 
 ### The sleep score (`sleepScore()` in `js/health.js`)
-0–100, from four parts:
+0–100 from five parts, then a cap for short nights. **Tuned towards Garmin Connect's own score**, which
+the watch does not send to Apple Health, so the app has to compute its own. On the first real night
+Garmin said 53 and the original four-part version said 61, mostly because it ignored REM entirely.
 
 | part | weight | full marks | zero |
 |---|---|---|---|
-| duration | 55 | 7 h 30 asleep (450 min) | 0 min, linear |
-| deep share | 20 | deep ≥ 20% of asleep | 0%, linear |
+| duration | 45 | 7 h 30 asleep (450 min) | 0 min, linear |
+| deep share | 15 | deep ≥ 20% of asleep | 0%, linear |
+| REM share | 15 | REM ≥ 21% of asleep | 0%, linear |
 | awake after sleep onset | 10 | 0 min | ≥ 60 min, linear |
 | bedtime consistency | 15 | within 30 min of the 7-night median | ≥ 90 min off, linear |
 
+**Short-night cap:** under 5 h asleep the score cannot pass 55, under 4 h it cannot pass 45 — the way
+Garmin calls a short night "non-restorative" whatever its stages were. The details sheet says so when
+the cap is what set the number.
+
 Each part is clamped to 0–1, so a broken field costs only its own slice. A field that is **missing**
-scores 0.6, not 0 — "unknown" should not read as "bad". Consistency needs at least 3 earlier nights;
-before that it is 0.6. Bedtimes are compared with times before noon shifted by 24 h, so 23:00 and
-01:00 are two hours apart, not twenty-two.
+scores 0.6, not 0 — "unknown" should not read as "bad". A REM of 0 that the watch did send counts as 0.
+Consistency needs at least 3 earlier nights; before that it is 0.6. Bedtimes are compared with times
+before noon shifted by 24 h, so 23:00 and 01:00 are two hours apart, not twenty-two.
 
-**Worked example** — the test night: in bed 23:05, asleep 415 min, deep 75, awake 15, no history yet.
+**Worked example — the first real night** (Garmin: 53). In bed 02:29, asleep 256 min, deep 52, REM 23,
+awake 4, bedtime 1 h 48 m later than the median of the three nights before.
 
 ```
-duration     415/450          = 0.922 × 55 = 50.7
-deep share   (75/415)/0.20    = 0.904 × 20 = 18.1
-awake        1 − 15/60        = 0.750 × 10 =  7.5
-consistency  (no history)     = 0.600 × 15 =  9.0
+duration     256/450          = 0.569 × 45 = 25.6
+deep share   (52/256)/0.20    = 1.000 × 15 = 15.0
+REM share    (23/256)/0.21    = 0.428 × 15 =  6.4
+awake        1 − 4/60         = 0.933 × 10 =  9.3
+consistency  108 min off      = 0.000 × 15 =  0.0
                                               ----
-                                              85.3 → 85
+                                              56.3 → 56, capped at 55 (under 5 h)
 ```
+
+**A complete night** — the synthetic test night: in bed 23:05, asleep 415, deep 75, REM 70, awake 15, no
+history: 41.5 + 13.6 + 12.0 + 7.5 + 9.0 = 83.6 → **84** (85 under the old formula). Long, complete
+nights barely move; short or REM-poor ones come down.
+
+A readiness entry stamped before the change keeps the watch score it was stamped with (see below).
 
 "Last night" is the night filed under yesterday's date; one filed under today is accepted too, in case
 a Shortcut run after midnight labels it that way.
@@ -867,7 +882,7 @@ Tapping the sleep card opens `openSleepSheet()` (`js/today.js`):
   neighbours, and contrast all pass.
 - **How the score was made:** each of the four parts as points out of its weight, with what it was
   measured from. It reads `sleepParts()`, which `sleepScore()` itself is now built on, so the breakdown and
-  the ring cannot disagree (the test night still scores 85; the first real night scores 61). Under it, one
+  the ring cannot disagree. Under it, one
   tip about the part that **cost the most points**, not the one with the fewest.
 - **Resting HR** against the average of the nights before it: ≥5 above reads as a warning, ≥3 below as
   good recovery.

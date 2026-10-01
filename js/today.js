@@ -90,13 +90,14 @@ const fWdShort = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { weekday
 function partText(p, sp, night){
   if (p.k === 'duration') return `${hhmm(night.asleep_min)} من ${hhmm(sp.target)} المطلوبة`;
   if (p.k === 'deep') return p.known ? `${hhmm(night.deep_min)}، يعني ${num(Math.round(100 * sp.deepShare))}% من نومك (الهدف ${num(100 * sp.deepTarget)}% أو أكثر)` : 'الساعة ما أرسلت النوم العميق';
+  if (p.k === 'rem') return p.known ? `${hhmm(night.rem_min)}، يعني ${num(Math.round(100 * sp.remShare))}% من نومك (الهدف ${num(Math.round(100 * sp.remTarget))}% أو أكثر)` : 'الساعة ما أرسلت نوم الأحلام';
   if (p.k === 'awake') return p.known ? `صحيت ${hhmm(night.awake_min)} بعد ما نمت (أقل من ساعة أفضل)` : 'الساعة ما أرسلت وقت الاستيقاظ';
   if (!p.known) return `يحتاج 3 ليالي قبلها على الأقل، عندك ${num(sp.nightsForConsistency)}`;
   const d = Math.abs(sp.drift);
   if (d <= 30) return 'نمت في وقتك المعتاد تقريبًا';
   return `نمت ${sp.drift > 0 ? 'بعد' : 'قبل'} وقتك المعتاد بـ ${hhmm(d)}`;
 }
-const PART_LABEL = { duration: 'مدة النوم', deep: 'النوم العميق', awake: 'الاستيقاظ بالليل', consistency: 'انتظام وقت النوم' };
+const PART_LABEL = { duration: 'مدة النوم', deep: 'النوم العميق', rem: 'نوم الأحلام (REM)', awake: 'الاستيقاظ بالليل', consistency: 'انتظام وقت النوم' };
 
 function sleepTip(night, sp){
   // the part that cost the most points, not the one with the fewest: losing 24
@@ -105,6 +106,7 @@ function sleepTip(night, sp){
   if (!weakest || weakest.v >= 0.9) return 'كل أجزاء نومك زينة. حافظ على نفس الوقت.';
   return {
     duration: `أكبر شي ينقصك المدة. لو تنام ${hhmm(Math.max(0, sp.target - night.asleep_min))} زيادة توصل للهدف.`,
+    rem: 'نوم الأحلام قليل، وأغلبه يجي آخر الليل. النوم الأطول وثبات وقت الصحيان يزودونه.',
     deep: 'نومك العميق قليل. تمرين بالنهار وغرفة باردة ومظلمة يساعدونه، والكافيين بعد العصر يقلله.',
     awake: 'صحيت كثير بالليل. خفّف السوايل قبل النوم بساعة، وخلّ الجوال بعيد.',
     consistency: 'وقت نومك يتغير كثير. ثبّته قريب من نفس الساعة كل ليلة، حتى بالإجازة.'
@@ -171,6 +173,7 @@ export function openSleepSheet(night){
           <div class="sptop"><b>${PART_LABEL[p.k]}</b><span>${num(Math.round(p.v * p.w))} من ${num(p.w)}</span></div>
           <div class="spbar"><i style="width:${Math.round(100 * p.v)}%"></i></div>
           <small>${partText(p, sp, night)}</small></div>`).join('')}
+        ${sp.cap ? `<p class="capnote">المجموع ${num(sp.raw)}، بس النوم أقل من ${num(sp.cap.under / 60)} ساعات فالدرجة ما تتعدى ${num(sp.cap.max)}.</p>` : ''}
         <p class="coachline left">${sleepTip(night, sp)}</p>
       </section>
 

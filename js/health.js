@@ -37,12 +37,19 @@ export function healthState(){
 }
 
 /* ---------- sleep score ----------
-   0-100 from four parts. ARCHITECTURE.md §13 documents it with worked examples.
+   0-100 from five parts, then a cap for short nights. ARCHITECTURE.md §13
+   documents it with worked examples. Tuned towards Garmin Connect's own score,
+   which the watch does not send to Apple Health: on the first real night Garmin
+   said 53 and the old four-part version said 61, mostly because it ignored REM.
 
-     duration     55   asleep time against a 7h30 target (the main weight)
-     deep share   20   deep / asleep, against a 20% target
+     duration     45   asleep time against a 7h30 target (the main weight)
+     deep share   15   deep / asleep, against a 20% target
+     REM share    15   REM / asleep, against a 21% target
      awake        10   time awake after falling asleep: 0 min full, 60 min none
      consistency  15   bedtime against the median of the last 7 nights
+
+   Short-night cap: under 5h asleep the score cannot pass 55, under 4h 45, the
+   way Garmin calls a short night "non-restorative" whatever its stages were.
 
    Everything is clamped, so a missing or absurd field costs only its own slice
    and cannot drag the whole score negative. A field that is absent scores 0.6
@@ -51,6 +58,8 @@ export function healthState(){
 const clamp01 = x => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0));
 const DUR_TARGET = 450;      // 7h30 asleep counts as a full night
 const DEEP_TARGET = 0.20;
+const REM_TARGET = 0.21;
+const CAPS = [[240, 45], [300, 55]];   // [asleep under N minutes, score at most]
 
 // Minutes past midnight, shifted so that 23:00 and 01:00 are two hours apart
 // rather than twenty-two.
@@ -68,9 +77,12 @@ export function sleepParts(night, history = []){
   if (!night || !Number.isFinite(night.asleep_min) || night.asleep_min <= 0) return null;
 
   const hasDeep = Number.isFinite(night.deep_min), hasAwake = Number.isFinite(night.awake_min);
+  const hasRem = Number.isFinite(night.rem_min);
   const duration = clamp01(night.asleep_min / DUR_TARGET);
   const deepShare = hasDeep ? night.deep_min / night.asleep_min : null;
   const deep = hasDeep ? clamp01(deepShare / DEEP_TARGET) : 0.6;
+  const remShare = hasRem ? night.rem_min / night.asleep_min : null;
+  const rem = hasRem ? clamp01(remShare / REM_TARGET) : 0.6;
   const awake = hasAwake ? clamp01(1 - night.awake_min / 60) : 0.6;
 
   let consistency = 0.6, drift = null;
@@ -84,14 +96,18 @@ export function sleepParts(night, history = []){
   }
 
   const parts = [
-    { k: 'duration',    w: 55, v: duration,    known: true },
-    { k: 'deep',        w: 20, v: deep,        known: hasDeep },
+    { k: 'duration',    w: 45, v: duration,    known: true },
+    { k: 'deep',        w: 15, v: deep,        known: hasDeep },
+    { k: 'rem',         w: 15, v: rem,         known: hasRem },
     { k: 'awake',       w: 10, v: awake,       known: hasAwake },
     { k: 'consistency', w: 15, v: consistency, known: drift != null },
   ];
-  const score = Math.round(parts.reduce((a, p) => a + 100 * p.v * p.w / 100, 0));
-  return { score, parts, deepShare, drift, nightsForConsistency: beds.length,
-           target: DUR_TARGET, deepTarget: DEEP_TARGET };
+  const raw = Math.round(parts.reduce((a, p) => a + p.v * p.w, 0));
+  const capRule = CAPS.find(([under]) => night.asleep_min < under) || null;
+  const score = capRule ? Math.min(raw, capRule[1]) : raw;
+  return { score, raw, cap: capRule && raw > capRule[1] ? { under: capRule[0], max: capRule[1] } : null,
+           parts, deepShare, remShare, drift, nightsForConsistency: beds.length,
+           target: DUR_TARGET, deepTarget: DEEP_TARGET, remTarget: REM_TARGET };
 }
 
 export function sleepScore(night, history = []){
