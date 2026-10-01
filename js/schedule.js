@@ -320,7 +320,7 @@ function openAddMatch(pre){
     const msg=sh.querySelector('#aMsg'), setV=(id,v)=>{ if(v) sh.querySelector(id).value=v; };
     if (pre.text) sh.querySelector('#aTxt').value = pre.text;
     sh.querySelector('#aFill').onclick = () => { const r=parseAssignText(sh.querySelector('#aTxt').value); setV('#mHome',r.home); setV('#mAway',r.away); if(r.link) mTmp.link=r.link;
-      msg.textContent = r.home ? `✅ ${r.home} × ${r.away}. افتح رابط التكليف وحدد التاريخ والوقت، أو صوّر الصفحة.` : 'ما لقيت أسماء الفريقين في الرسالة.'; };
+      msg.textContent = r.home ? `✅ ${r.home} × ${r.away}. افتح رابط التكليف وحدد التاريخ والوقت، أو صوّر الصفحة.` : 'ما لقيت أسماء الفريقين في الرسالة.'; readM.locate(); };
     if (rt.sample){ (rt.sample.limits?rt.sample.limits():Promise.resolve(null)).then(c=>{ if(c&&c.images) sh.querySelector('#aImg').hidden=false; }).catch(()=>{}); }
     sh.querySelector('#aImg').onclick = () => sh.querySelector('#aFile').click();
     sh.querySelector('#aFile').onchange = async e => { const f=e.target.files[0]; if(!f) return; msg.textContent='يقرأ صفحة التكليف…';
@@ -332,7 +332,7 @@ function openAddMatch(pre){
         if (r.time && /^\d{2}:\d{2}$/.test(r.time)) sh.querySelector('#mt').value=r.time;
         setV('#mHome',r.home); setV('#mAway',r.away); setV('#mVenue',r.venue); setV('#mComp',r.comp); setV('#mCrew',r.crew);
         const ri = ROLES.indexOf(r.role); if (ri>=0) sh.querySelector(`#mRole button[data-i="${ri}"]`)?.click();
-        msg.textContent='✅ عبّيت البيانات من الصورة، راجعها قبل الإضافة.';
+        msg.textContent='✅ عبّيت البيانات من الصورة، راجعها قبل الإضافة.'; readM.locate();
       } catch(err){ msg.textContent='ما قدرت أقرأ الصورة، جرّب صورة أوضح.'; }
       e.target.value=''; };
     sh.querySelector('#cl').onclick = closeSheet;

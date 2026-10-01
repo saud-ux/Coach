@@ -15,6 +15,7 @@ import { renderAll } from './main.js';
 import { rt } from './storage-sync.js';
 import { sleepVsScore } from './health.js';
 import { hhmm, icon } from './ui.js';
+import { locate, travelFor, FLY_KM } from './places.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
@@ -123,6 +124,7 @@ function matchFieldsHTML(m){
       <div><label class="f">بعد المباراة</label><div class="opts" id="mStay"><button type="button" data-s="0" aria-pressed="${String(!(m && m.travel && m.travel.stay))}">أرجع</button><button type="button" data-s="1" aria-pressed="${String(!!(m && m.travel && m.travel.stay))}">أبات</button></div></div></div>
       <p class="snote">من بابك لين الملعب، وللطيران احسب المطار معها. أرتب لك وقت الطلعة والأكل والنوم والرجعة.</p>
     </div>
+    <p class="snote mtrnote" id="mTravNote" hidden></p>
     <label class="f" for="mCrew">طاقم التحكيم (اختياري)</label><input class="in" id="mCrew" placeholder="الحكم والمساعد الثاني">
     <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا 8.4"></div><div></div></div>
     <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea>
@@ -215,16 +217,52 @@ function bindMatchFields(sh, m){
   let trav = m.travel ? { ...m.travel } : { mode: '' };
   if (m.travel && m.travel.hours) set('#mTravH', m.travel.hours);
   const press = (sel, b) => sh.querySelectorAll(sel).forEach(x => x.setAttribute('aria-pressed', x === b));
-  sh.querySelectorAll('#mTrav button').forEach(b => b.onclick = () => { trav.mode = b.dataset.k; press('#mTrav button', b); sh.querySelector('#mTravMore').hidden = !trav.mode; });
+  const showMode = () => { press('#mTrav button', sh.querySelector(`#mTrav button[data-k="${trav.mode || ''}"]`)); sh.querySelector('#mTravMore').hidden = !trav.mode; };
+  // the travel fills itself from the stadium until it is touched by hand
+  let auto = !m.travel || m.travel.auto !== false;
+  sh.querySelectorAll('#mTrav button').forEach(b => b.onclick = () => { auto = false; trav.mode = b.dataset.k; showMode(); });
   sh.querySelectorAll('#mStay button').forEach(b => b.onclick = () => { trav.stay = b.dataset.s === '1'; press('#mStay button', b); });
+  sh.querySelector('#mTravH').addEventListener('input', () => { auto = false; });
+  const note = sh.querySelector('#mTravNote');
+  const home = CITIES[(state.settings && state.settings.city) || 'zulfi'] || CITIES.zulfi;
+  const apply = r => {
+    if (!r || !r.found){ note.hidden = false; note.textContent = 'ما عرفت مكان الملعب. اختر السفر ومدته بنفسك.'; return; }
+    trav = { mode: r.mode, hours: r.hours, stay: !!trav.stay, auto: true };
+    if (r.hours) set('#mTravH', r.hours); else set('#mTravH', '');
+    showMode();
+    const how = r.mode === 'plane' ? `طيران (أكثر من ${num(FLY_KM)} كم)${r.airports ? ` · من مطار ${r.airports[0]} إلى ${r.airports[1]}` : ''}`
+      : r.mode === 'car' ? `سيارة · ${num(r.hours)} س تقريبًا` : 'بدون سفر';
+    note.hidden = false;
+    note.textContent = r.mode ? `📍 ${r.city || 'الملعب'} · ${num(r.road_km)} كم بالطريق عن ${home.n}${r.estimated ? ' (تقديري)' : ''} · ${how}. تقدر تغيّره.`
+      : `📍 ${r.city || 'الملعب'} · قريب منك، بدون سفر.`;
+  };
+  let seq = 0;
+  const locateTravel = async () => {
+    if (!auto) return;
+    const q = { venue: (sh.querySelector('#mVenue')?.value || '').trim(), home: (sh.querySelector('#mHome')?.value || '').trim() };
+    if (!q.venue && !q.home) return;
+    const my = ++seq, local = locate(q);
+    if (local) apply({ found: true, ...travelFor(local, home) });
+    try {
+      const r = await fetch(`/api/place?venue=${encodeURIComponent(q.venue)}&home=${encodeURIComponent(q.home)}&from=${home.lat},${home.lon}`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw 0;
+      const j = await r.json();
+      if (my === seq && auto && (j.found || !local)) apply(j);
+    } catch (e){ if (my === seq && !local) apply(null); }
+  };
+  ['#mVenue', '#mHome'].forEach(id => sh.querySelector(id)?.addEventListener('change', locateTravel));
+  if (!m.travel) locateTravel();
   let role = m.role;
   sh.querySelectorAll('#mRole button').forEach(b=>b.onclick=()=>{ role=b.dataset.i; sh.querySelectorAll('#mRole button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
-  return () => { const v=id=>(sh.querySelector(id)?.value||'').trim(); const sc=v('#mScore').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g,'.');
+  const read = () => { const v=id=>(sh.querySelector(id)?.value||'').trim(); const sc=v('#mScore').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g,'.');
     Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''});
     if (ev) m.eval = ev;
     const h = parseFloat(v('#mTravH').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g, '.'));
-    if (trav.mode && h > 0 && h <= 16) m.travel = { mode: trav.mode, hours: Math.round(h * 2) / 2, stay: !!trav.stay };
+    if (trav.mode && h > 0 && h <= 16) m.travel = { mode: trav.mode, hours: Math.round(h * 2) / 2, stay: !!trav.stay, auto };
+    else if (!trav.mode && auto && trav.auto) m.travel = { mode: '', hours: 0, auto: true };   // checked: a local match
     else delete m.travel; };
+  read.locate = locateTravel;
+  return read;
 }
 
 /* ---------- weather (Open-Meteo, works on the standalone site) ---------- */

@@ -71,6 +71,7 @@ one entry module and the browser resolves the rest.
 | `js/garmin.js` | ~110 | A session as Garmin structured-workout steps, for the «للساعة» card (§23). |
 | `js/body.js` | ~150 | The pain check before training and the recovery routine, `painHits` (§25, §26). |
 | `js/plan.js` | ~10 | `PLAN_START BUILD CYCLE weekParams`: the weekly numbers. Pure ESM, shared by the schedule and the server's push to the watch (§26). |
+| `js/places.js` | ~140 | Where a match is: `locate travelFor km`, the city, stadium, club and airport tables. Pure ESM, shared with `/api/place` (§28). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
 | `lib/intervals.js` | ~165 | Server side: wellness and activities from intervals.icu (§24), and the plan pushed back as planned workouts, `workoutText pushPlan` (§26). |
@@ -598,7 +599,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '47';
+const VERSION = '48';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1462,3 +1463,54 @@ before) all read the same plan. The plan card's header gains the mode, hours and
 Verified: plan output for 0.5 to 6 hours by car and a 4-hour flight with a night there; in Chromium,
 the card for a trip the day before and for a same-day trip, and the form saving `travel` on a new
 match.
+
+## 28. The stadium, its distance, car or plane
+
+A new match finds its own travel. `locate()` (`js/places.js`) reads the city in this order:
+
+1. a stadium known by name (`STADIUMS`: «الجوهرة», «الأمير عبدالله بن جلوي», …);
+2. «ملعب نادي X»: club X's home city (`CLUBS`);
+3. a city named in the venue, alone or after «ب» («بالأحساء»).
+
+If none of these match, the home club decides, since a match is played at its ground.
+
+`travelFor()` then sets the mode:
+
+- under 40 km: no trip;
+- up to 300 km by road: car, with the hours from the road at 90 km/h;
+- beyond 300 km: plane. The referee lives in Zulfi and flies beyond 300 km.
+
+A flight's door-to-stadium hours add up:
+
+- the drive to the nearest airport;
+- an hour and a half at the airport;
+- the flight at 700 km/h;
+- half an hour for the bags;
+- the drive from the far airport.
+
+`GET /api/place?venue=&home=&from=lat,lon` (`server.js`) runs the same tables first. A stadium they do
+not know is looked up on OpenStreetMap (Nominatim, one request a second, `countrycodes=sa`). The
+distance becomes the real road route from OSRM, unless the stadium is within 20 km. Answers are cached
+in memory, and `NOMINATIM_BASE` / `OSRM_BASE` override both services for tests. When the server or the
+services fail, the straight line × 1.15 stands, marked «(تقديري)».
+
+In the match form (`bindMatchFields`), the travel fills itself:
+
+- when the form opens on a match with no travel (an assignment from the inbox carries the home club);
+- when the venue or the home club changes;
+- after «عبّي من الرسالة» or the assignment photo.
+
+A line under the field says what was found. Touching the travel buttons or the hours stops the auto
+fill (`travel.auto: false`), so a hand-set trip is never overwritten. The home point is the Settings
+city (`CITIES` in `js/progress.js`).
+
+Verified: the tables on 13 venue and club cases. With mocked map services: `/api/place` for a known
+stadium, a geocoded one and an unknown one. In Chromium, both against the server and with `/api/place`
+failing:
+
+- an inbox assignment with the home club only filled the travel;
+- a changed venue updated it;
+- a Zulfi venue cleared it;
+- a saved match kept `{mode:'plane', hours:5, auto:true}`.
+
+The live Nominatim and OSRM were not reachable from the build machine.

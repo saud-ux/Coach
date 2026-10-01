@@ -595,6 +595,60 @@ async function pushTest(req, res){
   send(res, ok ? 200 : 502, {ok});
 }
 
+/* ---------- where a match is (js/places.js) ----------
+   GET /api/place?venue=&home=&from=lat,lon -> the match's travel. The tables in
+   js/places.js answer first; a stadium they do not know is looked up on
+   OpenStreetMap (Nominatim, one request a second as its policy asks), and the
+   distance becomes the real road route (OSRM) instead of the straight line.
+   Answers are cached for the life of the process. Both services are optional:
+   when either fails, the straight-line estimate stands. */
+let PLACES = null;
+const PLACE_CACHE = new Map();
+const NOMINATIM = process.env.NOMINATIM_BASE || 'https://nominatim.openstreetmap.org';
+const OSRM = process.env.OSRM_BASE || 'https://router.project-osrm.org';
+let lastGeo = 0;
+async function geocode(q){
+  const wait = lastGeo + 1100 - Date.now(); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastGeo = Date.now();
+  const r = await fetch(`${NOMINATIM}/search?format=jsonv2&countrycodes=sa&accept-language=ar&limit=1&q=${encodeURIComponent(q)}`,
+    { headers: { 'User-Agent': 'referee-coach/1.0 (personal training app)' }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const [hit] = await r.json();
+  const lat = hit && Number(hit.lat), lon = hit && Number(hit.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const name = String(hit.display_name || '').split(/[،,]/).map(x => x.trim()).filter(Boolean);
+  return { lat, lon, city: name.slice(1, 3).join('، ') || name[0] || '', via: 'map' };
+}
+async function roadRoute(a, b){
+  const r = await fetch(`${OSRM}/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) return null;
+  const j = await r.json(), x = j && j.routes && j.routes[0];
+  return x && x.distance > 0 ? { km: x.distance / 1000, hours: x.duration / 3600 } : null;
+}
+async function place(req, res, url){
+  const q = k => String(url.searchParams.get(k) || '').slice(0, 160).trim();
+  const venue = q('venue'), home = q('home');
+  const [flat, flon] = q('from').split(',').map(Number);
+  PLACES ||= await import('./js/places.js');
+  const from = Number.isFinite(flat) && Number.isFinite(flon) && Math.abs(flat) <= 90 && Math.abs(flon) <= 180 ? { lat: flat, lon: flon } : PLACES.HOME;
+  const key = JSON.stringify([venue, home, from.lat.toFixed(3), from.lon.toFixed(3)]);
+  if (PLACE_CACHE.has(key)) return send(res, 200, PLACE_CACHE.get(key));
+  let p = PLACES.locate({ venue, home });
+  if (!p){
+    for (const term of [venue, home && `ملعب نادي ${home.replace(/^نادي\s*/, '')}`].filter(Boolean)){
+      try { p = await geocode(term); } catch (e) { console.error('place: geocode failed', redact(e && e.message)); }
+      if (p) break;
+    }
+  }
+  if (!p) return send(res, 200, { found: false });
+  let route = null;
+  if (PLACES.km(from, p) > 20) try { route = await roadRoute(from, p); } catch (e) { console.error('place: route failed', redact(e && e.message)); }
+  const out = { found: true, ...PLACES.travelFor(p, from, route) };
+  if (PLACE_CACHE.size > 500) PLACE_CACHE.clear();
+  PLACE_CACHE.set(key, out);
+  send(res, 200, out);
+}
+
 const server = http.createServer(async (req, res) => {
   try { await route(req, res); }
   catch (e) { console.error('unhandled request error', redact(e && e.stack || e)); if (!res.headersSent) send(res, 500, {error:'server'}); else res.end(); }
@@ -613,6 +667,7 @@ async function route(req, res){
   if (url.pathname === '/api/cron') return cron(req, res, url);
   if (url.pathname === '/api/today' && req.method === 'GET') return today(req, res, url);
   if (url.pathname === '/api/ics' && req.method === 'GET') return ics(req, res, url);
+  if (url.pathname === '/api/place' && req.method === 'GET') return place(req, res, url);
   if (url.pathname === '/healthz') return send(res, 200, 'ok', 'text/plain');
   let file = path.normalize(path.join(PUBLIC, decodeURIComponent(url.pathname)));
   const base = path.basename(file), ext0 = path.extname(file).toLowerCase();
