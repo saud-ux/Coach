@@ -54,7 +54,12 @@ function renderProgress(){
 
 /* ---------- training load ---------- */
 const RPE = [0,2,4,6,8,10];
-function dayLoad(d){ const l=state.logs[d]; if(!l||!l.done) return 0; const dur = l.dur ?? defDur(d,state.sessions[d]); return dur*RPE[l.effort||3]; }
+// A session measured by the watch carries hr_load, already in minutes x RPE units
+// (health.js hrLoad), and that wins over the felt effort. Everything else is
+// minutes x RPE[effort], as it always was.
+function dayLoad(d){ const l=state.logs[d]; if(!l||!l.done) return 0;
+  if (Number.isFinite(l.hr_load) && l.hr_load > 0) return l.hr_load;
+  const dur = l.dur ?? defDur(d,state.sessions[d]); return dur*RPE[l.effort||3]; }
 function sumLoad(from,to){ let s=0,d=from; while(d<=to){ s+=dayLoad(d); d=addDays(d,1);} return s; }
 function loadStatus(){
   const t=todayISO(), acute=sumLoad(addDays(t,-6),t), chronic=sumLoad(addDays(t,-27),t)/4;

@@ -14,7 +14,7 @@
 
 import { state, save, num, parse, todayISO, fFull, $ } from './state.js';
 import { ring, ringWith, icon, hhmm, clock12 } from './ui.js';
-import { workoutById, confirmWorkout } from './health.js';
+import { workoutById, confirmWorkout, hrLoad } from './health.js';
 import { RPE, dayLoad } from './progress.js';
 import { defDur } from './schedule.js';
 import { openSheet, closeSheet, renderAll } from './main.js';
@@ -56,7 +56,11 @@ export function openWorkout(id){
     const draw = () => {
       const effort = pick ? effortFrom10(pick) : null;
       const mins = Math.round(w.duration_min || 0);
-      const load = effort ? mins * RPE[effort] : 0;
+      // the heart rate measures the load when the zones cover the session; the
+      // felt effort is then a second opinion shown beside it, not the number
+      const hl = hrLoad(w);
+      const felt = effort ? mins * RPE[effort] : 0;
+      const load = hl ?? felt;
       // the ring is scaled against a hard hour: 60 min at RPE 10 = 600 points
       const loadPct = Math.min(1, load / 600);
 
@@ -75,9 +79,11 @@ export function openWorkout(id){
         <div class="wring">
           ${ringWith({ size:180, pct:loadPct, color:'var(--effort)', width:14 },
             `<span class="ringlabel">${icon('bolt')} حمل الحصة</span>
-             <b class="ringnum">${effort ? num(load) : '–'}</b>
-             <span class="ringsub">${effort ? 'نقطة' : 'حدّد مجهودك'}</span>`)}
+             <b class="ringnum">${hl != null || effort ? num(load) : '–'}</b>
+             <span class="ringsub">${hl != null ? 'نقطة من نبضك' : effort ? 'نقطة' : 'حدّد مجهودك'}</span>`)}
         </div>
+        ${hl != null && effort ? `<p class="snote" style="text-align:center">إحساسك يقول ${num(felt)} نقطة · ${
+          Math.abs(felt - hl) <= 0.2 * hl ? 'قريب من نبضك' : felt > hl ? 'حسيته أصعب مما قال نبضك' : 'نبضك يقول إنه أصعب مما حسيت'}</p>` : ''}
 
         <div class="wstats">
           <div class="card wstat"><span>${icon('clock')}</span><b>${hhmm(mins)}</b><small>المدة</small></div>
@@ -121,6 +127,7 @@ export function openWorkout(id){
           rpe10: pick,                              // the raw answer, for later
           dur: mins || existing.dur || defDur(date, state.sessions[date]),
           note: existing.note || '',
+          hr_load: hl, zones: w.zones || existing.zones || null, effort_est: false,
           distance: w.distance_km ?? existing.distance ?? null,
           avg_hr: w.avg_hr ?? existing.avg_hr ?? null,
           max_hr: w.max_hr ?? existing.max_hr ?? null,

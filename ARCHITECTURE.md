@@ -1038,3 +1038,28 @@ Arabic-Indic digits are read.
 Verified in Chromium with a stand-in reader returning what the user's screenshot shows, over two
 screenshots: merged points, minutes, score «٨٫٤» → 8.4, stored on save, shown in the panel, present in the
 coach's context. The real reading by Claude was not exercised here (no API access in this environment).
+
+---
+
+## 16. The watch doing more: heart-rate load, automatic logging, resting HR
+
+All three live in `js/health.js` and run after each `syncHealth()`.
+
+- **Heart-rate load** (`hrLoad(w)`). Each minute in a zone scores that zone's place on the effort scale the
+  app has always used: z1 2, z2 4, z3 6, z4 8, z5 10 — the same numbers as `RPE = [0,2,4,6,8,10]`. So a
+  heart-rate load is in minutes × RPE units and the ACWR mixes days measured either way without a jump.
+  Used only when the zones cover ≥70% of the session. `dayLoad()` prefers a log's `hr_load` over
+  `dur × RPE[effort]`. The test run: 272 from heart rate, 304 from a felt 7.
+- **Automatic logging** (`autoLogWorkouts()`). A watch workout on a day with a planned session that is not
+  rest, not a match and not already done marks the day done with its duration, an effort guessed from
+  average HR as a share of max HR (`effortFromHr`, flagged `effort_est`), the heart-rate load and zones,
+  `auto: true`. The workout stays unconfirmed, so Today shows «سجّلت تمرينك من الساعة · كيف حسيت؟», and
+  the answer replaces the guess. Match days are skipped: their evaluation is its own step.
+- **Resting HR warning** (`restingHrWarning()`). The last two nights both 5+ above the average of up to
+  seven nights before them, with at least four of those and the latest no older than two days. Today shows
+  a red card with «خفّف اليوم» (`lighten()` on a hard session); the coach's context carries it as
+  `restingHrHigh` with a rule not to push.
+
+Verified in Chromium with a stubbed `/api/health`: the run was logged on the planned intervals day (effort
+3 guessed, `hr_load` 272), the summary showed the heart-rate load with the felt one beside it, confirming
+set effort 4 and kept 272 as the day's load, and the warning lightened the session.

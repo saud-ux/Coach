@@ -15,7 +15,7 @@ import { TYPES, defDur, openDay, sessionParts, openAddMatch } from './schedule.j
 import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
 import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT,
-         sleepParts, recentNights, nightHistory } from './health.js';
+         sleepParts, recentNights, nightHistory, restingHrWarning } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -267,17 +267,35 @@ function renderWatchCard(){
   const box = $('watchCard');
   if (!box) return;
   const w = pendingWorkouts()[0];
-  if (!w){ box.innerHTML = ''; return; }
+  const warn = restingHrWarning();
+  const t0 = todayISO(), s0 = state.sessions[t0];
+  const warnHTML = warn ? `<section class="card hrwarn">
+      <span class="hwic">${icon('heart')}</span>
+      <div><b>نبض راحتك مرتفع ليلتين ورا بعض</b>
+        <small>${num(warn.now)} والمعدل ${num(warn.avg)}. ممكن تعب أو بداية مرض.</small></div>
+      ${s0 && !s0.orig && ['run','strength','intervals','yoyo'].includes(s0.type) ? '<button class="btn primary sm" id="hrLight">خفّف اليوم</button>' : ''}
+    </section>` : '';
+  if (!w){ box.innerHTML = warnHTML; wireWarn(); return; }
   const bits = [
     w.duration_min ? `${num(Math.round(w.duration_min))} دقيقة` : '',
     w.distance_km ? `${num(Number(w.distance_km).toFixed(1))} كم` : ''
   ].filter(Boolean).join(' · ');
-  box.innerHTML = `<button class="card watchcard" id="watchOpen">
+  // the workout's own day, in local time: a late run must not file under tomorrow's UTC date
+  const st = new Date(w.start), wd = isNaN(st) ? '' : `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}`;
+  const lg = state.logs[wd];
+  const autod = !!(lg && lg.auto && lg.effort_est);
+  box.innerHTML = warnHTML + `<button class="card watchcard" id="watchOpen">
     <span class="wic">${icon('timer')}</span>
-    <span class="wtx"><b>وصل تمرينك من الساعة</b><small>${bits || 'جاهز تأكّده'}</small></span>
+    <span class="wtx"><b>${autod ? 'سجّلت تمرينك من الساعة' : 'وصل تمرينك من الساعة'}</b><small>${[bits, autod ? 'كيف حسيت بالمجهود؟' : 'جاهز تأكّده'].filter(Boolean).join(' · ')}</small></span>
     <span class="wgo">${icon('back')}</span>
   </button>`;
   $('watchOpen').onclick = () => openWorkout(w.id);
+  wireWarn();
+}
+
+function wireWarn(){
+  const b = $('hrLight');
+  if (b) b.onclick = () => import('./coach.js').then(m => { m.lighten(todayISO(), false); import('./state.js').then(s => s.save()); renderAll(); });
 }
 
 /* ---------- today's session ---------- */

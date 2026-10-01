@@ -231,9 +231,10 @@ export function syncHealth({ force = false } = {}){
       const newer = !!body.last_at && body.last_at !== h.syncedAt;
       if (newer) h.syncedAt = body.last_at;
       const stamped = stampReadiness();
+      const auto = autoLogWorkouts();
       // nothing new is the common case, and it must not count as an edit: save()
       // marks the state dirty, which would make a concurrent syncRemote() skip
-      if (changed || newer || stamped){ save(); hooks.rerender(); }
+      if (changed || newer || stamped || auto){ save(); hooks.rerender(); }
       resend.forEach(ack);
       return { ok: true, last_at: body.last_at || null, nights: (body.nights || []).length, workouts: (body.workouts || []).length };
     } catch(e){
@@ -282,3 +283,68 @@ export function healthContext(){
 }
 
 export function lastSync(){ return healthState().syncedAt; }
+
+/* ---------- load from heart rate ----------
+   Each minute in a zone scores what that zone is on the effort scale the app has
+   always used (RPE = [0,2,4,6,8,10] for effort 1-5): zone 1 = 2 ... zone 5 = 10.
+   So a heart-rate load is in the same units as minutes x RPE, and ACWR can mix
+   days measured either way without a jump. Used only when the zones cover most of
+   the session; a strap that dropped out falls back to the felt effort. */
+const ZONE_RPE = { z1: 2, z2: 4, z3: 6, z4: 8, z5: 10 };
+export function hrLoad(w){
+  if (!w || !w.zones) return null;
+  let mins = 0, load = 0;
+  for (const k in ZONE_RPE){ const m = Number(w.zones[k]) || 0; mins += m; load += m * ZONE_RPE[k]; }
+  if (!mins || (w.duration_min && mins < 0.7 * w.duration_min)) return null;
+  return Math.round(load);
+}
+
+// Effort guessed from heart rate, for a session logged before the referee says how
+// it felt: average HR as a share of max HR, onto the 1-5 scale.
+export function effortFromHr(w){
+  const avg = Number(w && w.avg_hr); if (!avg) return null;
+  const p = avg / maxHr();
+  return p >= 0.88 ? 5 : p >= 0.82 ? 4 : p >= 0.75 ? 3 : p >= 0.68 ? 2 : 1;
+}
+
+/* ---------- logging a session from the watch ----------
+   A workout that arrives on a day with a planned session marks that day done:
+   its duration, an effort guessed from heart rate, and the heart-rate load. The
+   workout stays unconfirmed, so its card still asks how it felt, and the answer
+   replaces the guess. Match days are left alone: their evaluation is its own step. */
+export function autoLogWorkouts(){
+  let changed = false;
+  for (const w of pendingWorkouts()){
+    const d = localDate(w.start); if (!d) continue;
+    const s = state.sessions[d], lg = state.logs[d];
+    if (!s || s.type === 'rest' || s.type === 'match' || (lg && lg.done)) continue;
+    state.logs[d] = {
+      ...(lg || {}), done: true,
+      dur: Math.round(w.duration_min || 0) || (lg && lg.dur) || undefined,
+      effort: effortFromHr(w) || (lg && lg.effort) || null,
+      effort_est: true,                            // a guess until the referee answers
+      hr_load: hrLoad(w), zones: w.zones || null,
+      distance: w.distance_km ?? null, avg_hr: w.avg_hr ?? null, max_hr: w.max_hr ?? null,
+      source: 'watch', auto: true, note: (lg && lg.note) || ''
+    };
+    changed = true;
+  }
+  return changed;
+}
+const localDate = iso => { const t = new Date(iso); if (isNaN(t)) return null;
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+
+/* ---------- resting heart rate warning ----------
+   Two nights running at 5+ above the average of the nights before them is the
+   classic early sign of fatigue or an illness coming. Needs 4 earlier nights. */
+export function restingHrWarning(){
+  const h = healthState();
+  const keys = Object.keys(h.nights).filter(k => Number.isFinite(h.nights[k].resting_hr)).sort();
+  if (keys.length < 6) return null;
+  const last2 = keys.slice(-2), before = keys.slice(-9, -2);
+  if (last2[1] < addDays(todayISO(), -2)) return null;          // stale: no warning off old data
+  const avg = before.reduce((a, k) => a + h.nights[k].resting_hr, 0) / before.length;
+  const up = last2.map(k => h.nights[k].resting_hr - avg);
+  if (!(up[0] >= 5 && up[1] >= 5)) return null;
+  return { avg: Math.round(avg), now: h.nights[last2[1]].resting_hr, up: Math.round(Math.min(...up)) };
+}
