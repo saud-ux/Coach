@@ -1311,9 +1311,10 @@ keeps working beside it, and it is still what brings sleep stages.
 
 **When it pulls.**
 
-- Every cron tick that finds the last pull over 28 minutes old, so about every half hour. This runs
-  before the push-subscription check, so it pulls whether reminders are on or not.
-- `GET /api/health` (the app opening, or pull to refresh), when the last pull is over 10 minutes old.
+- Every cron tick (every 5 minutes) that finds the last pull over 4 minutes old. This runs before the
+  push-subscription check, so it pulls whether reminders are on or not. Faster would not be fresher:
+  the data only moves when the watch syncs with Garmin Connect.
+- `GET /api/health` (the app opening, or pull to refresh), when the last pull is over 2 minutes old.
   It waits up to 8 s for the pull, otherwise it answers with what is stored.
 
 **Wellness.** Each date's row has steps, `restingHR`, `hrv` (rMSSD), `sleepSecs` and `sleepScore`

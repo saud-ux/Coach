@@ -209,8 +209,9 @@ function arCount(n, one, two, few, many){
 }
 
 /* ---------- intervals.icu: the watch without the phone (lib/intervals.js) ----------
-   Pulled every 30 minutes by the cron, and when the app opens if the last pull is
-   over 10 minutes old. INTERVALS_KEY and INTERVALS_ATHLETE turn it on. */
+   Pulled on every cron tick (every 5 minutes), and when the app opens if the last
+   pull is over 2 minutes old. Faster would not be fresher: the data only moves when
+   the watch syncs with Garmin Connect. INTERVALS_KEY and INTERVALS_ATHLETE turn it on. */
 const IV = require('./lib/intervals');
 const IV_CFG = { key: clean(process.env.INTERVALS_KEY), athlete: clean(process.env.INTERVALS_ATHLETE) };
 const ivStatus = { on: !!(IV_CFG.key && IV_CFG.athlete), last_pull: null, last_ok: null, error: null, days: 0, workouts: 0 };
@@ -283,9 +284,9 @@ async function health(req, res, url){
       return send(res, 200, {ok: !!(await rpc('coach_health_ack', {p_id: id}))});
     }
     if (url.pathname === '/api/health' && req.method === 'GET') {
-      // opening the app is a good moment to read the watch, at most every 10 minutes;
+      // opening the app is a good moment to read the watch, at most every 2 minutes;
       // it waits up to 8 s for the pull and otherwise answers with what is stored
-      if (ivStatus.on && ivStale(10)) await Promise.race([pullIntervals(), new Promise(r => setTimeout(r, 8000))]);
+      if (ivStatus.on && ivStale(2)) await Promise.race([pullIntervals(), new Promise(r => setTimeout(r, 8000))]);
       const days = Math.max(1, Math.min(120, Number(url.searchParams.get('days')) || 31));
       const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
       const d = (await rpc('coach_health_get', {p_since: since})) || {};
@@ -463,7 +464,7 @@ async function cron(req, res, url){
     return send(res, 401, {error:'token'});
   }
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
-  if (ivStale(28)) await pullIntervals();       // the watch, every half hour, reminders on or not (lib/intervals.js)
+  if (ivStale(4)) await pullIntervals();        // the watch on every tick (every 5 min), reminders on or not (lib/intervals.js)
   let st;
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
   const data = st.data || st;
