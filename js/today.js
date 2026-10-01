@@ -449,7 +449,7 @@ function renderSessionCard(){
     </div>
     <div class="seglabels">${parts.map(p => `<span>${p.label}${p.min ? ' ' + num(Math.round(p.min)) + ' د' : ''}</span>`).join('')}</div>
     ${watchLine(s.type)}
-    <button class="btn primary" id="sessGo">${done ? 'أنهيته ✓' : 'ابدأ التمرين'}</button>
+    <button class="btn primary" id="sessGo">${done ? 'أنهيته ✓' : 'ابدأ بالإحماء'}</button>
   </section>`;
   $('sessGo').onclick = () => openDay(t);
 }

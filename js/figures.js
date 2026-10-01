@@ -194,6 +194,24 @@ const YT = {
   highKnees: 'high knees drill form',
   cooper: 'cooper 12 minute run test how to',
 };
+// The warm-up, as its own first card in the session sheet: what to do, minute by
+// minute, with a timer. It used to be one line in «ترتيب الحصة», easy to skip.
+const WARMUP = {
+  intervals: [10, ['3 د ركض خفيف', '2 د مرجحة رجول وحركات ورك', '2 د خطوات جانبية خفيفة على الجهتين', '2 د رفع ركب وركض للخلف', '1 د انطلاقتين أو ثلاث بنص السرعة']],
+  yoyo:      [10, ['4 د ركض خفيف', '2 د حركات كاحل وقفز خفيف بمكانك', '2 د مرجحة رجول وطعنات خفيفة', '2 د خطوات جانبية وانطلاقات خفيفة']],
+  strength:  [5,  ['2 د مشي سريع أو ركض خفيف', '1 د دوائر ورك وركب', '1 د سكوات بدون عمق 10 مرات', '1 د مرجحة رجول']],
+  run:       [5,  ['5 د أبطأ من وتيرتك، وزد السرعة شوي شوي']],
+  test:      [10, ['4 د ركض خفيف', '3 د حركات ديناميكية للرجلين', '3 د انطلاقتين أو ثلاث متدرجة']],
+  light:     [3,  ['3 د مشي سريع قبل الركض الهادي']],
+};
+function warmupHTML(type){
+  const w = WARMUP[type]; if (!w) return '';
+  const [min, steps] = w;
+  return `<div class="dgcard warmcard"><div class="dghead"><h4><span class="exn">0</span>الإحماء أول شي</h4><span class="dose">${num(min)} دقايق</span></div>
+    <p class="warmwhy">لا تبدأ التمرين وجسمك بارد. الإحماء يرفع النبض ويجهز العضلات ويقلل الإصابة.</p>
+    <ol class="warmsteps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+    <button class="rbtn warmgo" data-s="${min * 60}" data-l="الإحماء" data-v="ابدأ الإحماء ${min === 10 ? 'عشر دقايق' : min === 5 ? 'خمس دقايق' : min + ' دقايق'}">⏱ ابدأ الإحماء ${num(min)} د</button></div>`;
+}
 const ytLink = k => YT[k] ? `https://www.youtube.com/results?search_query=${encodeURIComponent(YT[k])}` : null;
 const rounds = n => n===1?'جولة وحدة':n===2?'جولتين':`${num(n)} جولات`, sets = n => n===2?'مجموعتين':`${num(n)} مجموعات`;
 const DOSE = {
@@ -234,7 +252,7 @@ const FLOW = {
 };
 const fmtS = s => { if(s<60) return `${num(s)} ثانية`; const m=Math.floor(s/60), r=s%60; const base = m===1?'دقيقة':m===2?'دقيقتين':`${num(m)} دقايق`; return r===30 ? base+' ونص' : r ? `${base} و${num(r)} ثانية` : base; };
 /* rest timer */
-let tmr=null;
+let tmr=null, endLine='خلصت الراحة، انطلق';
 // The rest timer keeps the screen on, and says when the rest ends (Settings ←
 // التمرين ← صوت المؤقت). The first line is spoken here, from the tap, because
 // iOS only lets speech start from one.
@@ -246,15 +264,15 @@ const spokenRest = sec => {
   const mins = m === 1 ? 'دقيقة' : m === 2 ? 'دقيقتين' : `${m} دقايق`;
   return half ? `${mins} ونص` : mins;
 };
-function startTimer(sec,label){
+function startTimer(sec,label,said){
   stopTimer(); let left=sec; const bar=$('timer'); bar.hidden=false;
-  keepAwake('timer');
-  if (voiceOn()) speak(`ارتاح ${spokenRest(sec)}`);
+  keepAwake('timer'); endLine = said ? 'خلص الإحماء، ابدأ التمرين' : 'خلصت الراحة، انطلق';
+  if (voiceOn()) speak(said || `ارتاح ${spokenRest(sec)}`);
   const draw=()=>{ bar.querySelector('.tl').textContent=label; bar.querySelector('.tv').textContent=`${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`; bar.style.setProperty('--p',(1-left/sec)*100+'%'); };
   draw();
   tmr=setInterval(()=>{ left--; if(left<=0){ stopTimer(true); } else { if(left<=3) beep(600,.08); draw(); } },1000);
 }
-function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} keepAwake('timer', false); const bar=$('timer'); if(done){ beep(880,.35); if (voiceOn()) speak('خلصت الراحة، انطلق'); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='0:00'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
+function stopTimer(done){ if(tmr){clearInterval(tmr); tmr=null;} keepAwake('timer', false); const bar=$('timer'); if(done){ beep(880,.35); if (voiceOn()) speak(endLine); try{navigator.vibrate&&navigator.vibrate([200,100,200]);}catch(e){} bar.querySelector('.tl').textContent='خلصت الراحة، يلا 💪'; bar.querySelector('.tv').textContent='0:00'; setTimeout(()=>{ if(!tmr) bar.hidden=true; },2500); } else bar.hidden=true; }
 let actx=null;
 function beep(f,d){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); const o=actx.createOscillator(), g=actx.createGain(); o.frequency.value=f; o.connect(g); g.connect(actx.destination); g.gain.value=.15; o.start(); o.stop(actx.currentTime+d);}catch(e){} }
 function restHTML(k){ const r=REST[k]; if(!r) return ''; return `<div class="rests">${r.map(([l,s,extra])=>s?`<button class="rbtn" data-s="${s}" data-l="${l}">⏱ ${l}: ${fmtS(s)}${extra?' '+extra:''}</button>`:`<span class="rbtn off">⏸ ${l}</span>`).join('')}</div>`; }
@@ -371,4 +389,4 @@ export function precacheSelectedStyle(){
 }
 
 export { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, REST, AFTER, WARM_REST, FLOW,
-         restHTML, flowHTML, nextHTML, ytLink, startTimer, stopTimer, fmtS, rounds, sets, svg };
+         restHTML, flowHTML, nextHTML, ytLink, warmupHTML, startTimer, stopTimer, fmtS, rounds, sets, svg };
