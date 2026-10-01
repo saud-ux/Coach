@@ -61,11 +61,12 @@ one entry module and the browser resolves the rest.
 | `js/schedule.js` | 356 | The plan (`weekParams defaultSession ensureHorizon defDur`), matches, `renderSchedule`, `renderHero`, `openDay`, `openAddMatch`, `openAddTest`, and the assignment inbox. |
 | `js/coach.js` | 283 | Readiness (`readyScore lighten renderReady`), `renderAlerts`, the weekly report, and chat (`RULES context send applyChanges renderChat`). |
 | `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
-| `js/quiz.js` | ~260 | The quiz: 350 law-app questions plus 26 of its own on AR positioning, progress keyed by question id, the daily question, the mock exam, per-article practice, and `renderLaw`. §14. |
+| `js/quiz.js` | ~270 | The quiz: 350 law-app questions plus 26 of its own on AR positioning, progress keyed by question id, the daily question, the mock exam, per-article practice, and `renderLaw`. §14. |
 | `js/lawbank.js` | 217 KB | **Generated** by `scripts/export-law-bank.py` from the law app. The 350 questions. Never edit by hand. |
 | `js/notifications.js` | 125 | Push subscription, the five reminder preferences, and `initNotifications()`. |
 | `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
 | `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
+| `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -589,7 +590,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '24';
+const VERSION = '25';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1094,3 +1095,24 @@ from kickoff, and `shiftDate()` does the calendar sums. It is pure ESM on purpos
 Verified in Chromium with a fixed clock (the day before at 21:00, match day at 16:00, the morning after at
 09:00) and against the mock Supabase: one tick 40 minutes before kickoff sent the warm-up push, and a
 second tick in the same window sent nothing.
+
+## 18. Questions on a drawing of the pitch
+
+`js/pitch.js` adds 13 questions in their own category, `p` «على رسم الملعب». Each one carries a `fig`
+that `pitchSVG()` draws above the question: the daily question, the tests and the review of mistakes all go
+through `figBlock()` in `js/quiz.js`. Progress, spacing and scopes need nothing new, because the questions
+are keyed by id like the rest.
+
+- **Where to stand** (P-01..06): the letters أ/ب/ج are marked on the drawing. The cases are open play
+  (in line with the second-last defender), the ball nearer the goal line (in line with the ball), a goal
+  kick (the goal-area line first), a corner (behind the flag, in line with the goal line), and a penalty
+  with and without goal-line technology and VAR. After the answer, the right letter is lit.
+- **Offside or not** (P-07..13): the moment the ball is played. The cases are a plain offside, level
+  (not offside), behind the ball, the goalkeeper out of goal (the defender on the line is the last
+  opponent), a corner and a throw-in (no offence), and an offside position without involvement.
+- Coordinates are metres: `a` across (68 is the assistant's touchline, drawn on the right), `d` out from
+  the goal line, with the goal at the top. The pitch greens are fixed, a shade darker at night, and a key
+  under the drawing names the colours.
+
+Verified in Chromium: a five-question test in the category showed a drawing on every question, and the
+review drew the two missed ones with the right letter lit.

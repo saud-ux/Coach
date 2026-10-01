@@ -4,7 +4,8 @@
 // into js/lawbank.js by scripts/export-law-bank.py, each with an article, a page,
 // a difficulty and a type. Alongside them sit 26 questions of this app's own on
 // the assistant referee's positioning and signals (the book's practical
-// guidelines, pp. 212-229), which the law app does not cover.
+// guidelines, pp. 212-229), which the law app does not cover, and 13 asked on a
+// drawing of the pitch (js/pitch.js): where to stand, and offside or not.
 //
 // It works the way the law app does:
 //   - one question a day, chosen by review priority and fixed for the day, with
@@ -26,6 +27,7 @@
 import { state, save, num, parse, addDays, todayISO, fDm, $ } from './state.js';
 import { openSheet, closeSheet } from './main.js';
 import { LAW_BANK, LAW_CATS } from './lawbank.js';
+import { PITCH_QS, pitchSVG } from './pitch.js';
 
 /* ---------- the bank ---------- */
 const AR_GUIDE = [
@@ -56,11 +58,17 @@ const AR_GUIDE = [
  {id:'G-25',c:'g',p:226,q:'أشرت لخطأ يستوجب الطرد، والحكم ما انتبه إلا بعد استئناف اللعب. وش الممكن؟',o:['يرجع ويحتسب الركلة','يتخذ العقوبة الانضباطية فقط بدون الرجوع للركلة','ما يسوي شي'],a:1,w:'إذا استُؤنف اللعب، يمكن للحكم اتخاذ العقوبة الانضباطية المناسبة، لكنه لا يعود لاحتساب الركلة الحرة أو ركلة الجزاء.'},
  {id:'G-26',c:'g',p:225,q:'متى يستخدم المساعد جهاز التنبيه (البيب)؟',o:['لكل خروج للكرة','لجذب انتباه الحكم في حالات مثل التسلل والأخطاء خارج نظره','ما يُستخدم'],a:1,w:'جهاز التنبيه إشارة إضافية لجذب انتباه الحكم فقط، ومفيد في التسلل والأخطاء خارج نطاق رؤية الحكم.'},
 ];
-const QCAT = { ...LAW_CATS, g: 'التمركز والإشارات' };
-const QUIZ = [...LAW_BANK, ...AR_GUIDE];
+const QCAT = { ...LAW_CATS, g: 'التمركز والإشارات', p: 'على رسم الملعب' };
+const QUIZ = [...LAW_BANK, ...AR_GUIDE, ...PITCH_QS];
 const QBY = new Map(QUIZ.map(x => [x.id, x]));
 const DIFF = { 1: 'سهل', 2: 'متوسط', 3: 'صعب' };
 const qRef = x => x.c === 'g' ? `الإرشادات العملية، صفحة ${num(x.p)}` : `${x.r}، صفحة ${num(x.p)}`;
+// the pitch drawing for a question that has one; after the answer, the right letter is lit
+function figBlock(x, reveal){
+  const d = document.createElement('div'); d.className = 'pfig';
+  d.innerHTML = pitchSVG(x.fig, reveal ? x.a : null);
+  return d;
+}
 const LAW_APP = 'https://other-refereea.onrender.com';
 
 /* ---------- progress: v2 -> v3 ---------- */
@@ -186,7 +194,7 @@ function lawStats(){
 }
 
 /* ---------- one question, revealed ---------- */
-const SCOPES = () => ['all', ...Object.keys(LAW_CATS).sort((a, b) => a - b), 'g'];
+const SCOPES = () => ['all', ...Object.keys(LAW_CATS).sort((a, b) => a - b), 'g', 'p'];
 const scopeName = s => s === 'all' ? 'كل المواد' : s === 'mistakes' ? 'مراجعة الأخطاء' : QCAT[s];
 const tagOf = x => `${QCAT[x.c]}${x.d ? ' · ' + DIFF[x.d] : ''}`;
 function optButtons(x, { reveal = null, sel = null, onPick = null } = {}){
@@ -214,6 +222,7 @@ function qBlock(id, onAnswer, answered){
   wrap.innerHTML = `<span class="qtag"></span><p class="qq"></p>`;
   wrap.querySelector('.qtag').textContent = tagOf(x);
   wrap.querySelector('.qq').textContent = x.q;
+  if (x.fig) wrap.appendChild(figBlock(x, !!answered));
   wrap.appendChild(optButtons(x, answered ? { reveal: answered } : { onPick: onAnswer }));
   if (answered) wrap.appendChild(whyBlock(x, answered.ok));
   return wrap;
@@ -345,6 +354,7 @@ function runTest(ids, meta){
       wrong.forEach(([id, a]) => { const x = QBY.get(id); const d = document.createElement('div'); d.className = 'exrev';
         d.innerHTML = `<span class="qtag"></span><p class="qq"></p><p class="exa">❌ ${a != null ? 'إجابتك: <span class="y"></span><br>' : 'ما جاوبت<br>'}✅ الصحيحة: <span class="c"></span></p>`;
         d.querySelector('.qtag').textContent = tagOf(x); d.querySelector('.qq').textContent = x.q;
+        if (x.fig) d.querySelector('.qq').after(figBlock(x, true));
         if (a != null) d.querySelector('.y').textContent = x.o[a];
         d.querySelector('.c').textContent = x.o[x.a];
         d.appendChild(whyBlock(x, null)); sh.appendChild(d); });
@@ -364,6 +374,7 @@ function runTest(ids, meta){
         <button class="btn ghost sm" id="exEnd" style="width:100%;margin-top:10px">إنهاء الاختبار الآن</button>`;
       sh.querySelector('.qq').textContent = x.q;
       sh.querySelectorAll('.qtag')[1].textContent = tagOf(x);
+      if (x.fig) sh.querySelector('#exOpts').before(figBlock(x, false));
       sh.querySelector('#exOpts').appendChild(optButtons(x, { sel: ans[pos], onPick: i => { ans[pos] = ans[pos] === i ? null : i; draw(); } }));
       sh.querySelectorAll('.exdots button').forEach(b => b.onclick = () => { pos = +b.dataset.i; draw(); });
       sh.querySelector('#exP').onclick = () => { if (pos > 0){ pos--; draw(); } };
@@ -420,7 +431,7 @@ function renderLaw(){
       return `<span class="${p >= 70 ? 'pass' : 'fail'}">${num(e.right)}/${num(e.total)}<small>${e.scope ? scopeName(e.scope) + ' · ' : ''}${fDm.format(parse(e.date))}</small></span>`; }).join('')}</div>` : ''}
 
     <a class="btn ghost" id="lawApp" href="${LAW_APP}" target="_blank" rel="noopener" style="width:100%;margin-top:16px">📚 افتح منصة القانون</a>
-    <p class="note" style="margin-top:8px">${num(QUIZ.length)} سؤال من كتاب قانون كرة القدم 2026/2027، وكل إجابة معها رقم المادة والصفحة. البنك نفسه اللي في منصة القانون، ومعه أسئلة تمركز الحكم المساعد.</p>`;
+    <p class="note" style="margin-top:8px">${num(QUIZ.length)} سؤال من كتاب قانون كرة القدم 2026/2027، وكل إجابة معها رقم المادة والصفحة. البنك نفسه اللي في منصة القانون، ومعه أسئلة تمركز الحكم المساعد وأسئلة على رسم الملعب.</p>`;
 
   box.querySelector('#tStart').onclick = () => startTest(false);
   const tm = box.querySelector('#tMist'); if (tm) tm.onclick = () => startTest(true);

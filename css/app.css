@@ -713,3 +713,29 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .mpl li.done .mpdot{background:var(--gold);border-color:var(--gold)}
 .mpl li.next .mpdot{background:var(--brand);border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-soft)}
 .mpl li.next .mpt{color:var(--brand);font-weight:700}
+
+/* ---------- questions on a drawing of the pitch (js/pitch.js) ----------
+   Fixed pitch greens in both themes, a shade deeper at night; players keep
+   colours a referee would recognise, and the key under the drawing names them. */
+.pfig{margin:4px 0 10px}
+.pitch{display:block;width:100%;height:auto;border-radius:14px;--pg:#2E8B4F;--pg2:#339556;--pbg:#277A44}
+:root[data-theme="night"] .pitch{--pg:#226B3C;--pg2:#267242;--pbg:#1C5C33}
+.pitch .pbg{fill:var(--pbg)}.pitch .pfield{fill:var(--pg)}.pitch .pst{fill:var(--pg2)}
+.pitch .plines{fill:none;stroke:rgba(255,255,255,.85);stroke-width:.3}
+.pitch .pgoal{fill:rgba(255,255,255,.25);stroke:#fff;stroke-width:.3}
+.pitch .parline{fill:rgba(255,255,255,.22)}
+.pitch .ppass{stroke:#fff;stroke-width:.45;stroke-dasharray:1.2 .9}
+.pitch .parrow{fill:#fff}
+.pitch .pdef circle{fill:#2F6FD0;stroke:#fff;stroke-width:.35}
+.pitch .pgk circle{fill:#F2C230;stroke:#14251B;stroke-width:.35}
+.pitch .patt circle{fill:#D93448;stroke:#fff;stroke-width:.35}
+.pitch text{font:700 2.1px "IBM Plex Sans Arabic",system-ui,sans-serif;fill:#fff;text-anchor:middle}
+.pitch .pball{fill:#fff;stroke:#14251B;stroke-width:.3}
+.pitch .pmark circle{fill:#C9A13B;stroke:#fff;stroke-width:.35}
+.pitch .pmark text{fill:#2E2306;font-size:2.4px}
+.pitch .pmark.ok circle{fill:#fff;stroke:#C9A13B;stroke-width:.7}
+.pitch .pmark.ok text{fill:#006C35}
+.pkey{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:11.5px;color:var(--muted)}
+.pkey span{display:inline-flex;align-items:center;gap:5px}
+.pkey i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.pkey .kd{background:#2F6FD0}.pkey .kg{background:#F2C230}.pkey .ka{background:#D93448}.pkey .kb{background:#fff;box-shadow:inset 0 0 0 1.5px #14251B}
