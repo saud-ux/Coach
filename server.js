@@ -226,7 +226,7 @@ async function health(req, res, url){
       const maxHr = await maxHrSetting();
       const { nights, workouts } = H.normalize(body, { maxHr, tz: TZ });
       if (!nights.length && !workouts.length) {
-        console.log('health: a call arrived with nothing usable in it');
+        console.log('health: a call arrived with nothing usable in it --', H.describe(body));
         return send(res, 200, {ok:true, nights:0, workouts:0, message:'وصل الاتصال، بس ما فيه نوم ولا تمارين'});
       }
       await rpc('coach_health_add', {p_nights: nights, p_workouts: workouts});
