@@ -67,6 +67,7 @@ one entry module and the browser resolves the rest.
 | `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
 | `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
+| `js/mobile.js` | ~110 | Phone behaviour: drag a sheet down to close, pull to refresh, the keyboard (§22). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
@@ -592,7 +593,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '30';
+const VERSION = '31';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1213,3 +1214,31 @@ reported as «حسب آخر مزامنة (8:05 ص)…» instead of as the curren
 extra automations ten minutes before each steps time.
 
 Settings has two switches («الخطوات» and «شرب الماء») and the water interval. Both are on by default.
+
+## 22. Phone behaviour
+
+`js/mobile.js` is wired once from `main.js` through `initMobile({closeSheet, refresh, activeTab})`. It
+imports nothing, so it cannot join an import cycle.
+
+- **Sheets follow the finger.** A sheet has a grab bar (`.sheet::before`). It follows a downward drag
+  and closes past 110 px or on a quick flick, and otherwise springs back. A drag counts only from
+  the top of the sheet's own scroll, and never when it starts on a field, a select or `[data-nodrag]`.
+- **Pull to refresh.** At the top of Today or الجدول, with no sheet open, pulling 72 px runs
+  `syncRemote()`, `syncHealth({force:true})`, `loadInbox()` and `renderAll()`. The `.ptr` pill drops
+  in under the status bar.
+- **Keyboard.** iOS slides the keyboard over fixed elements. `visualViewport` gives its height as
+  `--kb`, and while it is up `html.kb` hides the tab bar and lifts the composer onto it. On Android the
+  layout viewport shrinks instead, so `--kb` stays 0 and nothing moves.
+- **Taps.** Tapping the active tab scrolls back to its top. Buttons, cards and day rows give a little
+  under the finger (`scale(.97)`, skipped with reduced motion). Text selection and the long-press
+  callout are off on tappable things.
+
+Verified in Chromium with emulated touch:
+
+- a short slow drag kept the sheet open and reset its transform;
+- a long drag from the header closed it;
+- a drag with the sheet scrolled down did not close it;
+- a pull at the top of Today hit `/api/health` and showed «محدّث ✓»;
+- re-tapping Today scrolled to 0.
+
+The keyboard part cannot be emulated there and is untested.

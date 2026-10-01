@@ -24,6 +24,7 @@ import { renderProgress, renderCareer, renderMonth, renderLoad, renderMatches,
 import { renderNotif } from './notifications.js';
 import { syncHealth } from './health.js';
 import { icon, latinDigits, applyTheme } from './ui.js';
+import { initMobile } from './mobile.js';
 
 /* ---------- sheets ---------- */
 // `bare` suppresses the corner close button for sheets that carry their own
@@ -114,7 +115,9 @@ function wire(){
   const TABIC = { today:'today', sched:'calendar', chat:'chat', prog:'chart' };
   document.querySelectorAll('nav.tabs button').forEach(b => {
     b.querySelector('.tabic').innerHTML = icon(TABIC[b.dataset.tab]);
-    b.onclick = () => switchTab(b.dataset.tab);
+    // tapping the tab you are already on goes back to its top, as on iOS
+    b.onclick = () => b.getAttribute('aria-selected') === 'true'
+      ? window.scrollTo({ top: 0, behavior: 'smooth' }) : switchTab(b.dataset.tab);
   });
   $('gearBtn').innerHTML = icon('gear');
   $('gearBtn').onclick = () => openSettings();
@@ -134,6 +137,13 @@ function wire(){
   $('scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeSheet(); });
   new MutationObserver(() => lockScroll(!$('scrim').hidden)).observe($('scrim'), { attributes: true, attributeFilter: ['hidden'] });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('scrim').hidden) closeSheet(); });
+
+  // sheet drag, pull to refresh, the keyboard (js/mobile.js)
+  initMobile({
+    closeSheet,
+    activeTab: () => (document.querySelector('nav.tabs button[aria-selected="true"]') || {}).dataset?.tab,
+    refresh: async () => { await Promise.all([syncRemote(), syncHealth({ force: true })]); loadInbox(); renderAll(); },
+  });
 
   // coach composer
   $('sendBtn').onclick = () => { if (chatBusy()){ abortChat(); return; } const v = $('chatIn').value; $('chatIn').value = ''; send(v); };

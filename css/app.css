@@ -851,3 +851,33 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .qcats button{align-items:center;padding:10px 12px}
 .qtx b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qcats .qcount{flex:none;font-size:12px;color:var(--muted);text-align:left;line-height:1.4;min-width:42px}
+
+/* ---------- phone feel (js/mobile.js) ---------- */
+/* a press shows: cards and buttons give a little under the finger */
+button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+@media (prefers-reduced-motion: no-preference){
+  button,.day,.watchcard,.bchip,.bday,.qopts button,.qcats button,.wday{transition:transform .12s ease,filter .12s ease,background-color .15s}
+  button:active:not(:disabled),.day:active,.watchcard:active{transform:scale(.97)}
+  nav.tabs button:active{transform:scale(.92)}
+}
+
+/* sheets have a grab bar, and follow the finger down (sheetDrag) */
+.sheet{will-change:transform;touch-action:pan-y}
+.sheet::before{content:"";display:block;width:40px;height:5px;border-radius:3px;background:var(--muted-2);opacity:.45;
+  margin:-10px auto 4px;position:sticky;top:-12px;z-index:6}
+
+/* pull to refresh: a pill that drops in from under the status bar */
+.ptr{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 6px);z-index:80;display:flex;align-items:center;gap:8px;
+  padding:7px 14px 7px 12px;border-radius:999px;background:var(--surface);color:var(--ink-2);font-size:13px;font-weight:600;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);pointer-events:none;opacity:0;
+  transform:translate(-50%, calc(-120% + var(--p,0) * 120%))}
+.ptr.on{opacity:1}
+.ptr i{width:16px;height:16px;border-radius:50%;border:2.5px solid var(--track);border-top-color:var(--brand);
+  transform:rotate(calc(var(--p,0) * 300deg))}
+.ptr.busy i{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* keyboard up: the composer rides on it, the tab bar steps aside */
+.kb nav.tabs{visibility:hidden}
+.kb .composer{bottom:var(--kb,0px)}
+.kb .msgs{padding-bottom:calc(var(--kb,0px) + 120px)}
