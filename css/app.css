@@ -662,3 +662,24 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 
 /* type dots in the band sit on dark green in both themes: use the bright set */
 .bweek{--run:#5DA9EE;--strength:#A99BF0;--intervals:#FF9A5C;--yoyo:#39D7C4;--light:#7FD17F;--recovery:#3BD37F;--test:#FF6B7A;--match:#F2D88C}
+
+/* the assessor's evaluation, imported from MySAFF screenshots */
+.evbox{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.evbtn{width:100%}
+.eval{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+.evtitle{font-size:13px;color:var(--muted)}
+.evtitle b{color:var(--gold-ink);font-size:15px}
+.evh{font-size:13px;font-weight:700;margin:6px 0 2px}
+.evh.good{color:var(--ready)}
+.evh.fix{color:var(--gold-ink)}
+.eval ul,.trends ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.eval li,.trends li{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;font-size:14px;line-height:1.6;
+  padding:8px 11px;border-radius:12px;background:var(--surface-2);border-inline-start:3px solid var(--border)}
+.eval li.good,.trends li.good{border-inline-start-color:var(--ready)}
+.eval li.fix,.trends li.fix{border-inline-start-color:var(--gold)}
+.evmin{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;flex:none;max-width:45%}
+.evmin i{font-style:normal;font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--surface);
+  border:1px solid var(--border);color:var(--ink-2);direction:ltr}
+.evn{flex:none;font-size:12px;font-weight:700;color:var(--muted)}
+.trends{margin-top:14px;padding-top:12px;border-top:1px solid var(--track)}
+.trends h4{font-size:14px;margin-bottom:4px}

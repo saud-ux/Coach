@@ -1016,3 +1016,25 @@ came through as `G-02`, missed once and due today; a right AR answer as `G-09`, 
 replaced question still counts in the 67% accuracy as `old-5`. A test set to المادة 11 · 5 · صعب drew five
 hard offside questions on a five-minute clock; clearing an answer by tapping it again, finishing with a
 blank, and the review of all five all behaved, and the settings survived a reload.
+
+---
+
+## 15. The assessor's evaluation, from MySAFF
+
+The federation's assessor report (cp.saff.sa, "ماي ساف") lists positive points and points to improve, each
+with the match minutes it happened in, written `85*52*15*2`. In a match's evaluation sheet,
+«استورد تقييم المقيّم» takes one or more screenshots of that page; Claude reads each one (the runtime takes
+one image per call) with `EVAL_PROMPT` (`js/progress.js`), and the results are merged: a point seen in two
+screenshots keeps one row with the union of its minutes. A second import adds to what is there.
+
+Stored on the match: `m.eval = { title, score, positives:[{t, min:[…]}], improve:[{t, min:[…]}], at }`.
+Minutes are clamped to 0–130; a score found on the page fills «تقييم المقيّم» only if it is empty;
+Arabic-Indic digits are read.
+
+`assessorTrends()` counts, across every evaluated match, which points recur (top five of each).
+التقدم → المباريات shows the top three of each, and the coach's context carries the whole thing as
+`assessor`, with a rule telling it to build drills on the most frequent point to improve.
+
+Verified in Chromium with a stand-in reader returning what the user's screenshot shows, over two
+screenshots: merged points, minutes, score «٨٫٤» → 8.4, stored on save, shown in the panel, present in the
+coach's context. The real reading by Claude was not exercised here (no API access in this environment).

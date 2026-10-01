@@ -12,6 +12,7 @@ import { defDur, openDay } from './schedule.js';
 import { quizState } from './quiz.js';
 import { readyScore, renderAlerts } from './coach.js';
 import { renderAll } from './main.js';
+import { rt } from './storage-sync.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
@@ -104,15 +105,98 @@ function matchFieldsHTML(m){
     <label class="f" for="mVenue">الملعب</label><input class="in" id="mVenue" placeholder="مثلًا: ملعب نادي الزلفي">
     <label class="f" for="mCrew">طاقم التحكيم (اختياري)</label><input class="in" id="mCrew" placeholder="الحكم والمساعد الثاني">
     <div class="two"><div><label class="f" for="mScore">تقييم المقيّم</label><input class="in" id="mScore" inputmode="decimal" placeholder="مثلًا 8.4"></div><div></div></div>
-    <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea></div>`;
+    <label class="f" for="mAssess">ملاحظات المقيّم</label><textarea class="in" id="mAssess" placeholder="وش قال عن تمركزك وقراراتك"></textarea>
+    <div class="evbox">
+      <button class="btn ghost evbtn" id="evBtn" type="button">📷 استورد تقييم المقيّم من موقع الاتحاد</button>
+      <p class="snote">صوّر صفحة التقييم من «ماي ساف». إذا الصفحة طويلة اختر كذا صورة مرة وحدة.</p>
+      <input type="file" id="evFile" accept="image/*" multiple hidden>
+      <div id="evOut"></div>
+    </div></div>`;
+}
+
+/* ---------- the assessor's evaluation, read from MySAFF screenshots ----------
+   The federation's assessor report (cp.saff.sa) lists positive points and points
+   to improve, each with the match minutes it happened in, written "85*52*15*2".
+   Claude reads one screenshot at a time (the runtime takes one image per call)
+   and the results are merged, so a long page can come in several pictures.
+   Stored on the match as m.eval = { title, score, positives:[{t, min:[...]}],
+   improve:[{t, min:[...]}], at }. */
+const EVAL_PROMPT = `هذي صورة من صفحة تقييم حكم كرة قدم في منصة الاتحاد السعودي (ماي ساف). استخرج الموجود بوضوح فقط ولا تخمّن.
+النقاط مقسومة لقسمين: «النقاط الإيجابية»، و«النقاط السلبية» أو «نقاط للتطوير» أو «الملاحظات». كل نقطة معها «التوقيت»: دقائق المباراة مفصولة بنجمة، مثل 85*52*15*2 تعني الدقائق 85 و52 و15 و2.
+رجّع JSON فقط بهذا الشكل:
+{"title":"عنوان التقييم إن وجد أو فارغ","score":رقم الدرجة إن ظهرت أو null,"positives":[{"t":"نص النقطة كما هو","min":[أرقام الدقائق]}],"improve":[{"t":"نص النقطة كما هو","min":[أرقام الدقائق]}]}
+إذا ما فيه قسم في الصورة رجّعه قائمة فاضية. الأرقام بالإنجليزي.`;
+
+const cleanMin = a => (Array.isArray(a) ? a : String(a || '').split(/[*×x,، ]+/))
+  .map(n => parseInt(String(n).replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)), 10))
+  .filter(n => n >= 0 && n <= 130);
+const cleanPts = a => (Array.isArray(a) ? a : []).map(x => ({ t: String((x && x.t) || '').trim().slice(0, 160), min: cleanMin(x && x.min) }))
+  .filter(x => x.t);
+function mergeEval(a, b){
+  const add = (list, more) => { for (const p of more){ const hit = list.find(x => x.t === p.t);
+    if (hit) hit.min = [...new Set([...hit.min, ...p.min])]; else list.push(p); } return list; };
+  return {
+    title: a.title || b.title || '',
+    score: a.score ?? b.score ?? null,
+    positives: add([...(a.positives || [])], b.positives || []),
+    improve: add([...(a.improve || [])], b.improve || []),
+    at: todayISO()
+  };
+}
+function evalHTML(ev){
+  if (!ev || (!ev.positives.length && !ev.improve.length)) return '';
+  const list = (pts, cls) => pts.map(p => `<li class="${cls}"><span>${esc(p.t)}</span>${p.min.length
+    ? `<span class="evmin">${[...p.min].sort((x, y) => x - y).map(n => `<i>${num(n)}'</i>`).join('')}</span>` : ''}</li>`).join('');
+  return `<div class="eval">
+    ${ev.title ? `<p class="evtitle">${esc(ev.title)}${ev.score != null ? ` · <b>${num(ev.score)}</b>` : ''}</p>` : ''}
+    ${ev.positives.length ? `<h5 class="evh good">النقاط الإيجابية (${num(ev.positives.length)})</h5><ul>${list(ev.positives, 'good')}</ul>` : ''}
+    ${ev.improve.length ? `<h5 class="evh fix">نقاط للتطوير (${num(ev.improve.length)})</h5><ul>${list(ev.improve, 'fix')}</ul>` : ''}
+  </div>`;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Across every evaluated match: which points come back. What the coach builds on.
+function assessorTrends(){
+  const count = key => { const m = new Map();
+    for (const x of state.matches) for (const p of ((x.eval && x.eval[key]) || [])) m.set(p.t, (m.get(p.t) || 0) + 1);
+    return [...m].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t, n]) => ({ t, n })); };
+  const n = state.matches.filter(x => x.eval).length;
+  return n ? { matches: n, improve: count('improve'), positives: count('positives') } : null;
 }
 function bindMatchFields(sh, m){
   const set=(id,v)=>{ const el=sh.querySelector(id); if(el&&v!=null) el.value=v; };
   set('#mComp',m.comp); set('#mVenue',m.venue); set('#mHome',m.home); set('#mAway',m.away); set('#mCrew',m.crew); set('#mScore',m.score); set('#mAssess',m.assess);
+  let ev = m.eval || null;
+  const out = sh.querySelector('#evOut'), btn = sh.querySelector('#evBtn'), file = sh.querySelector('#evFile');
+  out.innerHTML = evalHTML(ev);
+  if (!rt.sample){ btn.disabled = true; btn.textContent = 'قراءة الصور تحتاج اتصال بالمدرب'; }
+  btn.onclick = () => file.click();
+  file.onchange = async e => {
+    const files = [...e.target.files]; if (!files.length) return;
+    btn.disabled = true;
+    let got = { positives: [], improve: [] }, failed = 0;
+    for (let i = 0; i < files.length; i++){
+      btn.textContent = `يقرأ الصورة ${num(i + 1)} من ${num(files.length)}…`;
+      try {
+        const r = await rt.sample.json(EVAL_PROMPT, { images: [files[i]], cache: false });
+        const sc = parseFloat(String(r.score ?? '').replace(/[٠-٩]/g, c => '٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/, '.'));
+        got = mergeEval(got, { title: String(r.title || '').slice(0, 80), score: isFinite(sc) && sc > 0 && sc <= 10 ? sc : null,
+                               positives: cleanPts(r.positives), improve: cleanPts(r.improve) });
+      } catch (err){ failed++; }
+    }
+    // a second import of the same match adds to what is there
+    ev = ev ? mergeEval(ev, got) : mergeEval(got, {});
+    out.innerHTML = evalHTML(ev) || '<p class="snote">ما لقيت نقاط واضحة في الصورة. جرّب صورة أوضح لجدول النقاط.</p>';
+    if (failed) out.insertAdjacentHTML('beforeend', `<p class="snote" style="color:var(--max)">ما قدرت أقرأ ${num(failed)} من الصور.</p>`);
+    const scEl = sh.querySelector('#mScore');
+    if (ev.score != null && scEl && !scEl.value) scEl.value = ev.score;
+    btn.disabled = false; btn.textContent = '📷 أضف صور ثانية للتقييم'; e.target.value = '';
+  };
   let role = m.role;
   sh.querySelectorAll('#mRole button').forEach(b=>b.onclick=()=>{ role=b.dataset.i; sh.querySelectorAll('#mRole button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   return () => { const v=id=>(sh.querySelector(id)?.value||'').trim(); const sc=v('#mScore').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).replace(/[٫,]/g,'.');
-    Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''}); };
+    Object.assign(m,{venue:v('#mVenue'),comp:v('#mComp'),home:v('#mHome'),away:v('#mAway'),crew:v('#mCrew'),assess:v('#mAssess'),role:role??'',score:isFinite(parseFloat(sc))?String(parseFloat(sc)):''});
+    if (ev) m.eval = ev; };
 }
 
 /* ---------- weather (Open-Meteo, works on the standalone site) ---------- */
@@ -235,6 +319,14 @@ function renderMatches(){
     else { li.textContent=`${fDm.format(parse(m.date))}: ما تقيّمت بعد`; li.style.color='var(--muted)'; li.style.cursor='pointer'; li.onclick=()=>openDay(m.date); }
     ul.appendChild(li); });
   box.appendChild(ul);
+  const tr = assessorTrends();
+  if (tr && (tr.improve.length || tr.positives.length)){
+    const d=document.createElement('div'); d.className='trends';
+    d.innerHTML = `<h4>من تقييمات المقيّمين (${num(tr.matches)} ${tr.matches===1?'مباراة':'مباريات'})</h4>
+      ${tr.improve.length?`<p class="evh fix">يتكرر للتطوير</p><ul>${tr.improve.slice(0,3).map(x=>`<li class="fix"><span>${esc(x.t)}</span><span class="evn">${num(x.n)}×</span></li>`).join('')}</ul>`:''}
+      ${tr.positives.length?`<p class="evh good">نقاط قوتك</p><ul>${tr.positives.slice(0,3).map(x=>`<li class="good"><span>${esc(x.t)}</span><span class="evn">${num(x.n)}×</span></li>`).join('')}</ul>`:''}`;
+    box.appendChild(d);
+  }
   if (secondHalf>=2 || heavy>=2){ const p=document.createElement('p'); p.className='note'; p.style.marginTop='8px';
     p.textContent = secondHalf>=2 ? 'تتعب بالشوط الثاني بشكل متكرر. تمارين تحمّل الحكم المساعد يوم السبت هي أهم شي لك.' : 'رجولك تطلع ثقيلة بعد أكثر من مباراة. ركّز على تمرين القوة والاستشفاء بعد المباريات.'; box.appendChild(p); }
 }
@@ -245,4 +337,4 @@ export function getWX(){ return WX; }
 export { chart, renderProgress, RPE, dayLoad, sumLoad, loadStatus, LEGS, WEA, HALF,
          ROLES, seasonOf, renderCareer, matchFieldsHTML, bindMatchFields,
          CITIES, loadWeather, hr12, renderWx, monthStats, renderMonth, drawMonth,
-         renderLoad, renderMatches };
+         renderLoad, renderMatches, assessorTrends, evalHTML };
