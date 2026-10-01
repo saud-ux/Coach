@@ -217,8 +217,12 @@ async function health(req, res, url){
       // the Shortcut can carry the passcode in the body, like /api/assign
       // Shortcuts likes to nest the whole dictionary under one field ("data"), so
       // a body with nothing of ours at the top level is unwrapped one level
-      if (body && body.data && typeof body.data === 'object' && !Array.isArray(body.data) &&
-          !body.sleep && !body.nights && !body.workouts) body = { ...body.data, passcode: body.data.passcode ?? body.passcode };
+      // -- and sometimes flattens that dictionary to JSON text first
+      if (body && body.data && !body.sleep && !body.nights && !body.workouts) {
+        let inner = body.data;
+        if (typeof inner === 'string') { try { inner = JSON.parse(inner); } catch { inner = null; } }
+        if (inner && typeof inner === 'object' && !Array.isArray(inner)) body = { ...inner, passcode: inner.passcode ?? body.passcode };
+      }
       // a passcode typed as 1234 can arrive as a number, not text
       const given = req.headers['x-passcode'] || (body && body.passcode);
       const pass = clean(given == null ? '' : String(given));
