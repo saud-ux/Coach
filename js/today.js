@@ -25,10 +25,10 @@ import { planSteps, shiftDate } from './matchplan.js';
 
 /* ---------- the band: greeting, three tiles, the week ---------- */
 const NAME = 'سعود';
-function greeting(h){
-  if (h >= 4 && h < 12) return `صباح الخير يا ${NAME}`;
-  if (h >= 12 && h < 17) return `هلا ${NAME}`;
-  return `مساء الخير يا ${NAME}`;
+// One short greeting all day: the longer «مساء الخير يا سعود» filled the band's
+// whole width and read heavier than the rest of the header.
+function greeting(){
+  return `هلا ${NAME}`;
 }
 function renderTodayHead(){
   const el = $('todayDate');
