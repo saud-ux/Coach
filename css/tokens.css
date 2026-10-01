@@ -19,6 +19,7 @@
   --ink-2:#C9CED6;
   --muted:#8B93A1;
   --muted-2:#6E7684;      /* inactive tabs */
+  --on-ink:#07080A;       /* text on a fill of --ink: the primary button, a selected chip */
 
   /* meaning */
   --sleep:#9B8CFF;
