@@ -164,6 +164,37 @@ const D = {
   highKnees: ['رفع الركب', FIG.highKnees, 'خطوات سريعة وخفيفة في مكانك.'],
   cooper: ['اختبار 12 دقيقة', ()=>svg(`<rect x="40" y="25" width="260" height="100" rx="50" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="10 8" opacity=".8"/>`+me(170,25,180)+ln(150,25,110,25,'sprint')+`<circle cx="170" cy="75" r="26" fill="#1b1b1b" stroke="#ddd" stroke-width="3"/><rect x="163" y="44" width="14" height="6" fill="#333"/><rect x="163" y="100" width="14" height="6" fill="#333"/>`+`<text x="170" y="80" text-anchor="middle" font-size="14" font-weight="700" fill="#7CFFB2">12:00</text>`+tf(170,146,'لفّات على مسار ثابت، وسجّل المسافة من الساعة',true),155,'street'), 'نفس المسار كل مرة عشان المقارنة تكون عادلة.']
 };
+// A YouTube search for each exercise, in the English coaches use, so the results
+// are proper demonstrations. A search rather than a fixed video: a removed video
+// would leave a dead link, a search always lands on something current.
+const YT = {
+  sprint: 'short sprint acceleration drill 20m start technique',
+  sideSprint: 'assistant referee side step to sprint drill',
+  backSprint: 'backpedal to forward sprint transition drill',
+  coda: 'CODA test FIFA assistant referee change of direction',
+  ariet: 'ARIET test FIFA assistant referee intermittent endurance',
+  reaction: 'reaction sprint drill cones random signal',
+  lateralHop: 'lateral line hops plyometric drill',
+  broadJump: 'standing broad jump technique',
+  pogo: 'pogo jumps ankle stiffness drill',
+  squat: 'bodyweight squat proper form',
+  lunge: 'reverse lunge proper form',
+  bulgarian: 'bulgarian split squat bodyweight form',
+  calf: 'single leg calf raise on step eccentric',
+  bridge: 'single leg glute bridge form',
+  nordic: 'nordic hamstring curl at home beginner',
+  sidePlank: 'side plank proper form',
+  runForm: 'running form technique tips',
+  zones: 'zone 2 running explained heart rate',
+  walk: 'recovery walk after training benefits',
+  calfStretch: 'standing calf stretch wall',
+  quadStretch: 'standing quad stretch',
+  jog: 'easy jog warm up running',
+  legSwing: 'leg swings dynamic warm up',
+  highKnees: 'high knees drill form',
+  cooper: 'cooper 12 minute run test how to',
+};
+const ytLink = k => YT[k] ? `https://www.youtube.com/results?search_query=${encodeURIComponent(YT[k])}` : null;
 const rounds = n => n===1?'جولة وحدة':n===2?'جولتين':`${num(n)} جولات`, sets = n => n===2?'مجموعتين':`${num(n)} مجموعات`;
 const DOSE = {
   squat:p=>`15 عدة، ${rounds(p.str)}`, lunge:p=>`10 لكل رجل، ${rounds(p.str)}`, bulgarian:p=>`8 لكل رجل، ${rounds(p.str)}`,
@@ -340,4 +371,4 @@ export function precacheSelectedStyle(){
 }
 
 export { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, REST, AFTER, WARM_REST, FLOW,
-         restHTML, flowHTML, nextHTML, startTimer, stopTimer, fmtS, rounds, sets, svg };
+         restHTML, flowHTML, nextHTML, ytLink, startTimer, stopTimer, fmtS, rounds, sets, svg };

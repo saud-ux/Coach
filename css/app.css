@@ -925,3 +925,9 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
 .gwrh small{margin-inline-start:auto;color:var(--muted);font-size:11px}
 .gwhow{display:flex;flex-direction:column;gap:4px;margin:0 12px 14px;padding:12px;border-radius:14px;background:var(--surface);font-size:12.5px;line-height:1.7;color:var(--ink-2)}
 .gwhow b{font-size:13px;color:var(--ink)}
+
+/* an exercise's YouTube demonstrations */
+.ytbtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;margin-top:10px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--border);color:var(--ink);font-size:13.5px;font-weight:600;text-decoration:none}
+.ytbtn i{width:22px;height:16px;border-radius:5px;background:#E62117;color:#fff;font-style:normal;font-size:9px;display:grid;place-items:center}
+.ytbtn:active{transform:scale(.97)}

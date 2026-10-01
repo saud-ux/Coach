@@ -11,7 +11,7 @@
 // evaluating — only inside event handlers, long after every module has loaded.
 import { state, save, num, parse, addDays, todayISO, fWd, fDm, fFull, $, PLAN_START } from './state.js';
 import { rt, inboxList, inboxRemove, hasInbox } from './storage-sync.js';
-import { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, restHTML, flowHTML, nextHTML,
+import { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, restHTML, flowHTML, nextHTML, ytLink,
          startTimer, setHL, mediaHTML, applyView, rounds } from './figures.js';
 import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js';
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
@@ -245,7 +245,7 @@ function openDay(d){
         const body = mediaHTML(k, art);
         const nxt = nextHTML(s.type, keys, keys.indexOf(k));
         const exn = exList.indexOf(k);
-        return `<div class="dgcard"><div class="dghead"><h4>${exn>=0&&exList.length>1?`<span class="exn">${num(exn+1)}</span>`:''}${D[k][0]}</h4>${DOSE[k]?`<span class="dose">${DOSE[k](wp)}</span>`:''}</div>${restHTML(k)}${body}${MUS[k]?`<div class="mus"><i></i>${MUS[k][1]}</div>`:''}<p>${D[k][2]}</p>${nxt}</div>`;
+        return `<div class="dgcard"><div class="dghead"><h4>${exn>=0&&exList.length>1?`<span class="exn">${num(exn+1)}</span>`:''}${D[k][0]}</h4>${DOSE[k]?`<span class="dose">${DOSE[k](wp)}</span>`:''}</div>${restHTML(k)}${body}${MUS[k]?`<div class="mus"><i></i>${MUS[k][1]}</div>`:''}<p>${D[k][2]}</p>${ytLink(k) ? `<a class="ytbtn" href="${ytLink(k)}" target="_blank" rel="noopener"><i>▶</i>شوف مقطع للتمرين</a>` : ''}${nxt}</div>`;
       }).join('');
       sh.querySelectorAll('.rbtn[data-s]').forEach(b => b.onclick = () => startTimer(+b.dataset.s, 'راحة: '+b.dataset.l));
       // switching style re-points the <img> that is already on the card instead of
