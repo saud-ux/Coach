@@ -21,18 +21,21 @@ state.health = {
   workouts: [ {                         // newest first
     id, start, end, type, duration_min, distance_km,
     avg_hr, max_hr, zones: {z2,z3,z4,z5},         // minutes per zone
+    hr_recovery,                                  // bpm fallen in the first minute after
     confirmed: false
   }],
+  days:    { "YYYY-MM-DD": steps },     // daily step totals
   syncedAt: ISO string | null
 }
 ---------------------------------- */
 
-const empty = () => ({ nights: {}, workouts: [], syncedAt: null });
+const empty = () => ({ nights: {}, workouts: [], days: {}, syncedAt: null });
 
 export function healthState(){
   if (!state.health || typeof state.health !== 'object') state.health = empty();
   if (!state.health.nights) state.health.nights = {};
   if (!Array.isArray(state.health.workouts)) state.health.workouts = [];
+  if (!state.health.days || typeof state.health.days !== 'object') state.health.days = {};
   return state.health;
 }
 
@@ -208,6 +211,12 @@ function merge(remote){
   h.workouts = [...local.values()].sort((a, b) => String(b.start).localeCompare(String(a.start))).slice(0, KEEP_WORKOUTS);
   const keys = Object.keys(h.nights).sort();
   for (const k of keys.slice(0, Math.max(0, keys.length - KEEP_NIGHTS))){ delete h.nights[k]; changed = true; }
+  for (const d of remote.days || []){
+    if (!d || !d.day || !Number.isFinite(d.steps)) continue;
+    if (h.days[d.day] !== d.steps){ h.days[d.day] = d.steps; changed = true; }
+  }
+  const dk = Object.keys(h.days).sort();
+  for (const k of dk.slice(0, Math.max(0, dk.length - KEEP_NIGHTS))){ delete h.days[k]; changed = true; }
   return { changed, resend };
 }
 
@@ -232,9 +241,10 @@ export function syncHealth({ force = false } = {}){
       if (newer) h.syncedAt = body.last_at;
       const stamped = stampReadiness();
       const auto = autoLogWorkouts();
+      const slept = stampMatchSleep();
       // nothing new is the common case, and it must not count as an edit: save()
       // marks the state dirty, which would make a concurrent syncRemote() skip
-      if (changed || newer || stamped || auto){ save(); hooks.rerender(); }
+      if (changed || newer || stamped || auto || slept){ save(); hooks.rerender(); }
       resend.forEach(ack);
       return { ok: true, last_at: body.last_at || null, nights: (body.nights || []).length, workouts: (body.workouts || []).length };
     } catch(e){
@@ -347,4 +357,85 @@ export function restingHrWarning(){
   const up = last2.map(k => h.nights[k].resting_hr - avg);
   if (!(up[0] >= 5 && up[1] >= 5)) return null;
   return { avg: Math.round(avg), now: h.nights[last2[1]].resting_hr, up: Math.round(Math.min(...up)) };
+}
+
+/* ---------- steps ----------
+   Daily totals from the watch. The target is an average of 8,000 a day: the
+   point past which the large step-count studies stop finding much more benefit
+   for adults, and easy for a referee to pass on a training day. Two days get a
+   ceiling instead, because there the aim is rest: a rest day and the day before
+   a match. Over 15,000 on a rest day, or 12,000 the day before a match, the
+   legs did not really rest. */
+export const STEPS_TARGET = 8000;
+const REST_CAP = 15000, EVE_CAP = 12000;
+export function stepsOn(day){ const v = healthState().days[day]; return Number.isFinite(v) ? v : null; }
+// The last n days that have a total, oldest first, today included.
+export function stepsHistory(n = 14){
+  const t = todayISO();
+  return Array.from({ length: n }, (_, i) => addDays(t, i - n + 1)).map(day => ({ day, steps: stepsOn(day) }));
+}
+// Average of the last 7 full days (today is still filling up), from those on record.
+export function stepsAverage(){
+  const t = todayISO();
+  const xs = Array.from({ length: 7 }, (_, i) => stepsOn(addDays(t, -1 - i))).filter(v => v != null);
+  return xs.length >= 3 ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+}
+// A note when today's walking works against today's plan, else null.
+export function stepsNote(){
+  const t = todayISO(), n = stepsOn(t);
+  if (n == null) return null;
+  const eve = state.matches.some(m => m.date === addDays(t, 1));
+  const s = state.sessions[t];
+  if (eve && n > EVE_CAP) return { level: 'warn', text: `مشيت ${n.toLocaleString('en-US')} خطوة اليوم وبكرة مباراة. ريّح رجولك باقي اليوم.` };
+  if (s && s.type === 'rest' && n > REST_CAP) return { level: 'warn', text: `اليوم راحة بس مشيت ${n.toLocaleString('en-US')} خطوة. رجولك ما ارتاحت فعليًا.` };
+  return null;
+}
+
+/* ---------- heart-rate recovery ----------
+   How far the pulse falls in the first minute after a workout (lib/health.js
+   works it out from the samples the Shortcut sends past the end). The faster it
+   falls the fitter the heart; the bands are the usual ones for a one-minute drop
+   after stopping, read loosely, since walking it off instead of standing still
+   makes the drop smaller. */
+export function recoveryBand(drop){
+  if (!Number.isFinite(drop)) return null;
+  return drop >= 30 ? { word: 'ممتاز', cls: 'top' } : drop >= 20 ? { word: 'جيد', cls: 'good' }
+       : drop >= 12 ? { word: 'مقبول', cls: 'mid' } : { word: 'ضعيف', cls: 'low' };
+}
+// Newest first, the workouts that carry a recovery figure.
+export function recoveryHistory(n = 8){
+  return healthState().workouts.filter(w => Number.isFinite(w.hr_recovery)).slice(0, n)
+    .map(w => ({ id: w.id, start: w.start, drop: w.hr_recovery, type: w.type }));
+}
+// The average of the ones before this workout, for "compared to your usual".
+export function recoveryUsual(beforeId){
+  const xs = recoveryHistory(12); const i = xs.findIndex(x => x.id === beforeId);
+  const prev = (i < 0 ? xs : xs.slice(i + 1)).slice(0, 5);
+  return prev.length >= 2 ? Math.round(prev.reduce((a, x) => a + x.drop, 0) / prev.length) : null;
+}
+
+/* ---------- sleep before a match ----------
+   Each match remembers the night before it (m.sleep_before), stamped here while
+   that night is still in the 31-night cache. The match keeps it after the cache
+   moves on, so the comparison with the assessor's score can cover a season. */
+export function stampMatchSleep(){
+  const h = healthState(); let changed = false;
+  for (const m of state.matches){
+    if (m.sleep_before || !m.date) continue;
+    const key = addDays(m.date, -1), n = h.nights[key];
+    if (!n || !n.asleep_min) continue;
+    m.sleep_before = { asleep_min: n.asleep_min, score: sleepScore(n, recentNights(7, key)) };
+    changed = true;
+  }
+  return changed;
+}
+// Matches with both a night and a score, split at 7 hours asleep.
+export function sleepVsScore(){
+  const rows = state.matches
+    .map(m => ({ date: m.date, score: parseFloat(m.score), sleep: m.sleep_before }))
+    .filter(r => r.sleep && Number.isFinite(r.score));
+  if (rows.length < 2) return rows.length ? { rows, groups: null } : null;
+  const avg = xs => xs.length ? Math.round(10 * xs.reduce((a, r) => a + r.score, 0) / xs.length) / 10 : null;
+  const long = rows.filter(r => r.sleep.asleep_min >= 420), short = rows.filter(r => r.sleep.asleep_min < 420);
+  return { rows, groups: { long: { n: long.length, avg: avg(long) }, short: { n: short.length, avg: avg(short) } } };
 }

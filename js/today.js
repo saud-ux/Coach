@@ -15,7 +15,8 @@ import { TYPES, defDur, openDay, sessionParts, openAddMatch } from './schedule.j
 import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
 import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT,
-         sleepParts, recentNights, nightHistory, restingHrWarning } from './health.js';
+         sleepParts, recentNights, nightHistory, restingHrWarning,
+         stepsOn, stepsHistory, stepsAverage, stepsNote, STEPS_TARGET } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -48,12 +49,15 @@ function renderBand(){
   const pct = r ? readyPct(readyNow(r)) : null;
   const L = loadStatus();
   const word = !L.enough || L.ratio == null ? '' : L.ratio > 1.3 ? 'مرتفع' : L.ratio >= 0.8 ? 'متوازن' : 'منخفض';
+  const steps = stepsOn(t);
   chips.innerHTML = `
     <button class="bchip" id="chipReady">${dial(pct ?? 0, '#3BD37F')}${pct == null ? 'عبّي الجاهزية' : `الجاهزية <b>${num(pct)}%</b>`}</button>
     <button class="bchip" id="chipLoad">${dial(L.ratio == null ? 0 : Math.min(100, 100 * L.ratio / 1.6), '#5DB2F2')}${
-      L.enough && L.ratio != null ? `الحمل <b>${num(L.ratio.toFixed(2))}</b> ${word}` : 'الحمل: بيانات قليلة'}</button>`;
+      L.enough && L.ratio != null ? `الحمل <b>${num(L.ratio.toFixed(2))}</b> ${word}` : 'الحمل: بيانات قليلة'}</button>
+    ${steps != null || stepsAverage() != null ? `<button class="bchip" id="chipSteps">${dial(Math.min(100, 100 * (steps || 0) / STEPS_TARGET), '#E7C873')}الخطوات <b>${steps != null ? num(steps) : '–'}</b></button>` : ''}`;
   $('chipReady').onclick = openReadySheet;
   $('chipLoad').onclick = () => switchTab('prog');
+  const cs = $('chipSteps'); if (cs) cs.onclick = openStepsSheet;
 
   // the week, Sunday first like الجدول; today in gold, a match day outlined
   const DAY = ['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
@@ -253,6 +257,47 @@ export function openSleepSheet(night){
   });
 }
 
+/* ---------- steps ----------
+   Today's total in the band; the sheet has the last two weeks against the 8,000
+   target, the 7-day average, and what the numbers mean on a rest day and the day
+   before a match (health.js stepsNote). */
+export function openStepsSheet(){
+  const list = stepsHistory(14), have = list.filter(x => x.steps != null);
+  const today = stepsOn(todayISO()), avg = stepsAverage(), note = stepsNote();
+  const top = Math.max(12000, ...have.map(x => x.steps));
+  const y = v => Math.round(100 * v / top);
+  openSheet(sh => {
+    sh.innerHTML = `<h2 class="sheeth">الخطوات</h2>
+      <div class="slhead">
+        ${ringWith({ size: 96, pct: Math.min(1, (today || 0) / STEPS_TARGET), color: 'var(--gold)', width: 9 }, `<b class="ringnum sm">${today != null ? num(Math.round(today / 100) / 10) : '–'}</b>${today != null ? '<span class="ringsub">ألف</span>' : ''}`)}
+        <div class="slfacts">
+          <div><span>اليوم</span><b>${today != null ? num(today) : '–'}</b></div>
+          <div><span>متوسط 7 أيام</span><b>${avg != null ? num(avg) : '–'}</b></div>
+          <div><span>الهدف</span><b>${num(STEPS_TARGET)}</b></div>
+        </div>
+      </div>
+      ${note ? `<p class="capnote">${note.text}</p>` : ''}
+      <section class="sgroup"><h3>آخر أسبوعين</h3>
+        ${have.length >= 2 ? `<div class="wkchart steps" role="group" aria-label="الخطوات آخر 14 يوم">
+          <div class="wktarget" style="bottom:${y(STEPS_TARGET)}%"><span>الهدف ${num(STEPS_TARGET)}</span></div>
+          ${list.map((x, i) => `<button class="wkcol${i === list.length - 1 ? ' last' : ''}" data-i="${i}" aria-label="${fNight.format(parse(x.day))}: ${x.steps != null ? num(x.steps) + ' خطوة' : 'ما فيه بيانات'}">
+            <i style="height:${x.steps != null ? Math.max(2, y(x.steps)) : 0}%"></i>
+            <small>${i % 2 === list.length % 2 ? '' : num(parse(x.day).getDate())}</small></button>`).join('')}
+        </div><p class="snote wkcap" id="stCap">اضغط على أي يوم تشوف خطواته.</p>`
+        : '<p class="snote">تحتاج يومين على الأقل عشان يظهر الرسم.</p>'}
+      </section>
+      <section class="sgroup"><h3>كم الأفضل؟</h3>
+        <p class="snote">خلّ متوسطك ${num(STEPS_TARGET)} إلى ${num(10000)} خطوة باليوم. بعد هذا الرقم الفائدة الصحية تزيد شوي بس.</p>
+        <p class="snote">أيام التمرين توصلها بسهولة. يوم الراحة لا تتعدى ${num(15000)}، واليوم اللي قبل المباراة خلّها تحت ${num(12000)} عشان رجولك ترتاح.</p>
+      </section>`;
+    sh.querySelectorAll('.wkcol').forEach(b => b.onclick = () => {
+      const x = list[+b.dataset.i];
+      sh.querySelectorAll('.wkcol').forEach(c => c.classList.toggle('on', c === b));
+      sh.querySelector('#stCap').textContent = `${fNight.format(parse(x.day))}: ${x.steps != null ? num(x.steps) + ' خطوة' : 'ما وصلت بيانات'}`;
+    });
+  });
+}
+
 // The readiness conversation is a sheet now rather than a block on Today. The
 // #ready container is created inside the sheet, and renderReady() no-ops when it
 // is not in the document, so renderAll() stays safe while the sheet is closed.
@@ -276,7 +321,10 @@ function renderWatchCard(){
         <small>${num(warn.now)} والمعدل ${num(warn.avg)}. ممكن تعب أو بداية مرض.</small></div>
       ${s0 && !s0.orig && ['run','strength','intervals','yoyo'].includes(s0.type) ? '<button class="btn primary sm" id="hrLight">خفّف اليوم</button>' : ''}
     </section>` : '';
-  if (!w){ box.innerHTML = warnHTML; wireWarn(); return; }
+  const sn = stepsNote();
+  const stepsHTML = sn ? `<button class="card hrwarn stepwarn" id="stepWarn"><span class="hwic">${icon('route')}</span>
+      <div><b>خطوات كثيرة اليوم</b><small>${sn.text}</small></div></button>` : '';
+  if (!w){ box.innerHTML = warnHTML + stepsHTML; wireWarn(); return; }
   const bits = [
     w.duration_min ? `${num(Math.round(w.duration_min))} دقيقة` : '',
     w.distance_km ? `${num(Number(w.distance_km).toFixed(1))} كم` : ''
@@ -285,7 +333,7 @@ function renderWatchCard(){
   const st = new Date(w.start), wd = isNaN(st) ? '' : `${st.getFullYear()}-${String(st.getMonth() + 1).padStart(2, '0')}-${String(st.getDate()).padStart(2, '0')}`;
   const lg = state.logs[wd];
   const autod = !!(lg && lg.auto && lg.effort_est);
-  box.innerHTML = warnHTML + `<button class="card watchcard" id="watchOpen">
+  box.innerHTML = warnHTML + stepsHTML + `<button class="card watchcard" id="watchOpen">
     <span class="wic">${icon('timer')}</span>
     <span class="wtx"><b>${autod ? 'سجّلت تمرينك من الساعة' : 'وصل تمرينك من الساعة'}</b><small>${[bits, autod ? 'كيف حسيت بالمجهود؟' : 'جاهز تأكّده'].filter(Boolean).join(' · ')}</small></span>
     <span class="wgo">${icon('back')}</span>
@@ -295,6 +343,7 @@ function renderWatchCard(){
 }
 
 function wireWarn(){
+  const sw = $('stepWarn'); if (sw) sw.onclick = openStepsSheet;
   const b = $('hrLight');
   if (b) b.onclick = () => import('./coach.js').then(m => { m.lighten(todayISO(), false); import('./state.js').then(s => s.save()); renderAll(); });
 }

@@ -228,18 +228,24 @@ async function health(req, res, url){
       const pass = clean(given == null ? '' : String(given));
       if (PASSCODE && pass !== PASSCODE) return send(res, 401, {error:'passcode', message:'رمز الدخول غلط'});
       const maxHr = await maxHrSetting();
-      const { nights, workouts } = H.normalize(body, { maxHr, tz: TZ });
-      if (!nights.length && !workouts.length) {
+      const { nights, workouts, days } = H.normalize(body, { maxHr, tz: TZ });
+      if (!nights.length && !workouts.length && !days.length) {
         console.log('health: a call arrived with nothing usable in it --', H.describe(body));
         return send(res, 200, {ok:true, nights:0, workouts:0, message:'وصل الاتصال، بس ما فيه نوم ولا تمارين'});
       }
-      await rpc('coach_health_add', {p_nights: nights, p_workouts: workouts});
-      console.log(`health: stored nights=${nights.length} workouts=${workouts.length} maxHr=${maxHr}`);
+      if (nights.length || workouts.length) await rpc('coach_health_add', {p_nights: nights, p_workouts: workouts});
+      // steps have their own function (migrations/003); a database without it keeps the rest
+      if (days.length) {
+        try { await rpc('coach_health_add_days', {p_days: days}); }
+        catch (e) { if (!missingFn(e)) throw e; console.error('health: steps need migrations/003_steps_recovery.sql'); }
+      }
+      console.log(`health: stored nights=${nights.length} workouts=${workouts.length} days=${days.length} maxHr=${maxHr}`);
       const parts = [
         nights.length ? arCount(nights.length, 'ليلة واحدة', 'ليلتين', 'ليالي', 'ليلة') : '',
-        workouts.length ? arCount(workouts.length, 'تمرين واحد', 'تمرينين', 'تمارين', 'تمرين') : ''
+        workouts.length ? arCount(workouts.length, 'تمرين واحد', 'تمرينين', 'تمارين', 'تمرين') : '',
+        days.length ? `خطوات ${arCount(days.length, 'يوم واحد', 'يومين', 'أيام', 'يوم')}` : ''
       ].filter(Boolean);
-      return send(res, 200, {ok:true, nights:nights.length, workouts:workouts.length, message:`وصل ✅ ${parts.join(' · ')}`});
+      return send(res, 200, {ok:true, nights:nights.length, workouts:workouts.length, days:days.length, message:`وصل ✅ ${parts.join(' · ')}`});
     }
     if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'});
     if (url.pathname === '/api/health/ack' && req.method === 'POST') {
@@ -252,7 +258,7 @@ async function health(req, res, url){
       const days = Math.max(1, Math.min(120, Number(url.searchParams.get('days')) || 31));
       const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
       const d = (await rpc('coach_health_get', {p_since: since})) || {};
-      return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], last_at: d.last_at || null});
+      return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], days: d.days || [], last_at: d.last_at || null});
     }
     send(res, 405, {error:'method'});
   } catch (e) {
@@ -279,11 +285,14 @@ async function today(req, res, url){
   try { const st = (await rpc('coach_get', {})) || {}; data = st.data || st; }
   catch (e) { console.error('today: read failed', redact(e && e.message)); return send(res, 502, {error:'read', text:'ما قدرت أوصل لجدولك الحين. جرّب بعد شوي.'}); }
   const now = localNow();
-  let nights = [];
-  try { nights = ((await rpc('coach_health_get', {p_since: new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10)})) || {}).nights || []; }
+  let nights = [], days = [];
+  try {
+    const hg = (await rpc('coach_health_get', {p_since: new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10)})) || {};
+    nights = hg.nights || []; days = hg.days || [];
+  }
   catch (e) { if (!missingFn(e)) console.error('today: sleep read failed', redact(e && e.message)); }
   try { MATCHPLAN ||= await import('./js/matchplan.js'); } catch (e) { console.error('today: match plan unavailable', redact(e && e.message)); }
-  const text = T.brief(data, nights, now, MATCHPLAN && MATCHPLAN.planSteps);
+  const text = T.brief(data, nights, now, MATCHPLAN && MATCHPLAN.planSteps, days);
   console.log(`today: answered ${text.length} characters${url.searchParams.has('plain') ? ' as plain text' : ''}`);   // so a silent Siri can be traced
   if (url.searchParams.has('plain')) return send(res, 200, text, 'text/plain; charset=utf-8');
   send(res, 200, {text, date: now.date});

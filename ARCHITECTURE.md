@@ -68,6 +68,7 @@ one entry module and the browser resolves the rest.
 | `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
+| `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -591,7 +592,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '25';
+const VERSION = '26';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1139,3 +1140,57 @@ It is written for the ear: «7:30 مساءً», not «م». Ranges become «60 �
 parentheses and trailing colons are dropped. It never writes. The passcode rule is the same as `/api/state`:
 checked only when `APP_PASSCODE` is set, through `x-passcode` or `?passcode=`. A failed sleep read leaves
 the sleep sentence out instead of failing the answer.
+
+## 20. Steps, heart-rate recovery, and sleep before matches
+
+**Steps.** The Shortcut sends `steps: [{date, value}]`, grouped by day in Health so the watch and the
+phone are not counted twice. `lib/health.js` `stepDays()` turns it into `{day, steps}`. Same-day items
+are added together, in case raw samples are sent. `coach_health_add_days` (migrations/003) stores the
+days; a day never goes down, so an early run cannot shrink it. `coach_health_get` returns `days`, and
+the app keeps 31 of them in `state.health.days`.
+
+- The band shows a third chip, «الخطوات». It opens `openStepsSheet()`: today, the 7-day average of full
+  days, the last 14 days against the target line, and the guidance.
+- The target is an 8,000 daily average (`STEPS_TARGET`). The big step-count studies find little extra
+  benefit past 8,000 to 10,000 for adults.
+- `stepsNote()` warns on Today when the walking works against the plan: over 15,000 on a rest day, or
+  over 12,000 the day before a match. These two ceilings are coaching judgement, not research figures.
+- The coach gets `steps`, and the Siri briefing says yesterday's total.
+
+**Heart-rate recovery.** The Shortcut fetches a workout's heart rate up to 3 minutes past its end.
+`hrRecovery()` takes the peak in the last minute of the workout minus the reading nearest +60 s,
+accepted only between +40 s and +100 s, so the figure really is a one-minute drop. With no reading in
+that window it is null. Zones now stop 10 s after the end, so the cool-down is not counted as
+training.
+
+- The figure is stored as `hr_recovery`.
+- The workout summary shows it with a band (30+ ممتاز, 20 to 29 جيد, 12 to 19 مقبول, under 12 ضعيف)
+  and compares it with the average of the five workouts before it (`recoveryUsual`).
+
+**Sleep before matches.** `stampMatchSleep()` runs on every health sync. It copies the night before
+each match into `m.sleep_before` = `{asleep_min, score}` while that night is still in the 31-night
+cache. The match keeps it after the cache moves on, so the comparison can cover a whole season.
+
+- `sleepVsScore()` splits the matches that have both a night and an assessor's score at 7 hours, and
+  averages the score on each side.
+- The matches panel shows the two averages. It claims a difference only when each side has at least
+  two matches and the gap is at least 0.3.
+
+**Database (migrations/003_steps_recovery.sql).** It adds:
+
+- the `coach_health_day` table;
+- the `hr_recovery` column;
+- `coach_health_add_days`;
+- new versions of `coach_health_add` and `coach_health_get`.
+
+Steps get their own function rather than a fourth argument on `coach_health_add`. Changing that
+signature would mean dropping the old function, and an overload would make a call by name ambiguous.
+If the database lacks `coach_health_add_days`, the server logs it and stores the rest.
+
+Verified against a local Postgres through the mock Supabase:
+
+- A run with a 40-minute workout (heart rate to +3 min) gave `hr_recovery` 28 against a usual of 23,
+  and the workout was logged.
+- Fourteen days of steps were stored, with the warning shown on a rest day at 16,240.
+- Four matches were stamped with their nights, and the panel showed 8.7 after 7+ hours against 7.8
+  after shorter nights.

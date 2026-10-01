@@ -739,3 +739,31 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .pkey span{display:inline-flex;align-items:center;gap:5px}
 .pkey i{width:9px;height:9px;border-radius:50%;display:inline-block}
 .pkey .kd{background:#2F6FD0}.pkey .kg{background:#F2C230}.pkey .ka{background:#D93448}.pkey .kb{background:#fff;box-shadow:inset 0 0 0 1.5px #14251B}
+
+/* steps: the band chip's sheet reuses the sleep week chart in gold, and the
+   rest-day warning is amber rather than the resting-HR red */
+.wkchart.steps .wkcol i{background:var(--gold)}
+.stepwarn{width:100%;text-align:start;font:inherit;color:inherit;cursor:pointer;
+  background:color-mix(in srgb,var(--gold) 10%,var(--surface));border-color:var(--gold-line)}
+.stepwarn .hwic{background:color-mix(in srgb,var(--gold) 18%,transparent);color:var(--gold-ink)}
+
+/* heart-rate recovery on the workout summary */
+.hrr{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.hrr .hrrn{font-family:var(--font-display);font-size:30px;font-weight:800;line-height:1;color:var(--ink);flex:none}
+.hrr .hrrn small{font-size:13px;font-weight:600;color:var(--muted);margin-inline-start:3px}
+.hrr>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.hrr b{font-size:14.5px}.hrr p{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+.hrrtag{display:inline-block;font-size:12px;font-weight:700;padding:1px 9px;border-radius:999px;margin-inline-start:6px}
+.hrrtag.top{background:color-mix(in srgb,var(--ready) 22%,transparent);color:var(--ready)}
+.hrrtag.good{background:color-mix(in srgb,var(--ready) 14%,transparent);color:var(--ready)}
+.hrrtag.mid{background:color-mix(in srgb,var(--gold) 22%,transparent);color:var(--gold-ink)}
+.hrrtag.low{background:color-mix(in srgb,var(--max) 14%,transparent);color:var(--max)}
+
+/* sleep the night before a match against the assessor's score */
+.slvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0}
+.slvs div{border:1px solid var(--border);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.slvs b{font-family:var(--font-display);font-size:22px;font-weight:800;line-height:1.2}
+.slvs span{font-size:12.5px;color:var(--ink-2)}.slvs small{font-size:11.5px;color:var(--muted)}
+.slvs div.win{border-color:var(--ready);background:color-mix(in srgb,var(--ready) 7%,var(--surface))}
+.wkchart.steps .wktarget{z-index:1}
+.wkchart.steps .wktarget span{background:var(--surface);padding:0 5px;border-radius:6px;font-weight:600;color:var(--ink-2)}

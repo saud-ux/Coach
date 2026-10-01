@@ -14,7 +14,7 @@
 
 import { state, save, num, parse, todayISO, fFull, $ } from './state.js';
 import { ring, ringWith, icon, hhmm, clock12 } from './ui.js';
-import { workoutById, confirmWorkout, hrLoad } from './health.js';
+import { workoutById, confirmWorkout, hrLoad, recoveryBand, recoveryUsual } from './health.js';
 import { RPE, dayLoad } from './progress.js';
 import { defDur } from './schedule.js';
 import { openSheet, closeSheet, renderAll } from './main.js';
@@ -92,6 +92,8 @@ export function openWorkout(id){
           <div class="card wstat"><span>${icon('spark')}</span><b>${w.max_hr != null ? num(Math.round(w.max_hr)) : '–'}</b><small>أعلى نبض</small></div>
         </div>
 
+        ${recoveryHTML(w)}
+
         <section class="card zones">
           <h3>مناطق النبض</h3>
           ${zoneTotal ? ZONES.map(z => {
@@ -141,4 +143,21 @@ export function openWorkout(id){
     };
     draw();
   }, { bare: true });
+}
+
+// The pulse's fall in the first minute after stopping, against the referee's own
+// recent average. Shown only when the Shortcut sent heart rate past the end.
+function recoveryHTML(w){
+  const band = recoveryBand(w.hr_recovery);
+  if (!band) return '';
+  const usual = recoveryUsual(w.id);
+  const vs = usual == null ? 'بعد كم تمرين بقارنه بمعدلك.'
+    : w.hr_recovery - usual >= 4 ? `أحسن من معدلك (${num(usual)}). قلبك يرجع أسرع، وهذي علامة لياقة.`
+    : usual - w.hr_recovery >= 4 ? `أقل من معدلك (${num(usual)}). ممكن تعب متراكم، أو إنك مشيت بدل ما توقف.`
+    : `قريب من معدلك (${num(usual)}).`;
+  return `<section class="card hrr">
+    <span class="hrrn">${num(w.hr_recovery)}<small>نبضة</small></span>
+    <div><b>رجوع النبض في أول دقيقة<span class="hrrtag ${band.cls}">${band.word}</span></b>
+      <p>${vs}</p></div>
+  </section>`;
 }

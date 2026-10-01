@@ -13,6 +13,8 @@ import { quizState } from './quiz.js';
 import { readyScore, renderAlerts } from './coach.js';
 import { renderAll } from './main.js';
 import { rt } from './storage-sync.js';
+import { sleepVsScore } from './health.js';
+import { hhmm } from './ui.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
@@ -330,6 +332,20 @@ function renderMatches(){
     d.innerHTML = `<h4>من تقييمات المقيّمين (${num(tr.matches)} ${tr.matches===1?'مباراة':'مباريات'})</h4>
       ${tr.improve.length?`<p class="evh fix">يتكرر للتطوير</p><ul>${tr.improve.slice(0,3).map(x=>`<li class="fix"><span>${esc(x.t)}</span><span class="evn">${num(x.n)}×</span></li>`).join('')}</ul>`:''}
       ${tr.positives.length?`<p class="evh good">نقاط قوتك</p><ul>${tr.positives.slice(0,3).map(x=>`<li class="good"><span>${esc(x.t)}</span><span class="evn">${num(x.n)}×</span></li>`).join('')}</ul>`:''}`;
+    box.appendChild(d);
+  }
+  const sv = sleepVsScore();
+  if (sv){
+    const d=document.createElement('div'); d.className='trends';
+    const G = sv.groups, best = G && G.long.avg != null && G.short.avg != null ? (G.long.avg >= G.short.avg ? 'long' : 'short') : null;
+    d.innerHTML = `<h4>نومك ليلة المباراة وتقييمك</h4>${G ? `<div class="slvs">
+        <div class="${best==='long'?'win':''}"><span>نمت 7 ساعات أو أكثر</span><b>${G.long.avg!=null?num(G.long.avg):'–'}</b><small>${num(G.long.n)} ${G.long.n===1?'مباراة':'مباريات'}</small></div>
+        <div class="${best==='short'?'win':''}"><span>أقل من 7 ساعات</span><b>${G.short.avg!=null?num(G.short.avg):'–'}</b><small>${num(G.short.n)} ${G.short.n===1?'مباراة':'مباريات'}</small></div>
+      </div>` : ''}<ul>${sv.rows.slice(-4).reverse().map(r=>`<li><span>${fDm.format(parse(r.date))}: نمت ${hhmm(r.sleep.asleep_min)}</span><span class="evn">${num(r.score)}</span></li>`).join('')}</ul>
+      <p class="note" style="margin-top:6px">${!G ? 'مع كل مباراة فيها تقييم ونوم من الساعة تتضح الصورة أكثر.'
+        : !best || G.long.n < 2 || G.short.n < 2 ? 'تحتاج مباراتين على الأقل في كل جهة عشان المقارنة يعتمد عليها.'
+        : best==='long' && G.long.avg - G.short.avg >= 0.3 ? `لما تنام 7 ساعات وأكثر تقييمك أعلى بـ ${num(Math.round(10*(G.long.avg-G.short.avg))/10)}. النوم ليلة المباراة يفرق معك.`
+        : 'ما يبان فرق واضح بين الحالتين للحين.'}</p>`;
     box.appendChild(d);
   }
   if (secondHalf>=2 || heavy>=2){ const p=document.createElement('p'); p.className='note'; p.style.marginTop='8px';

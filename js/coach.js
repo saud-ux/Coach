@@ -14,7 +14,8 @@ import { rt } from './storage-sync.js';
 import { TYPES, HARD, defDur, applyMatch, removeMatch, openDay } from './schedule.js';
 import { loadStatus, dayLoad, getWX, hr12, assessorTrends } from './progress.js';
 import { switchTab, renderAll } from './main.js';
-import { sleepTo5, stampReadiness, healthContext, restingHrWarning } from './health.js';
+import { sleepTo5, stampReadiness, healthContext, restingHrWarning,
+         stepsOn, stepsAverage, stepsNote, STEPS_TARGET, recoveryHistory, sleepVsScore } from './health.js';
 
 /* ---------- readiness ---------- */
 const RQ=[['sleep','النوم',['سيء جدًا','سيء','عادي','زين','ممتاز']],['sore','ألم العضلات',['شديد','واضح','خفيف','بسيط','ما فيه']],['energy','الطاقة',['منهك','تعبان','عادي','نشيط','ممتاز']]];
@@ -207,6 +208,7 @@ const RULES = `اكتب كل الأرقام بالإنجليزي (0-9) لا با
 - التمارين بوزن الجسم فقط، وقابلة للتنفيذ بالشارع أو البيت.
 
 إذا «restingHrHigh» موجود، نبض راحته أعلى من معدله ليلتين ورا بعض: لا تضغطه، اقترح تخفيف أو راحة واسأله عن حاله.
+«steps» خطواته اليوم ومتوسط 7 أيام والهدف 8000؛ إذا فيه note عليها نبّهه يريّح رجوله. «hrRecovery» كم ينزل نبضه في أول دقيقة بعد التمرين (أعلى = لياقة أحسن، ونزوله عن معدله علامة تعب). «sleepVsScore» متوسط تقييم المقيّم لما نام 7 ساعات وأكثر ليلة المباراة مقابل أقل؛ استخدمه لما تكلمه عن النوم قبل المباريات.
 إذا فيه «assessor» في البيانات، هذي ملاحظات المقيّمين الرسمية على مبارياته: «improve» نقاط للتطوير تكررت و«positives» نقاط قوته، والرقم n كم مباراة تكررت فيها. ابنِ عليها: اقترح تمارين محددة لأكثر نقطة تتكرر للتطوير، واذكر نقاط قوته لما تشجعه.
 ردّك دائمًا كائن JSON واحد فقط بهذا الشكل:
 {"reply":"رد قصير بالعربي يوضح وش غيّرت وليش","sessions":[{"date":"YYYY-MM-DD","type":"run|strength|intervals|yoyo|light|rest|recovery|test|match","title":"عنوان قصير","details":"تفاصيل التمرين"}],"addMatches":[{"date":"YYYY-MM-DD","time":"HH:MM أو فارغ","note":""}],"removeMatchDates":["YYYY-MM-DD"]}
@@ -217,7 +219,7 @@ function context(){
   const sessions = Object.fromEntries(Object.entries(state.sessions).filter(([d])=>d>=from&&d<=to).sort());
   const logs = Object.fromEntries(Object.entries(state.logs).filter(([d])=>d>=addDays(t,-14)));
   const WX = getWX();
-  return JSON.stringify({today:t, weekday:fWd.format(parse(t)), now:new Date().toTimeString().slice(0,5), sessions, matches:state.matches.filter(m=>m.date>=addDays(t,-14)), recentLogs:logs, tests:state.tests, readiness:Object.fromEntries(Object.entries(state.readiness).filter(([d])=>d>=addDays(t,-7))), load:loadStatus(), sleep:healthContext(), restingHrHigh:restingHrWarning(), assessor:assessorTrends(), weather:WX?{city:WX.city,feelsAt18:WX.at18.f,bestHour:WX.best,bestFeels:WX.H[WX.best].f}:null});
+  return JSON.stringify({today:t, weekday:fWd.format(parse(t)), now:new Date().toTimeString().slice(0,5), sessions, matches:state.matches.filter(m=>m.date>=addDays(t,-14)), recentLogs:logs, tests:state.tests, readiness:Object.fromEntries(Object.entries(state.readiness).filter(([d])=>d>=addDays(t,-7))), load:loadStatus(), sleep:healthContext(), restingHrHigh:restingHrWarning(), assessor:assessorTrends(), steps:{today:stepsOn(t), avg7:stepsAverage(), target:STEPS_TARGET, note:(stepsNote()||{}).text||null}, hrRecovery:recoveryHistory(5).map(x=>({date:x.start.slice(0,10),drop:x.drop})), sleepVsScore:(sleepVsScore()||{}).groups||null, weather:WX?{city:WX.city,feelsAt18:WX.at18.f,bestHour:WX.best,bestFeels:WX.H[WX.best].f}:null});
 }
 function renderChat(){
   const box = $('msgs'); box.innerHTML='';
