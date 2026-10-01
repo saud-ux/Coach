@@ -951,3 +951,7 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
 .warmgo{display:flex;align-items:center;width:100%;justify-content:center;font-size:14px;background:#E2702F;color:#fff;font-weight:700;min-height:42px}
 .warmnote{display:flex;align-items:center;gap:6px;margin:10px 0 0;font-size:12.5px;color:#E2702F;font-weight:600}
 .warmnote svg{width:15px;height:15px}
+.warmsteps li{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.warmyt{flex:none;display:inline-flex;align-items:center;gap:5px;padding:3px 10px 3px 8px;border-radius:999px;background:var(--surface);
+  border:1px solid var(--border);font-size:12px;font-weight:600;color:var(--ink-2);text-decoration:none}
+.warmyt i{width:16px;height:12px;border-radius:3px;background:#E62117;color:#fff;font-style:normal;font-size:7px;display:grid;place-items:center}

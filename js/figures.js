@@ -197,19 +197,24 @@ const YT = {
 // The warm-up, as its own first card in the session sheet: what to do, minute by
 // minute, with a timer. It used to be one line in «ترتيب الحصة», easy to skip.
 const WARMUP = {
-  intervals: [10, ['3 د ركض خفيف', '2 د مرجحة رجول وحركات ورك', '2 د خطوات جانبية خفيفة على الجهتين', '2 د رفع ركب وركض للخلف', '1 د انطلاقتين أو ثلاث بنص السرعة']],
-  yoyo:      [10, ['4 د ركض خفيف', '2 د حركات كاحل وقفز خفيف بمكانك', '2 د مرجحة رجول وطعنات خفيفة', '2 د خطوات جانبية وانطلاقات خفيفة']],
-  strength:  [5,  ['2 د مشي سريع أو ركض خفيف', '1 د دوائر ورك وركب', '1 د سكوات بدون عمق 10 مرات', '1 د مرجحة رجول']],
-  run:       [5,  ['5 د أبطأ من وتيرتك، وزد السرعة شوي شوي']],
-  test:      [10, ['4 د ركض خفيف', '3 د حركات ديناميكية للرجلين', '3 د انطلاقتين أو ثلاث متدرجة']],
-  light:     [3,  ['3 د مشي سريع قبل الركض الهادي']],
+  intervals: [10, [['3 د ركض خفيف', 'easy jog warm up pace'], ['2 د مرجحة رجول وحركات ورك', 'leg swings hip openers dynamic warm up'],
+    ['2 د خطوات جانبية خفيفة على الجهتين', 'side shuffle warm up drill'], ['2 د رفع ركب وركض للخلف', 'high knees backpedal warm up'],
+    ['1 د انطلاقتين أو ثلاث بنص السرعة', 'build up strides running warm up']]],
+  yoyo: [10, [['4 د ركض خفيف', 'easy jog warm up pace'], ['2 د حركات كاحل وقفز خفيف بمكانك', 'ankle mobility warm up low pogo hops'],
+    ['2 د مرجحة رجول وطعنات خفيفة', 'leg swings walking lunges dynamic warm up'], ['2 د خطوات جانبية وانطلاقات خفيفة', 'side shuffle warm up drill']]],
+  strength: [5, [['2 د مشي سريع أو ركض خفيف', 'brisk walk warm up before workout'], ['1 د دوائر ورك وركب', 'hip circles knee circles warm up'],
+    ['1 د سكوات بدون عمق 10 مرات', 'bodyweight squat warm up'], ['1 د مرجحة رجول', 'leg swings dynamic warm up']]],
+  run: [5, [['5 د أبطأ من وتيرتك، وزد السرعة شوي شوي', 'how to warm up before a run']]],
+  test: [10, [['4 د ركض خفيف', 'easy jog warm up pace'], ['3 د حركات ديناميكية للرجلين', 'dynamic warm up drills for runners'],
+    ['3 د انطلاقتين أو ثلاث متدرجة', 'build up strides running warm up']]],
+  light: [3, [['3 د مشي سريع قبل الركض الهادي', 'brisk walk warm up before workout']]],
 };
 function warmupHTML(type){
   const w = WARMUP[type]; if (!w) return '';
   const [min, steps] = w;
   return `<div class="dgcard warmcard"><div class="dghead"><h4><span class="exn">0</span>الإحماء أول شي</h4><span class="dose">${num(min)} دقايق</span></div>
     <p class="warmwhy">لا تبدأ التمرين وجسمك بارد. الإحماء يرفع النبض ويجهز العضلات ويقلل الإصابة.</p>
-    <ol class="warmsteps">${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+    <ol class="warmsteps">${steps.map(([t, q]) => `<li><span>${t}</span><a class="warmyt" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener" aria-label="مقطع: ${t}"><i>▶</i>مقطع</a></li>`).join('')}</ol>
     <button class="rbtn warmgo" data-s="${min * 60}" data-l="الإحماء" data-v="ابدأ الإحماء ${min === 10 ? 'عشر دقايق' : min === 5 ? 'خمس دقايق' : min + ' دقايق'}">⏱ ابدأ الإحماء ${num(min)} د</button></div>`;
 }
 const ytLink = k => YT[k] ? `https://www.youtube.com/results?search_query=${encodeURIComponent(YT[k])}` : null;
