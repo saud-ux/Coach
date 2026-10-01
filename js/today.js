@@ -9,12 +9,12 @@
 // live element into a sheet, because closing one replaces its contents and the
 // element would not survive.
 
-import { state, num, parse, todayISO, fFull, fDm, $ } from './state.js';
+import { state, num, parse, todayISO, fFull, fDm, AR, $ } from './state.js';
 import { ring, ringWith, icon, hhmm, clock12 } from './ui.js';
 import { TYPES, defDur, openDay, sessionParts, openAddMatch } from './schedule.js';
 import { loadStatus } from './progress.js';
-import { readyScore, readyPct, renderReady } from './coach.js';
-import { lastNightSleep, pendingWorkouts, lastSync } from './health.js';
+import { readyNow, readyPct, renderReady } from './coach.js';
+import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -73,7 +73,7 @@ function renderTiles(){
   const box = $('todayTiles');
   if (!box) return;
   const r = state.readiness[todayISO()];
-  const pct = r ? readyPct(readyScore(r)) : null;
+  const pct = r ? readyPct(readyNow(r)) : null;
   const L = loadStatus();
 
   const word = !L.enough || L.ratio == null ? '—'
@@ -228,6 +228,10 @@ export function openSettings(focus){
         <p class="snote">بيانات النوم والتمارين تجي من ساعتك عن طريق اختصار آيفون.</p>
         <p class="snote" id="healthLast"></p>
         <button class="btn ghost" id="healthTest">${icon('refresh')} اختبر الربط</button>
+        <p class="snote" id="healthMsg" hidden></p>
+        <label class="flabel" for="maxHr">أقصى نبض</label>
+        <input class="in sm" id="maxHr" type="number" inputmode="numeric" min="120" max="230" step="1">
+        <p class="snote">مناطق النبض تنحسب منه. إذا ما تعرفه: ٢٢٠ ناقص عمرك. يطبّق على التمارين اللي توصل بعد التغيير.</p>
       </section>
 
       <section class="sgroup" id="notifPanel">
@@ -275,14 +279,45 @@ export function openSettings(focus){
     };
 
     // watch link
-    const last = lastSync();
-    sh.querySelector('#healthLast').textContent = last
-      ? `آخر بيانات وصلت: ${new Date(last).toLocaleString('ar-SA')}`
-      : 'ما وصلت أي بيانات بعد. الربط يتفعّل في المرحلة الجاية.';
-    sh.querySelector('#healthTest').onclick = e => {
-      e.currentTarget.insertAdjacentHTML('afterend',
-        '<p class="snote">الربط مع الساعة يتفعّل في المرحلة الجاية.</p>');
-      e.currentTarget.disabled = true;
+    const lastEl = sh.querySelector('#healthLast'), msg = sh.querySelector('#healthMsg');
+    const showLast = at => {
+      lastEl.textContent = at
+        ? `آخر بيانات وصلت: ${new Date(at).toLocaleString(AR, { dateStyle:'medium', timeStyle:'short' })}`
+        : 'ما وصلت أي بيانات بعد. شغّل الاختصار مرة من جوالك.';
+    };
+    showLast(lastSync());
+    // The test asks the server what it holds, not the cache: "it works" has to mean
+    // the Shortcut reached the server and the server can read it back.
+    sh.querySelector('#healthTest').onclick = async e => {
+      const b = e.currentTarget;
+      b.disabled = true; msg.hidden = false; msg.textContent = 'أتأكد…';
+      const r = await syncHealth({ force: true });
+      b.disabled = false;
+      if (r.ok){
+        showLast(r.last_at);
+        msg.textContent = r.last_at
+          ? `الربط شغّال ✅ عندي ${num(r.nights)} ليلة و${num(r.workouts)} تمرين من آخر شهر.`
+          : 'الخادم جاهز ✅ بس ما وصل شي من الاختصار للحين.';
+        return;
+      }
+      msg.textContent = ({
+        not_migrated: 'قاعدة البيانات تحتاج ملف الترحيل 002_health.sql.',
+        'sync disabled': 'الربط يحتاج قاعدة البيانات، وهي مو مفعّلة على الخادم.',
+        passcode: 'رمز الدخول غلط أو ناقص. افتح المدرب مرة عشان يطلبه.',
+        offline: 'ما قدرت أوصل للخادم. تأكد من النت وجرّب مرة ثانية.'
+      })[r.error] || 'صار خطأ في الخادم. جرّب بعد شوي.';
+    };
+
+    // max heart rate: saved with the rest of the state, which is where the server
+    // reads it from when the Shortcut posts
+    const mh = sh.querySelector('#maxHr');
+    mh.value = maxHr();
+    mh.placeholder = String(MAX_HR_DEFAULT);
+    mh.onchange = () => {
+      const n = Math.round(Number(mh.value));
+      if (!(n >= 120 && n <= 230)){ mh.value = maxHr(); return; }
+      state.settings = { ...(state.settings || {}), max_hr: n };
+      import('./state.js').then(m => m.save());
     };
 
     // backup

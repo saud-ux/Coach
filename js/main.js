@@ -126,8 +126,9 @@ function wire(){
     $('chips').appendChild(b);
   });
 
-  // a new assignment may have landed while the app was in the background
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadInbox(); });
+  // a new assignment, or last night from the watch, may have landed while the app
+  // was in the background. syncHealth() throttles itself to once a minute.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden){ loadInbox(); syncHealth(); } });
 }
 
 // a tapped reminder opens straight to its tab
@@ -153,10 +154,12 @@ openDeepLinkTab();
 
 // phase two: the network, in the background. Each piece is independent, so a slow
 // or sleeping server delays only itself.
-syncRemote().then(() => requestAnimationFrame(scrollToday));
+// Health waits for the state row: syncHealth() saves when something new arrives,
+// and a save while syncRemote() is in flight counts as an edit and makes it skip
+// the server copy. Both talk to the same server, so waiting costs nothing.
+syncRemote().then(() => { requestAnimationFrame(scrollToday); syncHealth(); });
 loadWeather();
 loadInbox();
-syncHealth();
 precacheSelectedStyle();
 claude.use('sample').then(s => { rt.sample = s; renderChat(); renderReport(); renderAlerts(); }).catch(()=>{});
 

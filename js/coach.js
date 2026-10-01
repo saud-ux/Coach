@@ -14,10 +14,19 @@ import { rt } from './storage-sync.js';
 import { TYPES, HARD, defDur, applyMatch, removeMatch, openDay } from './schedule.js';
 import { loadStatus, dayLoad, getWX, hr12 } from './progress.js';
 import { switchTab, renderAll } from './main.js';
+import { sleepTo5, stampReadiness, healthContext } from './health.js';
 
 /* ---------- readiness ---------- */
 const RQ=[['sleep','النوم',['سيء جدًا','سيء','عادي','زين','ممتاز']],['sore','ألم العضلات',['شديد','واضح','خفيف','بسيط','ما فيه']],['energy','الطاقة',['منهك','تعبان','عادي','نشيط','ممتاز']]];
 const readyScore = r => (r.sleep+r.sore+r.energy)/3;
+// readyScore() above is left exactly as it was: every stored entry, the weekly
+// summary and the monthly average still go through it, so no past number moves.
+// readyNow() is what today's decisions use. When the entry carries the watch's
+// sleep score (stamped by health.js), the sleep answer becomes the mean of what
+// the referee said and what the watch measured, both on the same 1-5 axis, and
+// the result is still a 1-5 mean of three. Without a watch score it IS readyScore.
+const readyNow = r => r.sleep_watch == null ? readyScore(r)
+  : ((r.sleep + sleepTo5(r.sleep_watch))/2 + r.sore + r.energy)/3;
 // The gauge has always been shown as a percentage of 5, so its floor is 20%, not
 // 0%. Kept in one place now that both the Today tile and the card draw it.
 const readyPct = sc => Math.round(sc/5*100);
@@ -45,7 +54,7 @@ function greet(hr){
   return `سهران يا ${NAME}؟ 😅 ترى النوم أهم تمرين`;
 }
 function coachReply(t, r){
-  const sc=readyScore(r), s=state.sessions[t], tm=addDays(t,1);
+  const sc=readyNow(r), s=state.sessions[t], tm=addDays(t,1);
   const mToday=state.matches.find(m=>m.date===t), mTom=state.matches.find(m=>m.date===tm);
   let msg = sc>=4 ? 'ممتاز، جسمك جاهز 👌' : sc>=3 ? 'تمام، بس خذها بهدوء اليوم.' : 'واضح إنك تعبان شوي، ولا يهمك 🙏';
   if (mToday) msg += ` وعندك مباراة اليوم${mToday.time?' الساعة '+mToday.time:''}، الله يوفقك! اشرب ماء كفاية من الحين.`;
@@ -75,15 +84,15 @@ function renderReady(){
       c.appendChild(bubble(q(hr)));
       if (tmp[k]){ c.appendChild(bubble(opts[tmp[k]-1].join(' '), true)); continue; }
       const w=document.createElement('div'); w.className='copts';
-      opts.forEach(([e,l],j)=>{ const b=document.createElement('button'); b.innerHTML=`<span>${e}</span>${l}`; b.onclick=()=>{ tmp[k]=j+1; if (RQ2.every(([kk])=>tmp[kk])){ state.readiness[t]={sleep:tmp.sleep,sore:tmp.sore,energy:tmp.energy}; rStep={}; readyEdit=false; if (readyScore(state.readiness[t])<2.5 && s && HARD.has(s.type)) lighten(t,true); save(); renderAll(); } else renderReady(); }; w.appendChild(b); });
+      opts.forEach(([e,l],j)=>{ const b=document.createElement('button'); b.innerHTML=`<span>${e}</span>${l}`; b.onclick=()=>{ tmp[k]=j+1; if (RQ2.every(([kk])=>tmp[kk])){ state.readiness[t]={sleep:tmp.sleep,sore:tmp.sore,energy:tmp.energy}; stampReadiness(); rStep={}; readyEdit=false; if (readyNow(state.readiness[t])<2.5 && s && HARD.has(s.type)) lighten(t,true); save(); renderAll(); } else renderReady(); }; w.appendChild(b); });
       c.appendChild(w); break;
     }
     if (i===0 && r){ const cl=document.createElement('button'); cl.className='lnk'; cl.textContent='إلغاء'; cl.onclick=()=>{readyEdit=false; rStep={}; renderReady();}; c.appendChild(cl); }
     return;
   }
-  const sc=readyScore(r), [lbl,col]=readyLabel(sc);
+  const sc=readyNow(r), [lbl,col]=readyLabel(sc);
   c.appendChild(bubble(coachReply(t,r)));
-  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}٪</span><button class="lnk">غيّر إجاباتي</button>`;
+  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}٪${r.sleep_watch!=null?`<small class="rwatch">مع نومك من الساعة ${num(r.sleep_watch)}</small>`:''}</span><button class="lnk">غيّر إجاباتي</button>`;
   meta.querySelector('.lnk').onclick=()=>{ readyEdit=true; rStep={}; renderReady(); }; c.appendChild(meta);
   if (s && s.orig){ const b=document.createElement('button'); b.className='btn ghost sm'; b.textContent='رجّع التمرين الأصلي'; b.onclick=()=>{ restoreOrig(t); save(); renderAll(); }; c.appendChild(b); }
   else if (s && HARD.has(s.type) && s.type!=='test' && sc<4){ const b=document.createElement('button'); b.className='btn primary sm'; b.textContent=sc<2.5?'حوّل اليوم لاستشفاء':'خفّف تمرين اليوم'; b.onclick=()=>{ lighten(t, sc<2.5); save(); renderAll(); }; c.appendChild(b); }
@@ -206,7 +215,7 @@ function context(){
   const sessions = Object.fromEntries(Object.entries(state.sessions).filter(([d])=>d>=from&&d<=to).sort());
   const logs = Object.fromEntries(Object.entries(state.logs).filter(([d])=>d>=addDays(t,-14)));
   const WX = getWX();
-  return JSON.stringify({today:t, weekday:fWd.format(parse(t)), now:new Date().toTimeString().slice(0,5), sessions, matches:state.matches.filter(m=>m.date>=addDays(t,-14)), recentLogs:logs, tests:state.tests, readiness:Object.fromEntries(Object.entries(state.readiness).filter(([d])=>d>=addDays(t,-7))), load:loadStatus(), weather:WX?{city:WX.city,feelsAt18:WX.at18.f,bestHour:WX.best,bestFeels:WX.H[WX.best].f}:null});
+  return JSON.stringify({today:t, weekday:fWd.format(parse(t)), now:new Date().toTimeString().slice(0,5), sessions, matches:state.matches.filter(m=>m.date>=addDays(t,-14)), recentLogs:logs, tests:state.tests, readiness:Object.fromEntries(Object.entries(state.readiness).filter(([d])=>d>=addDays(t,-7))), load:loadStatus(), sleep:healthContext(), weather:WX?{city:WX.city,feelsAt18:WX.at18.f,bestHour:WX.best,bestFeels:WX.H[WX.best].f}:null});
 }
 function renderChat(){
   const box = $('msgs'); box.innerHTML='';
@@ -286,6 +295,6 @@ export function chatBusy(){ return busy; }
 export function abortChat(){ ctl?.abort(); }
 export const CHAT_CHIPS = ['عندي مباراة بكرة','رجولي تعبانة اليوم','فاتني تمرين أمس','عندي مباراتين هالأسبوع','الجو حار جدًا اليوم','وش أسوي قبل المباراة؟'];
 
-export { RQ, RQ2, readyScore, readyPct, readyLabel, lighten, restoreOrig, greet, coachReply, bubble,
+export { RQ, RQ2, readyScore, readyNow, readyPct, readyLabel, lighten, restoreOrig, greet, coachReply, bubble,
          renderReady, renderAlerts, weekSummary, genReport, renderReport, renderChat,
          applyChanges, send, context, RULES, setReadyEdit };

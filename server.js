@@ -24,7 +24,7 @@ const PUBLIC = __dirname;
 // a reader our source and our notes. Any .md and the migrations folder are covered
 // by rule rather than by name, so a new doc is private the moment it is written.
 const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','.gitignore']);
-const PRIVATE_DIRS = ['/migrations', '/node_modules', '/.git'];
+const PRIVATE_DIRS = ['/migrations', '/lib', '/node_modules', '/.git'];
 const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.mjs':'text/javascript',
   '.css':'text/css; charset=utf-8', '.webmanifest':'application/manifest+json', '.json':'application/json',
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp',
@@ -179,6 +179,81 @@ async function inbox(req, res, url){
     if (req.method === 'DELETE') return send(res, 200, await rpc('coach_inbox_remove', {p_id: url.searchParams.get('id')||''}));
     send(res, 405, {error:'method'});
   } catch (e) { console.error(e); send(res, 502, {error:'inbox failed'}); }
+}
+
+/* ---------- health: sleep and watch workouts from the iOS Shortcut ---------- */
+// POST /api/health      the Shortcut sends what Apple Health has (see SHORTCUT.md)
+// GET  /api/health      the app reads the last month back into its cache
+// POST /api/health/ack  the referee answered the effort question for one workout
+//
+// The rows live in their own two tables (migrations/002_health.sql). The server
+// reads the main state row only for the max heart rate the zones are cut from,
+// and never writes it: that row has one writer, the app.
+const H = require('./lib/health');
+const missingFn = e => /PGRST202|Could not find the function|does not exist/i.test(String(e && e.message));
+
+async function maxHrSetting(){
+  try {
+    const st = (await rpc('coach_get', {})) || {};
+    const s = (st.data || st).settings || {};
+    const n = Number(s.max_hr);
+    return n >= 120 && n <= 230 ? n : H.MAX_HR_DEFAULT;
+  } catch (e) { return H.MAX_HR_DEFAULT; }
+}
+
+// "ليلة واحدة · تمرينين" -- what the Shortcut shows on the phone when it finishes
+function arCount(n, one, two, few, many){
+  if (n === 1) return one;
+  if (n === 2) return two;
+  const d = String(n).replace(/\d/g, c => '٠١٢٣٤٥٦٧٨٩'[c]);
+  return `${d} ${n <= 10 ? few : many}`;
+}
+
+async function health(req, res, url){
+  if (!SYNC) return send(res, 404, {error:'sync disabled'});
+  try {
+    if (url.pathname === '/api/health' && req.method === 'POST') {
+      let raw=''; for await (const c of req){ raw+=c; if (raw.length>3000000) return send(res, 413, {error:'too large'}); }
+      let body; try { body = JSON.parse(raw); } catch { return send(res, 400, {error:'bad json', message:'الاختصار أرسل شي مو JSON'}); }
+      // the Shortcut can carry the passcode in the body, like /api/assign
+      const pass = clean(req.headers['x-passcode'] || (body && body.passcode));
+      if (PASSCODE && pass !== PASSCODE) return send(res, 401, {error:'passcode', message:'رمز الدخول غلط'});
+      const maxHr = await maxHrSetting();
+      const { nights, workouts } = H.normalize(body, { maxHr, tz: TZ });
+      if (!nights.length && !workouts.length) {
+        console.log('health: a call arrived with nothing usable in it');
+        return send(res, 200, {ok:true, nights:0, workouts:0, message:'وصل الاتصال، بس ما فيه نوم ولا تمارين'});
+      }
+      await rpc('coach_health_add', {p_nights: nights, p_workouts: workouts});
+      console.log(`health: stored nights=${nights.length} workouts=${workouts.length} maxHr=${maxHr}`);
+      const parts = [
+        nights.length ? arCount(nights.length, 'ليلة واحدة', 'ليلتين', 'ليالي', 'ليلة') : '',
+        workouts.length ? arCount(workouts.length, 'تمرين واحد', 'تمرينين', 'تمارين', 'تمرين') : ''
+      ].filter(Boolean);
+      return send(res, 200, {ok:true, nights:nights.length, workouts:workouts.length, message:`وصل ✅ ${parts.join(' · ')}`});
+    }
+    if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'});
+    if (url.pathname === '/api/health/ack' && req.method === 'POST') {
+      let raw=''; for await (const c of req){ raw+=c; if (raw.length>2000) return send(res, 413, {error:'too large'}); }
+      let id=''; try { id = String(JSON.parse(raw).id || ''); } catch { return send(res, 400, {error:'bad json'}); }
+      if (!/^w[0-9a-z]{1,16}$/.test(id)) return send(res, 400, {error:'bad id'});
+      return send(res, 200, {ok: !!(await rpc('coach_health_ack', {p_id: id}))});
+    }
+    if (url.pathname === '/api/health' && req.method === 'GET') {
+      const days = Math.max(1, Math.min(120, Number(url.searchParams.get('days')) || 31));
+      const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+      const d = (await rpc('coach_health_get', {p_since: since})) || {};
+      return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], last_at: d.last_at || null});
+    }
+    send(res, 405, {error:'method'});
+  } catch (e) {
+    if (missingFn(e)) {
+      console.error('health: the coach_health_* functions are missing; run migrations/002_health.sql in Supabase');
+      return send(res, 503, {error:'not_migrated', message:'قاعدة البيانات تحتاج ملف الترحيل 002'});
+    }
+    console.error('health failed', redact(e && e.message));
+    send(res, 502, {error:'health failed'});
+  }
 }
 
 /* ---------- reminders: web push, driven by an external cron hitting /api/cron ---------- */
@@ -345,6 +420,7 @@ async function route(req, res){
   if (url.pathname === '/api/state/enabled') return send(res, 200, {enabled: SYNC});
   if (url.pathname === '/api/state') return state(req, res);
   if (url.pathname === '/api/assign' || url.pathname === '/api/inbox') return inbox(req, res, url);
+  if (url.pathname === '/api/health' || url.pathname === '/api/health/ack') return health(req, res, url);
   if (url.pathname === '/api/claude' && req.method === 'POST') return coach(req, res);
   if (url.pathname === '/api/push/key') return send(res, 200, {key: VAPID.publicKey});
   if (url.pathname === '/api/push/vapid') { if (PASSCODE && req.headers['x-passcode'] !== PASSCODE) return send(res, 401, {error:'passcode'}); return send(res, 200, VAPID); }

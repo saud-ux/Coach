@@ -1,8 +1,8 @@
 # ARCHITECTURE — جدول الحكم (referee-coach)
 
-Map of the app. **Current as of Phase 2** (the "Night 2" redesign: a dark design system, four tabs,
-the Today and Workout Summary screens, and settings moved into a sheet). Sections 6 and 7 — the RPE
-scale and readiness — describe behaviour neither phase changed.
+Map of the app. **Current as of Phase 3** (the watch: Garmin → Apple Health → an iOS Shortcut →
+`POST /api/health`, the sleep score, and readiness that blends in the watch). Phase 2 was the "Night 2"
+redesign (§11); Phase 3 is §13. The RPE scale in §6 is unchanged; §7 gained one function.
 
 Written in English on purpose: it is a developer map full of identifiers. All *user-facing* copy stays
 Arabic / RTL / Saudi dialect, as the project rules require.
@@ -23,6 +23,9 @@ Arabic / RTL / Saudi dialect, as the project rules require.
 | `render.yaml` | 514 B | Render free-plan web service, region frankfurt, `healthCheckPath: /healthz`. |
 | `package.json` | 309 B | Single dependency: `web-push@^3.6.7`. Node ≥ 20. `npm start` → `node server.js`. |
 | `migrations/001_sent_log.sql` | — | The persisted reminder log. Run once in Supabase. |
+| `migrations/002_health.sql` | — | Sleep nights and watch workouts, plus `coach_health_add/get/ack`. Run once in Supabase. |
+| `lib/health.js` | — | Server-only. Pure functions that turn a Shortcut payload into clean rows (§13). Not served. |
+| `SHORTCUT.md` | — | The iPhone Shortcut recipe and automations, in Arabic, plus the payload format. |
 | `icon-180/192/512.png`, `maskable-512.png` | — | App icons. |
 | `img-<exercise>-flat.webp` (23 files) | 294 822 B | Flat-illustration style. |
 | `img-<exercise>-photo.webp` (24 files) | 580 114 B | Photo style. |
@@ -60,7 +63,7 @@ one entry module and the browser resolves the rest.
 | `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
 | `js/quiz.js` | 212 | The 92-question bank, the daily question, the mock exam, per-article practice, and `renderLaw`. |
 | `js/notifications.js` | 120 | Push subscription, the four reminder preferences, and `initNotifications()`. |
-| `js/health.js` | ~150 | The read side of sleep and watch workouts: the `state.health` shape, `sleepScore()`, and the accessors Today and the Workout Summary read. Phase 3 fills it from `/api/health`. |
+| `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -101,8 +104,11 @@ Two phases, so a sleeping Render instance can no longer hold the app hostage.
 After this the app is fully usable offline.
 
 **Phase two — background, each piece independent.**
-`syncRemote()` shows «يتم التحديث…», fetches `/api/state`, adopts it and re-renders; `loadWeather()`,
-`loadInbox()`, `syncHealth()` and `precacheSelectedStyle()` run alongside it; `claude.use('sample')`
+`syncRemote()` shows «يتم التحديث…», fetches `/api/state`, adopts it and re-renders, and **then**
+`syncHealth()` runs (it saves when something new arrives, and a save during `syncRemote()` would count
+as an edit and make it skip the server copy); `loadWeather()`, `loadInbox()` and
+`precacheSelectedStyle()` run alongside it. Returning to the app re-runs `loadInbox()` and
+`syncHealth()`, the latter throttled to once a minute; `claude.use('sample')`
 sets `rt.sample` and re-renders just the chat, report and alert strips.
 
 `syncRemote()` keeps the old precedence — the server copy wins — with one addition: it counts edits
@@ -185,7 +191,8 @@ state = {
 
   // morning readiness check. key = "YYYY-MM-DD". see section 7.
   readiness: {
-    "2026-10-01": { sleep: 1..5, sore: 1..5, energy: 1..5, skipped?: true }
+    "2026-10-01": { sleep: 1..5, sore: 1..5, energy: 1..5, skipped?: true,
+                    sleep_watch?: 0..100 }   // v7 Phase 3: the watch's score it was blended with, §13
   },
 
   // weekly coach reports. key = that week's SUNDAY in ISO form.
@@ -200,7 +207,8 @@ state = {
     exams?:  [{ date: "YYYY-MM-DD", right: Number, total: Number, secs: Number }]
   },
 
-  settings: { city: "zulfi" | "riyadh" | "majmaah" },
+  settings: { city: "zulfi" | "riyadh" | "majmaah",
+              max_hr?: 120..230 },        // Phase 3. Heart-rate zones are cut from it; default 190
 
   // v7. A CACHE of what the watch sent, not a source of truth: the server keeps the
   // authoritative rows and phase 3 deliberately does not let it write the main state
@@ -302,13 +310,16 @@ because nothing there hard-codes a colour.
 | `/api/push/key` | GET | none | `{key: VAPID.publicKey}`. |
 | `/api/push/vapid` | GET | `X-Passcode` | Both VAPID keys, so the app can display them for pasting into Render env vars. |
 | `/api/push/test` | POST | `X-Passcode` | Body `{subscription}` → one test notification. |
+| `/api/health` | POST | `X-Passcode` **or** `passcode` in the body | For the iOS Shortcut. ≤3 MB. `lib/health.js` normalises it → `rpc('coach_health_add')` → an Arabic `message` the Shortcut shows. §13. |
+| `/api/health` | GET | `X-Passcode` | `rpc('coach_health_get', {p_since})`, default the last 31 days → `{nights, workouts, last_at}`. |
+| `/api/health/ack` | POST | `X-Passcode` | Body `{id}` → `rpc('coach_health_ack')`. The referee answered that workout. |
 | `/api/cron?token=` | GET | `?token=` must equal `CRON_TOKEN` | The reminder tick. See section 8. |
 | `/healthz` | GET | none | `ok`, text/plain. Render's health check. |
 | anything else | GET | none | Static file from `__dirname`. SPA fallback: a miss serves `index.html` with status 200. |
 
 ### Static serving (`serveFile()`)
 - Path traversal is blocked (`file.startsWith(PUBLIC)`), plus a `PRIVATE` deny-set, dotfiles, **any
-  `.md`**, and the `PRIVATE_DIRS` list (`/migrations`, `/node_modules`, `/.git`). Docs and SQL are
+  `.md`**, and the `PRIVATE_DIRS` list (`/migrations`, `/lib`, `/node_modules`, `/.git`). Docs and SQL are
   refused by rule rather than by name, so a new one is private the moment it is written.
 - **Compression**: brotli (quality 5) or gzip for `.html .js .mjs .css .json .webmanifest .svg .txt`,
   chosen from `Accept-Encoding`, with `Vary: Accept-Encoding`. Each result is compressed once and kept
@@ -364,6 +375,9 @@ All called as `POST {SB_URL}/rest/v1/rpc/<fn>` with header `apikey: SB_KEY` and 
 - `coach_inbox_add(p_item)`
 - `coach_inbox_get()`
 - `coach_inbox_remove(p_id)`
+- `coach_sent_has(p_key)`, `coach_sent_mark(p_key, p_date)` — Phase 1
+- `coach_health_add(p_nights, p_workouts)`, `coach_health_get(p_since)`, `coach_health_ack(p_id)` — Phase 3.
+  If they are missing the server answers `503 {error:'not_migrated'}` and logs which file to run.
 
 There is **no `migrations/` directory in the repo** — the SQL behind these five functions exists only in
 the Supabase project. Phase 1 adds `migrations/001_sent_log.sql`, Phase 3 adds `migrations/002_health.sql`.
@@ -503,11 +517,21 @@ const readyLabel = sc =>                                       // `js/coach.js`
 7. **`readiness[today].skipped`** is a separate flag unrelated to the score: set when the user answers
    «ما لحقت» to the evening "did you train?" follow-up, which stops the card re-asking.
 
-### Phase-3 note
-Phase 3 adds the sleep score as a fourth input. `readyScore` is currently a plain mean of three values
-that the UI also renders as `/5`, so a new input either arrives on the same 1–5 axis or the function
-becomes an explicit weighted sum — and the historical entries in `state.readiness` (which only ever have
-the three keys) must keep scoring the same way.
+### Phase 3: the watch as a second opinion on sleep
+`readyScore()` is **unchanged, character for character**. The weekly summary, the monthly average and
+every stored entry still go through it, so no historical number moved.
+
+A second function, `readyNow(r)` (`js/coach.js`), is what today's decisions use — the Today tile, the
+readiness card, `coachReply()`, the automatic `< 2.5` downgrade and the manual buttons:
+
+```js
+const readyNow = r => r.sleep_watch == null ? readyScore(r)
+  : ((r.sleep + sleepTo5(r.sleep_watch))/2 + r.sore + r.energy)/3;
+```
+
+So the sleep answer becomes the mean of what the referee said and what the watch measured, on the same
+1–5 axis, and the result is still a 1–5 mean of three. Without a watch score it *is* `readyScore`.
+Details and a worked example in §13.
 
 ---
 
@@ -560,7 +584,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '11';
+const VERSION = '13';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -714,3 +738,123 @@ Still true, and worth keeping in mind:
   the place a light theme would attach.
 - **Phase 2's 1–10 effort picker** maps to the stored 1–5 as `Math.round(answer/2)` clamped to 1–5
   (§6). Anything finer belongs in a new field, not in `effort`.
+
+---
+
+## 13. Phase 3: the watch
+
+### The pipeline
+Garmin Connect writes sleep, heart rate and workouts into Apple Health. An iOS Shortcut (`SHORTCUT.md`)
+reads them and posts to `POST /api/health`. `lib/health.js` normalises the payload, the server stores it
+with `coach_health_add` in two tables of its own (`migrations/002_health.sql`), and the app reads it back
+with `GET /api/health` into `state.health`, which is a **cache**: it exists so the sleep card has
+something to show on a cold offline open.
+
+**The server never writes the main state row.** That row has exactly one writer, the app; a second
+writer on one JSON blob is how edits get lost (§2, "Known limitation"). The server *reads* it for one
+value, `settings.max_hr`, when a Shortcut post arrives.
+
+### Normalising (`lib/health.js`)
+The Shortcut is hand-built on a phone, so the parser assumes nothing:
+
+- **Numbers** may be text with units, Arabic-Indic digits, or a decimal comma: `"٥٨ ن/د"` → 58,
+  `"6,2 km"` → 6.2, `"1,234"` → 1234. Every number is range-checked and dropped if absurd.
+- **Dates** must be ISO 8601 (the recipe says so); anything `Date.parse` cannot read is dropped.
+- **Sleep stages** are matched in English and Arabic (`Asleep Deep` / `عميق`, `Core` / `أساسي`, …).
+  Raw samples are grouped into nights by the evening they began, in `APP_TZ`: a sample starting before
+  noon belongs to the previous date. Samples starting 11:00–18:00 are naps and are ignored. Minutes per
+  stage are an **interval union**, so the watch and the phone writing the same night count once.
+  A night that is only "in bed" with no sleep stage is not stored.
+- **Workouts** get `id = 'w' + base36(start in minutes)`. The same workout sent twice — the Shortcut ran
+  again, or Health rounded the seconds — lands on the same row. Under one minute is not a workout.
+  The type is mapped onto the keys `workout.js` already translates (`running walking cycling hiit
+  strength soccer other`).
+- **Heart rate** from samples: each sample owns the time until the next one, **capped at two minutes**
+  so a strap dropout is not billed to the last zone. That gives a time-weighted average, the peak, and
+  minutes in each zone. Figures the watch sent itself (`avg_hr`, `max_hr`) win over computed ones.
+- **Zones** are fractions of `settings.max_hr` (default 190, the "220 − age" rule at 30):
+  z1 < 60% ≤ z2 < 70% ≤ z3 < 80% ≤ z4 < 90% ≤ z5. They are computed once, on arrival, so changing max HR
+  applies to workouts that arrive afterwards — the Settings note says so.
+
+A payload with nothing usable is not an error: the Shortcut gets `200` and «وصل الاتصال، بس ما فيه نوم
+ولا تمارين».
+
+### Storage rules (`migrations/002_health.sql`)
+- A **night** is replaced whole on re-send (the later run has the more complete night), except that a
+  missing `resting_hr` keeps the stored one.
+- A **workout** re-send keeps every stored field the new one lacks, and **never touches `confirmed`**:
+  running the Shortcut again cannot bring back a card the referee already answered.
+- Both tables are RLS-on with no policies; only the security-definer functions reach them, with the
+  same sha256 token check as `coach_get`. Rows older than 120 days are pruned on each add.
+
+### Sync (`js/health.js`)
+`syncHealth()` fetches the last 31 days and merges. The server is the truth for what the watch measured;
+the device only knows better about one thing — that a workout was confirmed while its ack was still in
+flight — so `confirmed` is OR-ed, and an ack the server has not seen is re-sent. It saves only when
+something actually changed, because a no-op `save()` would mark the state dirty. The cache keeps 31
+nights and 40 workouts. A pending workout older than 3 days stops showing its card, so the first sync's
+backfill does not bury Today.
+
+### The sleep score (`sleepScore()` in `js/health.js`)
+0–100, from four parts:
+
+| part | weight | full marks | zero |
+|---|---|---|---|
+| duration | 55 | 7 h 30 asleep (450 min) | 0 min, linear |
+| deep share | 20 | deep ≥ 20% of asleep | 0%, linear |
+| awake after sleep onset | 10 | 0 min | ≥ 60 min, linear |
+| bedtime consistency | 15 | within 30 min of the 7-night median | ≥ 90 min off, linear |
+
+Each part is clamped to 0–1, so a broken field costs only its own slice. A field that is **missing**
+scores 0.6, not 0 — "unknown" should not read as "bad". Consistency needs at least 3 earlier nights;
+before that it is 0.6. Bedtimes are compared with times before noon shifted by 24 h, so 23:00 and
+01:00 are two hours apart, not twenty-two.
+
+**Worked example** — the test night: in bed 23:05, asleep 415 min, deep 75, awake 15, no history yet.
+
+```
+duration     415/450          = 0.922 × 55 = 50.7
+deep share   (75/415)/0.20    = 0.904 × 20 = 18.1
+awake        1 − 15/60        = 0.750 × 10 =  7.5
+consistency  (no history)     = 0.600 × 15 =  9.0
+                                              ----
+                                              85.3 → 85
+```
+
+"Last night" is the night filed under yesterday's date; one filed under today is accepted too, in case
+a Shortcut run after midnight labels it that way.
+
+### Readiness with the watch
+When the three answers land, `stampReadiness()` writes the watch's score onto that day's entry as
+`sleep_watch`. If the answers came first and the watch data later, the first sync after stamps it.
+Once stamped it never changes, so the tile does not drift when the cache updates and a past day keeps
+the number it had on the day.
+
+`sleepTo5(score) = 1 + 4 × score/100` puts it on the answers' axis (100 → 5, 50 → 3, 0 → 1), and
+`readyNow()` averages it with the sleep answer (§7).
+
+**Worked example** — answers 3 / 3 / 3, watch 85:
+`sleepTo5(85) = 4.4`; sleep becomes `(3 + 4.4)/2 = 3.7`; `(3.7 + 3 + 3)/3 = 3.23` → **65%**, where the
+answers alone give 60%. A bad night pulls the other way: answers 3/3/3 with a watch score of 30 give
+`(2.6 + 3 + 3)/3 = 2.87` → 57%.
+
+The watch moves the sleep component by at most ±2 points on a 1–5 scale and the total by at most ±0.67,
+so it can tip a borderline day across the 2.5 downgrade line but cannot override three answers on its own.
+
+The coach's chat prompt now carries `sleep: healthContext()` (last night's score and parts) beside `load`.
+
+### Verified, and not
+Verified in this environment:
+- the migration against PostgreSQL 16 with a Supabase-shaped schema (`extensions.digest`, `anon`), run
+  twice to prove it re-runs; wrong token rejected; tables unreadable to `anon` directly; `confirmed` and
+  `resting_hr` surviving a re-send;
+- `server.js` end to end through a stand-in for Supabase's `/rest/v1/rpc` that forwards to those real
+  functions: the Shortcut post with the passcode in the body, wrong passcode, empty payload, bad JSON,
+  missing functions (`not_migrated`), the ack, and `/lib` + `/migrations` returning 403;
+- the app in headless Chromium at 390 × 844: the sleep hero, readiness at 65% with the watch line, the
+  Workout Summary zones cut at the stored max HR, confirm → log written + ack reaching the server,
+  Settings' link test and max HR saving through to the server's copy.
+
+**Not verified:** the Shortcut itself on a real iPhone (in particular whether "Workouts" is offered as a
+Health sample type on the installed iOS — `SHORTCUT.md` flags it), and the migration on the real
+Supabase project.
