@@ -933,3 +933,12 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
   background:var(--surface);border:1px solid var(--border);color:var(--ink);font-size:13.5px;font-weight:600;text-decoration:none}
 .ytbtn i{width:22px;height:16px;border-radius:5px;background:#E62117;color:#fff;font-style:normal;font-size:9px;display:grid;place-items:center}
 .ytbtn:active{transform:scale(.97)}
+
+/* which saved workout to start on the watch */
+.watchline{display:flex;align-items:center;gap:9px;margin:12px 0 2px;padding:9px 12px;border-radius:14px;background:var(--surface-2);
+  font-size:13px;color:var(--ink-2);line-height:1.5}
+.watchline b{color:var(--ink);font-weight:700}
+.wlic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--brand);color:#fff}
+.wlic svg{width:14px;height:14px}
+.watchline b{white-space:nowrap;unicode-bidi:isolate}
+.watchline small{display:block;font-size:11.5px;color:var(--muted);text-align:right}

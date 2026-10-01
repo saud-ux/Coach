@@ -22,6 +22,7 @@ import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
 import { planSteps, shiftDate } from './matchplan.js';
+import { WATCH_NAME } from './garmin.js';
 
 /* ---------- the band: title, three tiles, the week ---------- */
 // The header says what today is: the match countdown when one is three days off
@@ -447,9 +448,17 @@ function renderSessionCard(){
       ${parts.map(p => `<i style="flex:${p.min / total};background:${p.color}"></i>`).join('')}
     </div>
     <div class="seglabels">${parts.map(p => `<span>${p.label}${p.min ? ' ' + num(Math.round(p.min)) + ' د' : ''}</span>`).join('')}</div>
+    ${watchLine(s.type)}
     <button class="btn primary" id="sessGo">${done ? 'أنهيته ✓' : 'ابدأ التمرين'}</button>
   </section>`;
   $('sessGo').onclick = () => openDay(t);
+}
+
+// Which saved workout to start on the watch today (js/garmin.js WATCH_NAME).
+function watchLine(type){
+  const n = WATCH_NAME[type];
+  return n ? `<div class="watchline"><span class="wlic">${icon('timer')}</span><span>بالساعة شغّل <b>${n}</b><small dir="ltr">Run → Training → Workouts</small></span></div>`
+    : type === 'strength' ? `<div class="watchline"><span class="wlic">${icon('timer')}</span><span>بالساعة شغّل نشاط <b>Strength</b><small>وتابع التمارين من الجوال</small></span></div>` : '';
 }
 
 /* ---------- next match line ---------- */

@@ -20,6 +20,17 @@
 //   zone  heart-rate zone target, or null for none
 // A repeat: { k:'repeat', times, steps:[...] }
 
+// The names the referee saved the workouts under in Garmin Connect, so the app can
+// say which one to start on the watch. Fixed: the weekly numbers change inside the
+// saved workout, never its name.
+export const WATCH_NAME = {
+  intervals: 'حكم | سرعات',
+  yoyo: 'حكم | ارتدادات وتحمّل',
+  run: 'حكم | تحمّل',
+  light: 'حكم | تنشيط',
+  test: 'حكم | اختبار 12',
+};
+
 export const KIND = {
   warmup:   { ar: 'إحماء',   en: 'Warm Up' },
   run:      { ar: 'جري',     en: 'Run' },
@@ -38,7 +49,7 @@ export function watchWorkout(type, p){
   const sp = p.sp || 6;
   switch (type){
     case 'intervals': return {
-      name: `حكم · سرعات ${sp}`,
+      name: WATCH_NAME.intervals,
       steps: [
         st('warmup', 600, 'ركض خفيف وخطوات جانبية', 1),
         rep(sp, st('run', 5, 'سرعة 20 م بجهد 90%'), st('recover', 30, 'رجوع مشي')),
@@ -53,7 +64,7 @@ export function watchWorkout(type, p){
     case 'yoyo': return {
       // the jumps cannot be timed, so they are one step ended with Lap: done from
       // the phone's pictures, then the watch takes over for the running parts
-      name: 'حكم · ارتدادات وتحمّل',
+      name: WATCH_NAME.yoyo,
       steps: [
         st('warmup', 600, 'ركض خفيف وحركات كاحل', 1),
         st('other', null, 'تمارين القفز من الجوال، واضغط Lap لما تخلص'),
@@ -66,7 +77,7 @@ export function watchWorkout(type, p){
     case 'run': {
       const total = p.run || 30;
       return {
-        name: `حكم · تحمّل ${total} د`,
+        name: WATCH_NAME.run,
         steps: [
           st('warmup', 300, 'أبطأ من وتيرتك', 1),
           st('run', Math.max(5, total - 10) * 60, 'وتيرة مريحة تقدر تتكلم فيها', 2),
@@ -74,13 +85,13 @@ export function watchWorkout(type, p){
         ]};
     }
     case 'light': return {
-      name: 'حكم · تنشيط 20 د',
+      name: WATCH_NAME.light,
       steps: [
         st('run', 900, 'ركض هادي بجهد 50%', 1),
         st('other', 300, 'إطالات حركية'),
       ]};
     case 'test': return {
-      name: 'حكم · اختبار 12 دقيقة',
+      name: WATCH_NAME.test,
       steps: [
         st('warmup', 600, 'إحماء', 1),
         st('run', 720, 'أقصى وتيرة تقدر تحافظ عليها'),

@@ -596,7 +596,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '41';
+const VERSION = '42';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1297,8 +1297,11 @@ Recover, Rest, Cool Down, Other, plus Repeat.
 - **Weekly counts.** Repeat counts follow the week's parameters. When they change, the card says to
   edit only the repeat number in the saved workout.
 
-The automatic route would be intervals.icu, which can push planned workouts to Garmin Connect. It
-was offered and not chosen.
+- **Saved names.** `WATCH_NAME` holds the names the referee saved in Garmin Connect («حكم | سرعات»,
+  «حكم | ارتدادات وتحمّل», «حكم | تحمّل», «حكم | تنشيط», «حكم | اختبار 12»). Today's session card
+  and the session sheet say which one to start. Strength says to use the plain Strength activity.
+
+intervals.icu can push planned workouts to Garmin Connect; that is not built yet (§24).
 
 ## 24. intervals.icu: the watch without the phone
 

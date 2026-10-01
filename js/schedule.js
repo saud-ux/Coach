@@ -17,7 +17,7 @@ import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
 import { icon } from './ui.js';
 import { keepAwake } from './mobile.js';
-import { watchWorkout, totalSec, clockOf, KIND } from './garmin.js';
+import { watchWorkout, totalSec, clockOf, KIND, WATCH_NAME } from './garmin.js';
 import { send } from './coach.js';
 
 /* ---------- plan ---------- */
@@ -206,7 +206,7 @@ function watchHTML(type, p){
       <span>1. Training &amp; Planning ← Workouts ← Create Workout ← Run</span>
       <span>2. أضف الخطوات بالترتيب: النوع، المدة بالوقت (Time)، والهدف منطقة النبض إذا مكتوبة.</span>
       <span>3. «كرر» = Add Repeat، وحط الخطوتين داخله.</span>
-      <span>4. احفظ باسم «${w.name}» واضغط Send to Device.</span>
+      <span>4. احفظ باسم «${w.name}» بالضبط واضغط Send to Device.</span>
       <span>بعدها من الساعة: Run ← Training ← Workouts ← اسم التمرين. لو تغيّر العدد الأسبوع الجاي، عدّل رقم التكرار بس.</span></div>
   </details>`;
 }
@@ -219,7 +219,7 @@ function openDay(d){
     const ty0 = TYPES[s.type]||TYPES.rest, keys0 = DIAGRAMS[s.type]||[];
     const EFF = {run:'60–70%',intervals:'90%',yoyo:'80–90%',strength:'متوسط',light:'50%',recovery:'خفيف',test:'أقصى جهد',match:'مباراة',rest:'راحة'};
     sh.innerHTML = `<div class="shero ${s.type==='match'?'match':''}" style="--hc:${ty0.c}"><span class="sty">${ty0.l}</span><h2></h2><div class="sub"></div>
-        <div class="schips">${defDur(d,s)?`<span>${icon('clock')} ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>${icon('scale')} ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>${icon('bolt')} ${EFF[s.type]||''}</span></div></div>
+        <div class="schips">${defDur(d,s)?`<span>${icon('clock')} ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>${icon('scale')} ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>${icon('bolt')} ${EFF[s.type]||''}</span>${WATCH_NAME[s.type]?`<span>${icon('timer')} ${WATCH_NAME[s.type]}</span>`:''}</div></div>
       <div id="dgs"></div>
       ${watchHTML(s.type, weekParams(d))}
       <details class="dtl" ${keys0.length?'':'open'}><summary>التفاصيل المكتوبة</summary><div class="details"></div></details>
