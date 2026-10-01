@@ -199,14 +199,16 @@ state = {
   // weekly coach reports. key = that week's SUNDAY in ISO form.
   reports: { "2026-09-27": { text: String, at: "YYYY-MM-DD" } },
 
-  // laws quiz. v3 is keyed by question id; quizState() migrates v2 (keyed by
-  // position in the old 92-question list) and resets anything else. See §14.
+  // laws quiz, keyed by question id. quizState() migrates v2 -> v3 -> v4 and
+  // resets anything else. See §14.
   quiz: {
-    v: 3,
-    answers: { "<question id>": { pick: Number, ok: Boolean, date: "YYYY-MM-DD", extra: Boolean } },
+    v: 4,
+    answers: { "<question id>": { pick: Number, ok: Boolean, date: "YYYY-MM-DD", extra: Boolean } },  // last answer
     daily:   { "YYYY-MM-DD": "<question id>" },                 // which question was "today's"
-    wrong:   { "<question id>": { n: Number, fix: Number } },   // drops out of the bank at fix >= 2
-    exams?:  [{ date: "YYYY-MM-DD", right: Number, total: Number, secs: Number }]
+    prog:    { "<question id>": { seen, ok, wrong, streak: Number, mastered: Boolean, due: "YYYY-MM-DD"|null } },
+    days:    { "YYYY-MM-DD": Number },                          // answers given that day, for the streak
+    cfg:     { scope: "all"|"1".."19"|"g", count: 5|10|20|30|50, diff: 0..3, mode: "mixed"|"random"|"hard", timer: Boolean },
+    exams:   [{ date, right, total, secs, scope?, mode?, diff? }]
   },
 
   settings: { city: "zulfi" | "riyadh" | "majmaah",
@@ -586,7 +588,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '15';
+const VERSION = '16';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -911,15 +913,34 @@ wrong bank and today's question only ever point at questions that exist. The per
 «x/376 صح» count read only ids still in the bank. The migration is deterministic, so two devices that
 migrate the same v2 object independently end up identical.
 
-### Using it
-- The question tag shows the difficulty: «المادة 11 التسلل · صعب».
-- True/false questions keep صح/خطأ in that order instead of shuffling them.
-- The mock exam always draws 4 offside (`11`), 4 assistant-referee (`g`) and 4 from this season's
-  changes (`19`), then fills to 20 at random.
-- «📚 افتح منصة القانون» at the bottom of التقدم → القانون opens the law app in a new tab for full study
-  and the leaderboard. Progress is **not** shared between the two apps: they have different accounts,
-  and syncing them was judged too costly for one user.
+### Using it: the law app's way
+Rebuilt to work like the law app, from its `app.py` and `ui.py`:
 
-Verified in Chromium with a seeded v2 state: an AR answer and its wrong-bank entry came through as `G-02`,
-an answer to a replaced question stayed in the accuracy figure as `old-5` and left the wrong bank, the
-exam drew 4/4/4 from the three required groups, and the link opens the law app.
+- **Spaced review** (`recordAnswer()`, the law app's `record_answer()` step for step). Per question,
+  `prog[id] = {seen, ok, wrong, streak, mastered, due}`. Right with no earlier mistake → mastered. Right
+  after a mistake → due again in 2, 5, then 9 days (`SPACING`), mastered at three in a row. Wrong → streak
+  0, due tomorrow if it has been missed twice, else in two days.
+- **Priority** (`priority()`): due for review 0, never seen 1, got wrong 2, seen 3, mastered 4.
+- **The daily question** is chosen once from the most urgent tier, seeded by the date, and fixed for the
+  day. The answer and explanation show at once. «سؤال ثاني» draws from the same tier.
+- **The test.** A one-line summary of the settings, «ابدأ الآن», «أخطائي (n)», and «تخصيص» for the
+  fields: law (or all, or the AR questions), 5/10/20/30/50 questions, difficulty (all/easy/medium/hard —
+  an addition the law app does not have), selection (ذكي by priority, عشوائي, الأصعب أولًا), and a
+  timer of one minute a question or none. The settings are saved in `quiz.cfg` and synced.
+  It runs like an exam: nothing revealed, free movement, tapping the chosen answer again clears it, and
+  blanks count as wrong. Results: score out of the number asked, a verdict, then every wrong or blank
+  question with your answer, the right one, the explanation and the page. Only answered questions are
+  recorded, as in the law app. When the clock runs out the test submits itself.
+- **«أخطائي»** tests the questions that are not mastered and have been missed, most-missed first.
+- Tapping a law's tile selects it in the settings and opens them.
+- The 26 AR questions carry no difficulty, so a difficulty filter leaves them out.
+
+v3 → v4 (`migrateV3()`): each answered question gets a `prog` row. A v3 wrong-bank entry becomes "missed
+`n` times, `fix` right since, due today"; a right answer with no wrong-bank entry is mastered. `wrong` is
+dropped, `days` is seeded from the answer dates.
+
+Verified in Chromium from a seeded v2 state through v3 to v4: the AR answer that was in the wrong bank
+came through as `G-02`, missed once and due today; a right AR answer as `G-09`, mastered; the answer to a
+replaced question still counts in the 67% accuracy as `old-5`. A test set to المادة 11 · 5 · صعب drew five
+hard offside questions on a five-minute clock; clearing an answer by tapping it again, finishing with a
+blank, and the review of all five all behaved, and the settings survived a reload.

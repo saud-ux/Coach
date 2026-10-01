@@ -455,6 +455,17 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .exres small{display:block;color:var(--muted);margin-top:6px}
 .exrev{border-top:1px solid var(--track);padding-top:12px;margin-top:12px}
 .exa{font-size:14px;line-height:1.8;margin:6px 0;color:var(--ink-2)}
+/* law test setup, after the law app's: a one-line summary, then the fields on demand */
+.cfgline{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cfgline span{font-size:12px;background:var(--surface-2);color:var(--ink-2);border-radius:999px;padding:5px 11px}
+.chiprow{display:flex;flex-wrap:wrap;gap:6px}
+.chip.on{background:var(--ink);color:#07080A;font-weight:600}
+.qopts button{display:flex;align-items:flex-start;gap:10px}
+.qopts .qk{flex:none;width:24px;height:24px;border-radius:8px;background:var(--track);color:var(--ink-2);
+  font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;margin-top:1px}
+.qopts button.sel .qk{background:#07080A;color:var(--ink)}
+.qopts button.ok .qk{background:var(--ready);color:#07080A}
+.qopts .qo{flex:1}
 .exhist{display:flex;gap:6px;flex-wrap:wrap}
 .exhist span{border-radius:12px;padding:8px 12px;font-weight:600;text-align:center;font-size:15px;background:var(--surface-2)}
 .exhist span small{display:block;font-weight:400;font-size:10px;color:var(--muted)}

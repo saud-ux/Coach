@@ -6,13 +6,20 @@
 // the assistant referee's positioning and signals (the book's practical
 // guidelines, pp. 212-229), which the law app does not cover.
 //
-// Three ways in: one question a day, a 20-question mock exam on a 20-minute
-// clock, and per-article practice including a bank of the ones answered wrong (a
-// question leaves that bank after two correct answers).
+// It works the way the law app does:
+//   - one question a day, chosen by review priority and fixed for the day, with
+//     the answer and the explanation revealed at once;
+//   - a test: pick the law (or all of them), how many questions, the difficulty,
+//     how they are chosen, and whether there is a clock (a minute a question).
+//     It runs like an exam: nothing is revealed until the end, you can move back
+//     and forth, change an answer or clear it by tapping it again;
+//   - spaced review: a wrong answer brings the question back after a day or two,
+//     and it counts as mastered after three correct answers in a row.
 //
 // PROGRESS IS KEYED BY QUESTION ID ('L11-04', 'G-07'), never by position, so the
 // bank can grow or be re-exported without moving anyone's answers. Before v3 it
-// was keyed by position in the old 92-question list; migrateV2() below converts.
+// was keyed by position in the old 92-question list; migrateV2() converts that,
+// and migrateV3() turns v3's two-strike wrong bank into the law app's scheduling.
 //
 // Which question is "today's" is derived from the date by dayHash(), so it is the
 // same question all day and across devices without storing a schedule.
@@ -54,9 +61,6 @@ const QUIZ = [...LAW_BANK, ...AR_GUIDE];
 const QBY = new Map(QUIZ.map(x => [x.id, x]));
 const DIFF = { 1: 'سهل', 2: 'متوسط', 3: 'صعب' };
 const qRef = x => x.c === 'g' ? `الإرشادات العملية، صفحة ${num(x.p)}` : `${x.r}، صفحة ${num(x.p)}`;
-// the exam always includes some of each: offside, the assistant's own job, and
-// this season's changes
-const EXAM_MUST = ['11', 'g', '19'];
 const LAW_APP = 'https://other-refereea.onrender.com';
 
 /* ---------- progress: v2 -> v3 ---------- */
@@ -75,123 +79,364 @@ function migrateV2(old){
   return { v: 3, answers, wrong, daily, ...(old.exams ? { exams: old.exams } : {}) };
 }
 
+/* ---------- progress: v3 -> v4 ---------- */
+// v4 keeps, per question, what the law app keeps per user and question:
+//   prog[id] = { seen, ok, wrong, streak, mastered, due }
+// and drops v3's `wrong` bank, which prog replaces. A v3 wrong-bank entry becomes
+// a question due for review today, with its correct answers since as the streak.
+const SPACING = [2, 5, 9];          // days to the next review after 1, 2, 3 right in a row
+const CFG0 = { scope: 'all', count: 20, diff: 0, mode: 'mixed', timer: true };
+function migrateV3(old){
+  const t = todayISO(), prog = {}, days = {};
+  for (const [id, a] of Object.entries(old.answers || {})){
+    if (a && a.date) days[a.date] = (days[a.date] || 0) + 1;
+    if (!QBY.has(id)) continue;
+    const w = (old.wrong || {})[id];
+    prog[id] = {
+      seen: 1, ok: a.ok ? 1 : 0,
+      wrong: w ? (w.n || 1) : (a.ok ? 0 : 1),
+      streak: w ? (w.fix || 0) : (a.ok ? 1 : 0),
+      mastered: !!a.ok && !w,
+      due: (w || !a.ok) ? t : null
+    };
+  }
+  return { v: 4, answers: old.answers || {}, daily: old.daily || {}, prog, days,
+           exams: old.exams || [], cfg: { ...CFG0 } };
+}
+
 function dayHash(s){ let h=0; for (const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
+function shuffle(a, seed){
+  let s = seed == null ? Math.floor(Math.random() * 2**31) : seed;
+  for (let i = a.length - 1; i > 0; i--){ s = (s*1103515245 + 12345) >>> 0; const j = s % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
 function quizState(){
   if (state.quiz && state.quiz.v === 2) state.quiz = migrateV2(state.quiz);
-  if (!state.quiz || state.quiz.v !== 3) state.quiz = { v: 3, answers: {}, daily: {} };
-  state.quiz.wrong ||= {};
-  return state.quiz;
+  if (state.quiz && state.quiz.v === 3) state.quiz = migrateV3(state.quiz);
+  if (!state.quiz || state.quiz.v !== 4) state.quiz = { v: 4, answers: {}, daily: {}, prog: {}, days: {}, exams: [], cfg: { ...CFG0 } };
+  const Q = state.quiz;
+  Q.prog ||= {}; Q.days ||= {}; Q.exams ||= [];
+  // filled in place, never replaced: the panel holds a reference to this object
+  // while its handlers change it
+  Q.cfg ||= {};
+  for (const k in CFG0) if (!(k in Q.cfg)) Q.cfg[k] = CFG0[k];
+  return Q;
 }
-// answers to questions that are still in the bank
-const liveAnswers = Q => Object.entries(Q.answers).filter(([id]) => QBY.has(id));
-function pickAnother(Q){
-  const left = QUIZ.filter(x => !Q.answers[x.id]);
-  const x = left.length ? left[Math.floor(Math.random() * left.length)] : QUIZ[Math.floor(Math.random() * QUIZ.length)];
-  if (!left.length) delete Q.answers[x.id];
-  return x.id;
+
+// The law app's record_answer(), step for step.
+function recordAnswer(id, pick, extra){
+  const Q = quizState(), x = QBY.get(id), t = todayISO();
+  const ok = pick != null && pick === x.a;
+  Q.answers[id] = { pick: pick == null ? -1 : pick, ok, date: t, extra: !!extra };
+  Q.days[t] = (Q.days[t] || 0) + 1;
+  const p = Q.prog[id] ||= { seen: 0, ok: 0, wrong: 0, streak: 0, mastered: false, due: null };
+  p.seen++;
+  if (ok){
+    p.ok++; p.streak++;
+    if (!p.wrong || p.streak >= 3){ p.mastered = true; p.due = null; }
+    else p.due = addDays(t, SPACING[Math.min(p.streak - 1, 2)]);
+  } else {
+    p.wrong++; p.streak = 0; p.mastered = false;
+    p.due = addDays(t, p.wrong >= 2 ? 1 : 2);
+  }
+  return ok;
 }
-function recordAnswer(qi, pick, extra){ const Q=quizState(), ok=pick===QBY.get(qi).a; Q.answers[qi]={pick,ok,date:todayISO(),extra:!!extra};
-  if (!ok) Q.wrong[qi]={n:((Q.wrong[qi]||{}).n||0)+1, fix:0};
-  else if (Q.wrong[qi]){ Q.wrong[qi].fix=(Q.wrong[qi].fix||0)+1; if (Q.wrong[qi].fix>=2) delete Q.wrong[qi]; }
-  return ok; }
-function quizOf(date){ const q=quizState(); if (q.daily[date]!=null && QBY.has(q.daily[date])) return q.daily[date];
-  // on alternate days, a question from the wrong bank comes back
-  const wr=Object.keys(q.wrong||{}).filter(id=>QBY.has(id));
-  if (wr.length && dayHash(date)%2===0){ const id=wr[dayHash(date+'w')%wr.length]; q.daily[date]=id; return id; }
-  let i=dayHash(date)%QUIZ.length; for (let k=0;k<QUIZ.length && q.answers[QUIZ[i].id];k++) i=(i+1)%QUIZ.length; q.daily[date]=QUIZ[i].id; return QUIZ[i].id; }
-function shuffled(qi){ const x=QBY.get(qi), n=x.o.length, idx=[...Array(n).keys()]; if (x.y==='tf') return idx;   // صح/خطأ keep their order
-  let s=dayHash('q'+qi); for(let i=n-1;i>0;i--){ s=(s*1103515245+12345)>>>0; const j=s%(i+1); [idx[i],idx[j]]=[idx[j],idx[i]]; } return idx; }
-function qBlock(qi, onAnswer, answered){
-  const x=QBY.get(qi), order=shuffled(qi), wrap=document.createElement('div');
-  wrap.innerHTML=`<span class="qtag">${QCAT[x.c]}${x.d?' · '+DIFF[x.d]:''}</span><p class="qq"></p>`; wrap.querySelector('.qq').textContent=x.q;
-  const w=document.createElement('div'); w.className='qopts';
-  order.forEach(i=>{ const b=document.createElement('button'); b.textContent=x.o[i];
-    if (answered){ b.disabled=true; if(i===x.a) b.className='ok'; else if(i===answered.pick) b.className='no'; }
-    b.onclick=()=>onAnswer(i); w.appendChild(b); });
-  wrap.appendChild(w);
-  if (answered){ const p=document.createElement('p'); p.className='qwhy'; p.innerHTML=`${answered.ok?'✅ صح! ':'❌ الإجابة الصحيحة مظللة بالأخضر. '}<span></span><small class="qref">📖 ${qRef(x)}</small>`; p.querySelector('span').textContent=x.w; wrap.appendChild(p); }
+
+// Smaller comes first: due for review, never seen, got wrong, seen, mastered.
+function priority(p, t){
+  if (!p || !p.seen) return 1;
+  if (p.mastered) return 4;
+  if (p.due && p.due <= t) return 0;
+  return p.wrong ? 2 : 3;
+}
+const isMistake = p => p && !p.mastered && p.wrong > 0;
+
+// Chosen once from the most urgent tier and then fixed for the day, so it does not
+// change as the day's answers move other questions around.
+function quizOf(date){
+  const Q = quizState();
+  if (Q.daily[date] != null && QBY.has(Q.daily[date])) return Q.daily[date];
+  const ranked = QUIZ.map(x => [x.id, priority(Q.prog[x.id], date)]);
+  const best = Math.min(...ranked.map(r => r[1]));
+  const pool = ranked.filter(r => r[1] === best).map(r => r[0]);
+  const id = pool[dayHash(date) % pool.length];
+  Q.daily[date] = id;
+  return id;
+}
+
+/* ---------- stats ---------- */
+function lawStats(){
+  const Q = quizState(), t = todayISO();
+  let seen = 0, ok = 0, mastered = 0, mistakes = 0, due = 0;
+  for (const [id, p] of Object.entries(Q.prog)){
+    if (!QBY.has(id)) continue;
+    seen += p.seen; ok += p.ok;
+    if (p.mastered) mastered++;
+    if (isMistake(p)) mistakes++;
+    if (!p.mastered && p.due && p.due <= t) due++;
+  }
+  // answers to questions that left the bank still count towards accuracy
+  for (const [id, a] of Object.entries(Q.answers)) if (!QBY.has(id)){ seen++; if (a.ok) ok++; }
+  const days = new Set([...Object.keys(Q.days), ...Object.values(Q.answers).map(a => a.date)]);
+  let streak = 0, d = t;
+  if (!days.has(d)) d = addDays(d, -1);
+  while (days.has(d)){ streak++; d = addDays(d, -1); }
+  return { seen, ok, acc: seen ? Math.round(100 * ok / seen) : null, mastered, mistakes, due, streak };
+}
+
+/* ---------- one question, revealed ---------- */
+const SCOPES = () => ['all', ...Object.keys(LAW_CATS).sort((a, b) => a - b), 'g'];
+const scopeName = s => s === 'all' ? 'كل المواد' : s === 'mistakes' ? 'مراجعة الأخطاء' : QCAT[s];
+const tagOf = x => `${QCAT[x.c]}${x.d ? ' · ' + DIFF[x.d] : ''}`;
+function optButtons(x, { reveal = null, sel = null, onPick = null } = {}){
+  const w = document.createElement('div'); w.className = 'qopts';
+  x.o.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.innerHTML = `<span class="qk"></span><span class="qo"></span>`;
+    b.querySelector('.qk').textContent = reveal && i === x.a ? '✓' : num(i + 1);
+    b.querySelector('.qo').textContent = o;
+    if (reveal){ b.disabled = true; if (i === x.a) b.className = 'ok'; else if (i === reveal.pick) b.className = 'no'; }
+    else if (sel === i){ b.className = 'sel'; b.setAttribute('aria-pressed', 'true'); }
+    if (onPick) b.onclick = () => onPick(i);
+    w.appendChild(b);
+  });
+  return w;
+}
+function whyBlock(x, ok){
+  const p = document.createElement('p'); p.className = 'qwhy';
+  p.innerHTML = `${ok == null ? '' : ok ? '✅ صح! ' : '❌ الإجابة الصحيحة بالأخضر. '}<span></span><small class="qref">📖 ${qRef(x)}</small>`;
+  p.querySelector('span').textContent = x.w;
+  return p;
+}
+function qBlock(id, onAnswer, answered){
+  const x = QBY.get(id), wrap = document.createElement('div');
+  wrap.innerHTML = `<span class="qtag"></span><p class="qq"></p>`;
+  wrap.querySelector('.qtag').textContent = tagOf(x);
+  wrap.querySelector('.qq').textContent = x.q;
+  wrap.appendChild(optButtons(x, answered ? { reveal: answered } : { onPick: onAnswer }));
+  if (answered) wrap.appendChild(whyBlock(x, answered.ok));
   return wrap;
 }
-let quizExtra=null, quizOpen=false;
+
+/* ---------- the daily question ---------- */
+let quizExtra = null, quizOpen = false;
+function pickAnother(Q){
+  const t = todayISO();
+  const ranked = QUIZ.filter(x => x.id !== quizOf(t) && !(Q.answers[x.id] && Q.answers[x.id].date === t))
+    .map(x => [x.id, priority(Q.prog[x.id], t)]);
+  if (!ranked.length) return QUIZ[Math.floor(Math.random() * QUIZ.length)].id;
+  const best = Math.min(...ranked.map(r => r[1]));
+  const pool = ranked.filter(r => r[1] === best);
+  return pool[Math.floor(Math.random() * pool.length)][0];
+}
 function renderQuiz(){
-  const box=$('quiz'); if(!box) return; const Q=quizState();
-  const t=todayISO(), qi = quizExtra ?? quizOf(t), a=Q.answers[qi], answered = a && (quizExtra!=null ? a.date===t && a.extra : a.date===t) ? a : null;
-  if (answered && quizExtra==null && !quizOpen){
-    const c=document.createElement('div'); c.className='rcard qmini';
-    c.innerHTML=`<span class="cav">⚖️</span><div><b>سؤال اليوم</b><small>${answered.ok?'✅ جاوبت صح':'❌ راجع الإجابة'}، ${QCAT[QBY.get(qi).c]}</small></div><button class="chip">عرض</button><button class="chip">سؤال ثاني</button>`;
-    const [v,m]=c.querySelectorAll('.chip'); v.onclick=()=>{ quizOpen=true; renderQuiz(); };
-    m.onclick=()=>{ quizExtra = pickAnother(Q); renderQuiz(); };
-    box.innerHTML=''; box.appendChild(c); return;
+  const box = $('quiz'); if (!box) return; const Q = quizState();
+  const t = todayISO(), qi = quizExtra ?? quizOf(t), a = Q.answers[qi];
+  const answered = a && a.date === t && (quizExtra != null ? a.extra : true) ? a : null;
+  const S = lawStats();
+  if (answered && quizExtra == null && !quizOpen){
+    const c = document.createElement('div'); c.className = 'rcard qmini';
+    c.innerHTML = `<span class="cav">⚖️</span><div><b>سؤال اليوم</b><small>${answered.ok ? '✅ جاوبت صح' : '❌ راجع الإجابة'}، ${QCAT[QBY.get(qi).c]}</small></div><button class="chip">عرض</button><button class="chip">سؤال ثاني</button>`;
+    const [v, m] = c.querySelectorAll('.chip');
+    v.onclick = () => { quizOpen = true; renderQuiz(); };
+    m.onclick = () => { quizExtra = pickAnother(Q); renderQuiz(); };
+    box.innerHTML = ''; box.appendChild(c); return;
   }
-  const c=document.createElement('div'); c.className='rcard qcard';
-  c.innerHTML=`<div class="chead"><span class="cav">⚖️</span><b>${quizExtra!=null?'سؤال إضافي':'سؤال اليوم'}</b><span class="rpct" style="margin-inline-start:auto">${num(liveAnswers(Q).filter(([,x])=>x.ok).length)}/${num(QUIZ.length)} صح</span></div>`;
-  c.appendChild(qBlock(qi, i=>{ recordAnswer(qi,i,quizExtra!=null); save(); renderQuiz(); renderLaw(); }, answered));
-  if (answered){ const more=document.createElement('button'); more.className='btn ghost sm'; more.textContent='سؤال ثاني';
-    more.onclick=()=>{ quizExtra = pickAnother(Q); renderQuiz(); }; c.appendChild(more); }
-  box.innerHTML=''; box.appendChild(c);
+  const c = document.createElement('div'); c.className = 'rcard qcard';
+  c.innerHTML = `<div class="chead"><span class="cav">⚖️</span><b>${quizExtra != null ? 'سؤال إضافي' : 'سؤال اليوم'}</b><span class="rpct" style="margin-inline-start:auto">${num(S.mastered)}/${num(QUIZ.length)} أتقنتها</span></div>`;
+  c.appendChild(qBlock(qi, i => { recordAnswer(qi, i, quizExtra != null); save(); renderQuiz(); renderLaw(); }, answered));
+  if (answered){
+    const row = document.createElement('div'); row.className = 'row'; row.style.marginTop = '10px';
+    const more = document.createElement('button'); more.className = 'btn ghost sm'; more.textContent = 'سؤال ثاني';
+    more.onclick = () => { quizExtra = pickAnother(Q); renderQuiz(); };
+    row.appendChild(more);
+    if (quizExtra == null){ const n = document.createElement('span'); n.className = 'note'; n.textContent = 'ارجع بكرة لسؤال جديد.'; n.style.alignSelf = 'center'; row.appendChild(n); }
+    c.appendChild(row);
+  }
+  box.innerHTML = ''; box.appendChild(c);
 }
-function openExam(){
-  const Q=quizState(), N=Math.min(20,QUIZ.length), LIMIT=20*60;
-  const pool=QUIZ.map(x=>x.id).sort(()=>Math.random()-.5);
-  const pick=[]; EXAM_MUST.forEach(c=>pool.filter(id=>QBY.get(id).c===c).slice(0,4).forEach(id=>pick.push(id)));
-  pool.forEach(i=>{ if(pick.length<N && !pick.includes(i)) pick.push(i); });
-  const qs=pick.slice(0,N).sort(()=>Math.random()-.5), ans={}; let pos=0, left=LIMIT, tick=null, done=false;
-  openSheet(sh=>{
-    const finish=()=>{ if(done) return; done=true; clearInterval(tick);
-      const right=qs.filter(qi=>ans[qi]===QBY.get(qi).a).length, pct=Math.round(100*right/qs.length);
-      qs.forEach(qi=>{ if(ans[qi]!=null) recordAnswer(qi,ans[qi],true); });
-      (Q.exams ||= []).push({date:todayISO(),right,total:qs.length,secs:LIMIT-left}); save(); renderLaw();
-      sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const b=document.createElement('div'); b.className='pbody';
-      b.innerHTML=`<div class="exres ${pct>=80?'pass':'fail'}"><b>${num(pct)}%</b><span>${num(right)} من ${num(qs.length)} صح</span><small>${pct>=80?'ناجح 👏 مستوى ممتاز':'تحتاج مراجعة، النجاح من 80%'}، الوقت ${num(Math.floor((LIMIT-left)/60))}:${String((LIMIT-left)%60).padStart(2,'0')}</small></div><h3 style="margin:16px 0 6px">${right<qs.length?'راجع أخطاءك':'ولا خطأ! 🔥'}</h3>`;
-      qs.filter(qi=>ans[qi]!==QBY.get(qi).a).forEach(qi=>{ const x=QBY.get(qi); const d=document.createElement('div'); d.className='exrev';
-        d.innerHTML=`<span class="qtag"></span><p class="qq"></p><p class="exa">❌ ${ans[qi]!=null?'إجابتك: <span class="y"></span><br>':'ما جاوبت<br>'}✅ الصحيحة: <span class="c"></span></p><p class="qwhy"><span class="w"></span><small class="qref">📖 ${qRef(x)}</small></p>`;
-        d.querySelector('.qtag').textContent=QCAT[x.c]; d.querySelector('.qq').textContent=x.q; if(ans[qi]!=null) d.querySelector('.y').textContent=x.o[ans[qi]]; d.querySelector('.c').textContent=x.o[x.a]; d.querySelector('.w').textContent=x.w; b.appendChild(d); });
-      const c=document.createElement('button'); c.className='btn primary'; c.style.marginTop='14px'; c.textContent='إغلاق'; c.onclick=closeSheet; b.appendChild(c); sh.appendChild(b); sh.scrollTop=0; };
-    const draw=()=>{ sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const body=document.createElement('div'); body.className='pbody';
-      const qi=qs[pos], x=QBY.get(qi), order=shuffled(qi);
-      body.innerHTML=`<div class="exhead"><h2>اختبار تجريبي</h2><span class="extime" id="exT"></span></div>
-        <div class="exdots">${qs.map((q,i)=>`<button data-i="${i}" class="${i===pos?'cur':''} ${ans[q]!=null?'ans':''}">${num(i+1)}</button>`).join('')}</div>
-        <span class="qtag">${QCAT[x.c]}</span><p class="qq"></p><div class="qopts"></div>
-        <div class="row"><button class="btn ghost" id="exP" ${pos===0?'disabled':''}>السابق</button><button class="btn primary" id="exN">${pos<qs.length-1?'التالي':'إنهاء وتصحيح'}</button></div>`;
-      body.querySelector('.qq').textContent=x.q;
-      const w=body.querySelector('.qopts'); order.forEach(i=>{ const b=document.createElement('button'); b.textContent=x.o[i]; if(ans[qi]===i) b.className='sel'; b.onclick=()=>{ ans[qi]=i; draw(); }; w.appendChild(b); });
-      body.querySelectorAll('.exdots button').forEach(b=>b.onclick=()=>{ pos=+b.dataset.i; draw(); });
-      body.querySelector('#exP').onclick=()=>{ pos--; draw(); };
-      body.querySelector('#exN').onclick=()=>{ if(pos<qs.length-1){ pos++; draw(); } else { const un=qs.filter(q=>ans[q]==null).length; if(!un || confirm(`باقي ${un} سؤال بدون إجابة. تنهي الاختبار؟`)) finish(); } };
-      sh.appendChild(body); upd(); };
-    const upd=()=>{ const el=sh.querySelector('#exT'); if(el){ el.textContent=`⏱ ${Math.floor(left/60)}:${String(left%60).padStart(2,'0')}`; el.classList.toggle('low',left<=120); } };
-    tick=setInterval(()=>{ if(!sh.isConnected || $('scrim').hidden){ clearInterval(tick); return; } left--; upd(); if(left<=0) finish(); },1000);
+
+/* ---------- the test: setup ---------- */
+const MODES = {
+  mixed:  ['ذكي', 'يبدأ باللي ما حليته، ثم اللي غلطت فيه، ثم اللي حان موعد مراجعته.'],
+  random: ['عشوائي', 'أسئلة بدون ترتيب من المادة اللي اخترتها.'],
+  hard:   ['الأصعب أولًا', 'أصعب أسئلة المادة أولًا.']
+};
+const COUNTS = [5, 10, 20, 30, 50];
+const DIFFS = [[0, 'الكل'], [1, 'سهل'], [2, 'متوسط'], [3, 'صعب']];
+const minutesFor = n => n;                       // a minute a question, as in the law app
+let cfgOpen = false;
+
+function poolFor(cfg){
+  return QUIZ.filter(x => (cfg.scope === 'all' || x.c === cfg.scope) && (!cfg.diff || x.d === cfg.diff));
+}
+function pickQuestions(cfg, mistakes){
+  const Q = quizState(), t = todayISO();
+  let pool = mistakes ? QUIZ.filter(x => isMistake(Q.prog[x.id])) : poolFor(cfg);
+  shuffle(pool);
+  if (mistakes) pool.sort((a, b) => Q.prog[b.id].wrong - Q.prog[a.id].wrong);
+  else if (cfg.mode === 'hard') pool.sort((a, b) => (b.d || 2) - (a.d || 2));
+  else if (cfg.mode === 'mixed') pool.sort((a, b) => priority(Q.prog[a.id], t) - priority(Q.prog[b.id], t));
+  return shuffle(pool.slice(0, cfg.count).map(x => x.id));
+}
+function cfgSummary(c){
+  const n = Math.min(c.count, poolFor(c).length);
+  return [scopeName(c.scope), `${num(n)} سؤال`, c.diff ? DIFF[c.diff] : 'كل المستويات', MODES[c.mode][0],
+          c.timer ? `${num(minutesFor(n))} دقيقة` : 'بدون مؤقت'];
+}
+function cfgFields(c){
+  return `<div class="qcfg">
+    <label class="f" for="cfgScope">المادة</label>
+    <select class="in" id="cfgScope">${SCOPES().map(s => `<option value="${s}" ${s === c.scope ? 'selected' : ''}>${scopeName(s)} (${num(QUIZ.filter(x => s === 'all' || x.c === s).length)})</option>`).join('')}</select>
+    <label class="f">عدد الأسئلة</label>
+    <div class="chiprow">${COUNTS.map(n => `<button class="chip ${c.count === n ? 'on' : ''}" data-k="count" data-v="${n}">${num(n)}</button>`).join('')}</div>
+    <label class="f">الصعوبة</label>
+    <div class="chiprow">${DIFFS.map(([v, l]) => `<button class="chip ${c.diff === v ? 'on' : ''}" data-k="diff" data-v="${v}">${l}</button>`).join('')}</div>
+    <label class="f">طريقة الاختيار</label>
+    <div class="chiprow">${Object.entries(MODES).map(([k, v]) => `<button class="chip ${c.mode === k ? 'on' : ''}" data-k="mode" data-v="${k}">${v[0]}</button>`).join('')}</div>
+    <p class="note" style="margin-top:6px">${MODES[c.mode][1]}</p>
+    <label class="f">المؤقت</label>
+    <div class="chiprow">
+      <button class="chip ${c.timer ? 'on' : ''}" data-k="timer" data-v="1">مؤقت (دقيقة لكل سؤال)</button>
+      <button class="chip ${!c.timer ? 'on' : ''}" data-k="timer" data-v="0">بدون مؤقت</button>
+    </div>
+  </div>`;
+}
+
+/* ---------- the test: running it ---------- */
+// Runs like an exam: nothing is revealed until the end. Tapping the chosen answer
+// again clears it, so a question can be left blank. Unanswered counts as wrong.
+function runTest(ids, meta){
+  const n = ids.length, ans = new Array(n).fill(null), useTimer = meta.timer;
+  let pos = 0, left = useTimer ? minutesFor(n) * 60 : 0, tick = null, done = false;
+  const started = Date.now();
+  openSheet(sh => {
+    const clock = () => { const el = sh.querySelector('#exT'); if (!el) return;
+      el.textContent = `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`; el.classList.toggle('low', left <= 60); };
+    const finish = (auto) => {
+      if (done) return;
+      const blank = ans.filter(a => a == null).length;
+      if (!auto){
+        if (blank && !confirm(`باقي ${blank} سؤال بدون إجابة وبتنحسب غلط. تقدر ترجع تكملها. تنهي الاختبار؟`)) return;
+        if (!blank && !confirm('بيظهر التصحيح الحين. تنهي الاختبار؟')) return;
+      }
+      done = true; clearInterval(tick);
+      const secs = Math.round((Date.now() - started) / 1000);
+      let right = 0;
+      ids.forEach((id, i) => { if (ans[i] != null && recordAnswer(id, ans[i], true)) right++; });
+      const Q = quizState();
+      Q.exams.push({ date: todayISO(), right, total: n, secs, scope: meta.scope, mode: meta.mode, diff: meta.diff || 0 });
+      save(); renderQuiz(); renderLaw();
+      showResult(right, secs);
+    };
+    const showResult = (right, secs) => {
+      const pct = Math.round(100 * right / n);
+      const mood = pct >= 90 ? 'نتيجة ممتازة 👏' : pct >= 70 ? 'نتيجة جيدة' : pct >= 50 ? 'نتيجة متوسطة' : 'تحتاج مراجعة';
+      sh.innerHTML = `<div class="exres ${pct >= 70 ? 'pass' : 'fail'}"><b>${num(right)} <span style="display:inline;font-size:20px;color:var(--muted)">من ${num(n)}</span></b>
+        <span>${mood}</span><small>${scopeName(meta.scope)} · ${num(pct)}% · الوقت ${num(Math.floor(secs / 60))}:${String(secs % 60).padStart(2, '0')}</small></div>
+        <div class="row"><button class="btn primary" id="exAgain">اختبار جديد</button><button class="btn ghost" id="exBack">العودة</button></div>`;
+      sh.querySelector('#exAgain').onclick = () => { closeSheet(); startTest(meta.scope === 'mistakes'); };
+      sh.querySelector('#exBack').onclick = closeSheet;
+      const wrong = ids.map((id, i) => [id, ans[i]]).filter(([id, a]) => a !== QBY.get(id).a);
+      const h = document.createElement('h3'); h.style.margin = '18px 0 6px';
+      h.textContent = wrong.length ? `راجع أخطاءك (${num(wrong.length)})` : 'ولا خطأ! 🔥';
+      sh.appendChild(h);
+      wrong.forEach(([id, a]) => { const x = QBY.get(id); const d = document.createElement('div'); d.className = 'exrev';
+        d.innerHTML = `<span class="qtag"></span><p class="qq"></p><p class="exa">❌ ${a != null ? 'إجابتك: <span class="y"></span><br>' : 'ما جاوبت<br>'}✅ الصحيحة: <span class="c"></span></p>`;
+        d.querySelector('.qtag').textContent = tagOf(x); d.querySelector('.qq').textContent = x.q;
+        if (a != null) d.querySelector('.y').textContent = x.o[a];
+        d.querySelector('.c').textContent = x.o[x.a];
+        d.appendChild(whyBlock(x, null)); sh.appendChild(d); });
+      sh.scrollTop = 0;
+    };
+    const draw = () => {
+      const id = ids[pos], x = QBY.get(id), answered = ans.filter(a => a != null).length;
+      sh.innerHTML = `<div class="exhead"><div><span class="qtag" style="margin:0">${scopeName(meta.scope)}</span>
+          <p class="note" style="margin-top:4px">السؤال ${num(pos + 1)} من ${num(n)}</p></div>
+          ${useTimer ? '<span class="extime" id="exT"></span>' : '<span class="extime">بدون مؤقت</span>'}</div>
+        <div class="pbar"><i style="width:${Math.round(100 * answered / n)}%"></i></div>
+        <p class="note">جاوبت ${num(answered)} من ${num(n)}</p>
+        <div class="exdots">${ids.map((_, i) => `<button data-i="${i}" class="${i === pos ? 'cur' : ''} ${ans[i] != null ? 'ans' : ''}">${num(i + 1)}</button>`).join('')}</div>
+        <span class="qtag"></span><p class="qq"></p><div id="exOpts"></div>
+        <div class="row"><button class="btn ghost" id="exP" ${pos === 0 ? 'disabled' : ''}>السابق</button>
+          <button class="btn primary" id="exN" style="flex:1">${pos < n - 1 ? 'التالي' : 'إظهار النتيجة'}</button></div>
+        <button class="btn ghost sm" id="exEnd" style="width:100%;margin-top:10px">إنهاء الاختبار الآن</button>`;
+      sh.querySelector('.qq').textContent = x.q;
+      sh.querySelectorAll('.qtag')[1].textContent = tagOf(x);
+      sh.querySelector('#exOpts').appendChild(optButtons(x, { sel: ans[pos], onPick: i => { ans[pos] = ans[pos] === i ? null : i; draw(); } }));
+      sh.querySelectorAll('.exdots button').forEach(b => b.onclick = () => { pos = +b.dataset.i; draw(); });
+      sh.querySelector('#exP').onclick = () => { if (pos > 0){ pos--; draw(); } };
+      sh.querySelector('#exN').onclick = () => { if (pos < n - 1){ pos++; draw(); } else finish(false); };
+      sh.querySelector('#exEnd').onclick = () => finish(false);
+      clock();
+    };
+    if (useTimer) tick = setInterval(() => {
+      if (!sh.isConnected || $('scrim').hidden){ clearInterval(tick); return; }
+      left--; clock(); if (left <= 0) finish(true);
+    }, 1000);
     draw();
-  });
+  }, { bare: true });
 }
-function openPractice(cat){
-  const Q=quizState(); const pool=QUIZ.filter(x=>cat==='all'||(cat==='wrong'?Q.wrong[x.id]:x.c===cat)).map(x=>x.id);
-  const order=pool.sort((a,b)=>(Q.answers[a]?1:0)-(Q.answers[b]?1:0) || Math.random()-.5); let pos=0, right=0;
-  openSheet(sh=>{
-    const draw=(ans)=>{ sh.querySelectorAll('.pbody').forEach(e=>e.remove()); const body=document.createElement('div'); body.className='pbody';
-      if (pos>=order.length || !order.length){ body.innerHTML=`<h2>${order.length?'خلصت! 🎉':'ما فيه أسئلة'}</h2><p class="sub">${num(right)} صح من ${num(order.length)}</p>`; const b=document.createElement('button'); b.className='btn primary'; b.textContent='إغلاق'; b.onclick=closeSheet; body.appendChild(b); sh.appendChild(body); return; }
-      const qi=order[pos];
-      body.innerHTML=`<h2>${cat==='all'?'كل المواد':cat==='wrong'?'بنك أخطائك':QCAT[cat]}</h2><div class="pbar"><i style="width:${Math.round(100*pos/order.length)}%"></i></div><p class="sub">سؤال ${num(pos+1)} من ${num(order.length)}</p>`;
-      body.appendChild(qBlock(qi, i=>{ const ok=recordAnswer(qi,i,true); if(ok) right++; save(); draw({pick:i,ok}); renderLaw(); }, ans));
-      if (ans){ const n=document.createElement('button'); n.className='btn primary'; n.style.marginTop='12px'; n.textContent=pos+1<order.length?'السؤال اللي بعده':'النتيجة'; n.onclick=()=>{ pos++; draw(null); sh.scrollTop=0; }; body.appendChild(n); }
-      sh.appendChild(body); };
-    draw(null);
-  });
+function startTest(mistakes){
+  const c = quizState().cfg;
+  const ids = pickQuestions(c, mistakes);
+  if (!ids.length){ alert(mistakes ? 'ما عندك أخطاء تحتاج مراجعة 👌' : 'ما فيه أسئلة بهذا الاختيار. جرّب صعوبة ثانية أو مادة ثانية.'); return; }
+  runTest(ids, { scope: mistakes ? 'mistakes' : c.scope, mode: mistakes ? 'mistakes' : c.mode, diff: mistakes ? 0 : c.diff, timer: c.timer });
 }
-function renderQuizOnly(){ renderQuiz(); }
 
-function renderLaw(){ const box=$('lawPanel'); if(!box) return; const Q=quizState(); const A=Object.entries(Q.answers); const ok=A.filter(([,a])=>a.ok).length;
-  let streak=0, d=todayISO(); const days=new Set(A.map(([,a])=>a.date)); if(!days.has(d)) d=addDays(d,-1); while(days.has(d)){ streak++; d=addDays(d,-1); }
-  const cats=Object.keys(QCAT).map(c=>{ const ids=QUIZ.filter(x=>x.c===c).map(x=>x.id); const ans=ids.filter(id=>Q.answers[id]); const good=ans.filter(id=>Q.answers[id].ok).length; return {c,n:ids.length,ans:ans.length,good}; });
-  box.innerHTML=`<h3>أسئلة القانون 2026/2027</h3><div class="stats" style="margin-top:6px"><div class="stat"><b>${A.length?num(Math.round(100*ok/A.length))+'%':'–'}</b><span>نسبة الإجابات الصح</span></div><div class="stat"><b>${num(streak)}</b><span>أيام متتالية</span></div></div>
-    <p class="note" style="margin:10px 0 6px">تدرّب على مادة معينة:</p><div class="qcats">${cats.map(k=>`<button data-c="${k.c}"><b>${QCAT[k.c]}</b><small>${num(k.ans)}/${num(k.n)}${k.ans?`، ${num(Math.round(100*k.good/k.ans))}% صح`:''}</small><i style="width:${Math.round(100*k.ans/k.n)}%"></i></button>`).join('')}<button data-c="all"><b>كل المواد</b><small>${num(QUIZ.length)} سؤال</small></button></div>
-    ${Object.keys(Q.wrong).length?`<button class="wrongbtn" id="wrongBtn"><span>🔁</span><div><b>بنك أخطائك: ${num(Object.keys(Q.wrong).length)} سؤال</b><small>كل سؤال يطلع من البنك إذا جاوبته صح مرتين</small></div></button>`:''}
-    <button class="btn primary" id="examBtn" style="width:100%;margin-top:12px">📝 اختبار تجريبي: 20 سؤال في 20 دقيقة</button>
-    ${(Q.exams||[]).length?`<p class="note" style="margin:10px 0 4px">آخر نتائجك:</p><div class="exhist">${Q.exams.slice(-5).reverse().map(e=>{const p=Math.round(100*e.right/e.total); return `<span class="${p>=80?'pass':'fail'}">${num(p)}%<small>${fDm.format(parse(e.date))}</small></span>`;}).join('')}</div>`:''}
-    <a class="btn ghost" id="lawApp" href="${LAW_APP}" target="_blank" rel="noopener" style="width:100%;margin-top:10px">📚 افتح منصة القانون</a>
+/* ---------- the law panel ---------- */
+function renderLaw(){
+  const box = $('lawPanel'); if (!box) return;
+  const Q = quizState(), c = Q.cfg, S = lawStats();
+  const cats = SCOPES().filter(s => s !== 'all').map(s => {
+    const ids = QUIZ.filter(x => x.c === s).map(x => x.id);
+    const seen = ids.filter(id => Q.prog[id] && Q.prog[id].seen);
+    const tot = seen.reduce((a, id) => a + Q.prog[id].seen, 0), good = seen.reduce((a, id) => a + Q.prog[id].ok, 0);
+    const mast = ids.filter(id => Q.prog[id] && Q.prog[id].mastered).length;
+    return { s, n: ids.length, seen: seen.length, acc: tot ? Math.round(100 * good / tot) : null, mast };
+  });
+  box.innerHTML = `<h3>اختبر نفسك</h3>
+    <div class="cfgline">${cfgSummary(c).map(x => `<span>${x}</span>`).join('')}</div>
+    <button class="btn primary" id="tStart" style="width:100%;margin-top:12px">▶ ابدأ الآن</button>
+    <div class="row" style="margin-top:8px">
+      ${S.mistakes ? `<button class="btn ghost sm" id="tMist" style="flex:1">🔁 أخطائي (${num(S.mistakes)})</button>` : ''}
+      <button class="btn ghost sm" id="tCfg" style="flex:1">${cfgOpen ? 'إخفاء الإعدادات' : 'تخصيص'}</button>
+    </div>
+    ${cfgOpen ? cfgFields(c) : ''}
+
+    <h3 style="margin-top:22px">تقدّمك</h3>
+    <div class="stats" style="margin-top:8px">
+      <div class="stat"><b>${S.acc == null ? '–' : num(S.acc) + '%'}</b><span>الدقة</span></div>
+      <div class="stat"><b>${num(S.streak)}</b><span>أيام متتالية</span></div>
+      <div class="stat"><b>${num(S.mastered)}<small style="font-size:14px;color:var(--muted)"> / ${num(QUIZ.length)}</small></b><span>أتقنتها</span></div>
+      <div class="stat"><b>${num(S.due)}</b><span>حان موعد مراجعتها</span></div>
+    </div>
+
+    <p class="note" style="margin:16px 0 6px">اختر مادة تختبر فيها:</p>
+    <div class="qcats">${cats.map(k => `<button data-c="${k.s}"><b>${QCAT[k.s]}</b><small>${num(k.mast)}/${num(k.n)} أتقنتها${k.acc != null ? `، دقة ${num(k.acc)}%` : ''}</small><i style="width:${Math.round(100 * k.mast / k.n)}%"></i></button>`).join('')}</div>
+
+    ${Q.exams.length ? `<p class="note" style="margin:16px 0 6px">آخر نتائجك:</p><div class="exhist">${Q.exams.slice(-6).reverse().map(e => { const p = Math.round(100 * e.right / e.total);
+      return `<span class="${p >= 70 ? 'pass' : 'fail'}">${num(e.right)}/${num(e.total)}<small>${e.scope ? scopeName(e.scope) + ' · ' : ''}${fDm.format(parse(e.date))}</small></span>`; }).join('')}</div>` : ''}
+
+    <a class="btn ghost" id="lawApp" href="${LAW_APP}" target="_blank" rel="noopener" style="width:100%;margin-top:16px">📚 افتح منصة القانون</a>
     <p class="note" style="margin-top:8px">${num(QUIZ.length)} سؤال من كتاب قانون كرة القدم 2026/2027، وكل إجابة معها رقم المادة والصفحة. البنك نفسه اللي في منصة القانون، ومعه أسئلة تمركز الحكم المساعد.</p>`;
-  box.querySelector('#examBtn').onclick=openExam; const wb=box.querySelector('#wrongBtn'); if(wb) wb.onclick=()=>openPractice('wrong');
-  box.querySelectorAll('.qcats button').forEach(b=>b.onclick=()=>openPractice(b.dataset.c)); }
 
-export { QUIZ, QBY, QCAT, quizState, migrateV2, recordAnswer, quizOf, qBlock, renderQuiz, renderLaw,
-         openExam, openPractice, renderQuizOnly };
+  box.querySelector('#tStart').onclick = () => startTest(false);
+  const tm = box.querySelector('#tMist'); if (tm) tm.onclick = () => startTest(true);
+  box.querySelector('#tCfg').onclick = () => { cfgOpen = !cfgOpen; renderLaw(); };
+  const sc = box.querySelector('#cfgScope');
+  if (sc) sc.onchange = () => { c.scope = sc.value; save(); renderLaw(); };
+  box.querySelectorAll('.qcfg .chip').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, v = b.dataset.v;
+    c[k] = k === 'mode' ? v : k === 'timer' ? v === '1' : Number(v);
+    save(); renderLaw();
+  });
+  box.querySelectorAll('.qcats button').forEach(b => b.onclick = () => {
+    c.scope = b.dataset.c; cfgOpen = true; save(); renderLaw();
+    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+}
+
+export { QUIZ, QBY, QCAT, quizState, migrateV2, migrateV3, recordAnswer, quizOf, priority,
+         lawStats, pickQuestions, renderQuiz, renderLaw, startTest };
