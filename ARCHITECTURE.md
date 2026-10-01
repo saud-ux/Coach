@@ -55,7 +55,7 @@ one entry module and the browser resolves the rest.
 | `js/state.js` | 59 | Bottom of the graph, imports nothing. Dates (`iso parse addDays todayISO`, the four `Intl` formatters, `num`), `$`/`setStatus`, the `state` object, `save()`, and the `hooks` object other modules register into. |
 | `js/storage-sync.js` | ~165 | `initRuntime()` (the `window.claude` shim: `sample`, `db`, `user`, `RC_INBOX`), the `rt` coach handle, `adopt()`, the two-phase load (`bootLocal()` then `syncRemote()`), and `exportBackup`/`importBackup`. |
 | `js/ui.js` | ~110 | Design primitives: `ring()`/`ringWith()` (SVG circle on a `--track` circle, round caps, rotated -90deg), the stroke `icon()` set, and the Arabic formatters `hhmm` and `clock12`. Imports nothing. |
-| `js/today.js` | ~290 | The Today screen — sleep hero, the two tiles, the watch card, the session card, the next-match line — plus the readiness sheet and the settings sheet. |
+| `js/today.js` | ~420 | The Today screen — the band, sleep hero, the watch card, the match-day plan, the session card, the next-match line — plus the readiness sheet and the settings sheet. |
 | `js/workout.js` | ~145 | The Workout Summary screen, and `effortFrom10()`, the one place the 1-10 picker is mapped onto the stored 1-5. |
 | `js/figures.js` | 334 | All the inline-SVG artwork and the stick-figure rig, the per-exercise metadata (`D DOSE MUS IMG REST AFTER FLOW DIAGRAMS`), the rest timer, and the image helpers `mediaHTML/applyView/stylesFor/precacheSelectedStyle`. |
 | `js/schedule.js` | 356 | The plan (`weekParams defaultSession ensureHorizon defDur`), matches, `renderSchedule`, `renderHero`, `openDay`, `openAddMatch`, `openAddTest`, and the assignment inbox. |
@@ -63,8 +63,9 @@ one entry module and the browser resolves the rest.
 | `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
 | `js/quiz.js` | ~260 | The quiz: 350 law-app questions plus 26 of its own on AR positioning, progress keyed by question id, the daily question, the mock exam, per-article practice, and `renderLaw`. §14. |
 | `js/lawbank.js` | 217 KB | **Generated** by `scripts/export-law-bank.py` from the law app. The 350 questions. Never edit by hand. |
-| `js/notifications.js` | 120 | Push subscription, the four reminder preferences, and `initNotifications()`. |
+| `js/notifications.js` | 125 | Push subscription, the five reminder preferences, and `initNotifications()`. |
 | `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
+| `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -588,7 +589,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '20';
+const VERSION = '24';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1063,3 +1064,33 @@ All three live in `js/health.js` and run after each `syncHealth()`.
 Verified in Chromium with a stubbed `/api/health`: the run was logged on the planned intervals day (effort
 3 guessed, `hr_load` 272), the summary showed the heart-rate load with the felt one beside it, confirming
 set effort 4 and kept 272 as the day's load, and the warning lightened the session.
+
+## 17. The match-day plan
+
+`js/matchplan.js` is the one place the plan lives. `planSteps(match, kitBefore)` returns the steps timed
+from kickoff, and `shiftDate()` does the calendar sums. It is pure ESM on purpose, because two readers load it:
+
+| Step | Day | Time | Push |
+|---|---|---|---|
+| `sleep` نم بدري | evening before | 22:30 | yes |
+| `water` ابدأ الترطيب | match day | the earlier of 09:00 and K−5h, not before 06:00 | yes |
+| `meal` الوجبة الرئيسية | match day | K−4h, not before 06:30 | yes |
+| `kit` ماء وتجهيز | match day | K − the «قبل المباراة» lead time (120 by default) | no, the existing match reminder covers it |
+| `warm` الإحماء | match day | K−45 | yes |
+| `kickoff` صافرة البداية | match day | K | no |
+| `recover` صباح الاستشفاء | morning after | 10:00 | yes |
+
+- **Today** (`renderMatchPlan()` in `js/today.js`) shows `#planCard` the day before, on the day and the
+  morning after. Past steps are ticked, the next one (the first not more than 10 minutes gone) is open
+  with its instructions, and the rest take one line each. The morning after shows only recovery, plus
+  «قيّم مباراة أمس» while the match day is not logged.
+- **The cron** (`server.js`) loads the same file with a dynamic `import()` and pushes each `push: true`
+  step inside the usual 35-minute window. The text is fixed, with no coach call. The key is
+  `mp_<step>:<match date>`, so a moved match gets its plan again. The setting is `push.prefs.matchplan.on`
+  (the «خطة يوم المباراة» switch, on by default).
+- `js/package.json` says `"type": "module"`, which is what lets the CommonJS server import an ES module
+  on Node 20. The server already refuses to serve any `package.json`.
+
+Verified in Chromium with a fixed clock (the day before at 21:00, match day at 16:00, the morning after at
+09:00) and against the mock Supabase: one tick 40 minutes before kickoff sent the warm-up push, and a
+second tick in the same window sent nothing.

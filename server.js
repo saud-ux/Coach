@@ -313,7 +313,9 @@ async function markSent(key, date){
   catch (e) { console.error('sent-log write failed; a restart may repeat this reminder', redact(e && e.message)); }
 }
 
-const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'} };
+const DEFAULTS = { ready:{on:true, time:'08:00'}, train:{on:true, time:'17:00'}, match:{on:true, before:120}, weekly:{on:true, day:6, time:'20:00'}, matchplan:{on:true} };
+// the match-day plan is shared with the app (js/matchplan.js), loaded once on first use
+let MATCHPLAN = null;
 const pref = (prefs, kind) => ({ ...DEFAULTS[kind], ...((prefs||{})[kind] || {}) });
 
 // the coach writes the reminder itself, so it knows the plan, the weather and the load
@@ -390,6 +392,21 @@ async function cron(req, res, url){
     if (within(t - Number(mp.before || 120))) due.push(['match', 'مباراة اليوم', '/?tab=sched']);
   }
 
+  // the match-day plan: fixed-text steps from the night before to the morning
+  // after, timed from kickoff. Each one is keyed by step and match date, so a match
+  // moved to another day gets its plan again.
+  const plan = [];
+  const pp = pref(prefs, 'matchplan');
+  if (pp.on && matches.some(m => m.time)) {
+    try {
+      MATCHPLAN ||= await import('./js/matchplan.js');
+      for (const m of matches) for (const s of MATCHPLAN.planSteps(m, Number(mp.before || 120))) {
+        if (s.push && MATCHPLAN.shiftDate(m.date, s.day) === now.date && within(s.min))
+          plan.push([`mp_${s.key}:${m.date}`, s.title, s.body]);
+      }
+    } catch (e) { console.error('cron: match plan unavailable', redact(e && e.message)); }
+  }
+
   const wp = pref(prefs, 'weekly');
   if (wp.on && WD[Number(wp.day)] === now.wd && within(toMin(wp.time))) due.push(['weekly', 'ملخص الأسبوع', '/?tab=prog']);
 
@@ -403,6 +420,11 @@ async function cron(req, res, url){
     const snapshot = { today: now.date, session: today, matchesToday: matches.filter(m=>m.date===now.date), weekLogs: Object.keys(logs).filter(d=>d<=now.date).slice(-7).map(d=>({d, ...logs[d]})) };
     const body = await line(kind, snapshot);
     if (await push(p.sub, title, body, kind, link)) fired.push(kind);
+  }
+  for (const [key, title, body] of plan) {
+    if (await alreadySent(key)) continue;
+    await markSent(key, now.date);
+    if (await push(p.sub, `خطة المباراة · ${title}`, body, key.split(':')[0], '/?tab=today')) fired.push(key.split(':')[0]);
   }
   const clock = `${String(Math.floor(now.min/60)).padStart(2,'0')}:${String(now.min%60).padStart(2,'0')}`;
   console.log(`cron: tick ${clock} sent=${fired.length ? fired.join('+') : 'none'}`);

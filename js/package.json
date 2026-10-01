@@ -1,0 +1,4 @@
+{
+  "//": "The browser modules are ES modules. Saying so lets server.js import js/matchplan.js on any Node version.",
+  "type": "module"
+}

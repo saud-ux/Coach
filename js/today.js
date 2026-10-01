@@ -20,6 +20,7 @@ import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
+import { planSteps, shiftDate } from './matchplan.js';
 
 /* ---------- the band: greeting, two chips, the week ---------- */
 const NAME = 'سعود';
@@ -298,6 +299,38 @@ function wireWarn(){
   if (b) b.onclick = () => import('./coach.js').then(m => { m.lighten(todayISO(), false); import('./state.js').then(s => s.save()); renderAll(); });
 }
 
+/* ---------- the match-day plan ----------
+   Shown the day before, on the day, and the morning after. Steps already past are
+   ticked, the next one is open with its instructions, the rest are one line. The
+   same steps go out as pushes from the cron (js/matchplan.js). */
+function renderMatchPlan(){
+  const box = $('planCard');
+  if (!box) return;
+  const t = todayISO();
+  const near = [t, shiftDate(t, 1), shiftDate(t, -1)];
+  const m = near.map(d => state.matches.find(x => x.date === d && x.time)).find(Boolean);
+  if (!m){ box.innerHTML = ''; return; }
+  const kit = ((state.push && state.push.prefs && state.push.prefs.match) || {}).before || 120;
+  let steps = planSteps(m, Number(kit)).map(s => ({ ...s, date: shiftDate(m.date, s.day) }));
+  // the morning after shows only what is left: recovery and the evaluation
+  if (m.date < t) steps = steps.filter(s => s.day === 1);
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const at = s => s.date < t ? -1e9 : s.date > t ? 1e9 : s.min - nowMin;   // minutes from now
+  const nextI = steps.findIndex(s => at(s) >= -10);
+  const clk = s => clock12(`${Math.floor(s.min / 60)}:${String(s.min % 60).padStart(2, '0')}`);
+  const when = s => s.date === t ? clk(s) : s.date === shiftDate(t, 1) ? `بكرة ${clk(s)}` : s.date > t ? 'بعد بكرة' : 'أمس';
+  const teams = m.home || m.away ? `${m.home || '؟'} × ${m.away || '؟'}` : 'المباراة';
+  box.innerHTML = `<section class="card mplan">
+    <div class="mphead"><span class="mpic">${icon('flag')}</span>
+      <div><b>خطة يوم المباراة</b><small>${teams} · ${m.date === t ? 'اليوم' : m.date > t ? 'بكرة' : 'أمس'} ${clock12(m.time)}</small></div></div>
+    <ol class="mpl">${steps.map((s, i) => `<li class="${i < nextI || nextI < 0 ? 'done' : i === nextI ? 'next' : ''}">
+      <span class="mpt">${when(s)}</span><i class="mpdot"></i>
+      <div><b>${s.title}</b>${i === nextI ? `<small>${s.body}</small>` : ''}</div></li>`).join('')}</ol>
+    ${m.date < t && !(state.logs[m.date] && state.logs[m.date].done) ? '<button class="btn ghost sm" id="mpEval" style="width:100%;margin-top:10px">قيّم مباراة أمس</button>' : ''}
+  </section>`;
+  const ev = $('mpEval'); if (ev) ev.onclick = () => openDay(m.date);
+}
+
 /* ---------- today's session ---------- */
 function renderSessionCard(){
   const box = $('sessionCard');
@@ -436,6 +469,7 @@ export function openSettings(focus){
           <input class="in sm" type="time" id="nTrainT">
           <label class="sw"><input type="checkbox" id="nMatch"><span>قبل المباراة</span></label>
           <select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select>
+          <label class="sw"><input type="checkbox" id="nPlan"><span>خطة يوم المباراة: النوم، الماء، الأكل، الإحماء، والاستشفاء</span></label>
           <label class="sw"><input type="checkbox" id="nWeek"><span>ملخص الأسبوع</span></label>
           <div class="srow">
             <select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select>
@@ -546,6 +580,7 @@ export function renderToday(){
   renderTodayHead();
   renderSleep();
   renderBand();
+  renderMatchPlan();
   renderWatchCard();
   renderSessionCard();
   renderNextMatch();
