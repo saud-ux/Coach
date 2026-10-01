@@ -237,6 +237,35 @@ function pullIntervals(){
 }
 const ivStale = mins => !ivStatus.last_pull || Date.now() - Date.parse(ivStatus.last_pull) > mins * 60e3;
 
+// The next 7 days of watch workouts onto intervals.icu's calendar, and through it
+// onto the watch (lib/intervals.js pushPlan). Sent when the plan changes, and at
+// least every 6 hours; the sessions come from the app's state row, the counts
+// from js/plan.js, the steps from js/garmin.js, the same files the app uses.
+let GARMIN = null, PLAN = null, ivPushedHash = null, ivPushedAt = 0;
+async function pushIntervals(data){
+  if (!ivStatus.on || !SYNC) return;
+  try {
+    GARMIN ||= await import('./js/garmin.js'); PLAN ||= await import('./js/plan.js');
+    const sessions = (data && data.sessions) || {}, today = localNow().date;
+    const days = Array.from({ length: 7 }, (_, i) => new Date(Date.parse(today + 'T00:00:00Z') + i * 864e5).toISOString().slice(0, 10));
+    const plan = [];
+    for (const d of days){
+      const sess = sessions[d]; if (!sess) continue;
+      const w = GARMIN.watchWorkout(sess.type, PLAN.weekParams(d));
+      if (w) plan.push({ date: d, name: w.name, steps: w.steps });
+    }
+    const hash = JSON.stringify(plan);
+    if (hash === ivPushedHash && Date.now() - ivPushedAt < 6 * 3600e3) return;
+    const r = await IV.pushPlan(IV_CFG, plan, { oldest: days[0], newest: days[6] });
+    ivPushedHash = hash; ivPushedAt = Date.now();
+    Object.assign(ivStatus, { pushed_at: new Date().toISOString(), pushed: r.pushed, push_error: null });
+    console.log(`intervals: plan pushed=${r.pushed} removed=${r.removed}`);
+  } catch (e) {
+    ivStatus.push_error = String(e && e.message || e).slice(0, 160);
+    console.error('intervals: plan push failed', redact(ivStatus.push_error));
+  }
+}
+
 async function health(req, res, url){
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
   try {
@@ -291,7 +320,7 @@ async function health(req, res, url){
       const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
       const d = (await rpc('coach_health_get', {p_since: since})) || {};
       return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], days: d.days || [], last_at: d.last_at || null,
-        intervals: ivStatus.on ? {last_ok: ivStatus.last_ok, error: ivStatus.error} : null});
+        intervals: ivStatus.on ? {last_ok: ivStatus.last_ok, error: ivStatus.error, pushed_at: ivStatus.pushed_at || null, pushed: ivStatus.pushed ?? null, push_error: ivStatus.push_error || null} : null});
     }
     send(res, 405, {error:'method'});
   } catch (e) {
@@ -468,6 +497,7 @@ async function cron(req, res, url){
   let st;
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
   const data = st.data || st;
+  await pushIntervals(data);                    // the week's workouts onto the watch, when they changed
   const p = data && data.push;
   if (!p || !p.sub) { console.log('cron: tick, but reminders are not switched on in the app yet'); return send(res, 200, {ok:true, note:'no subscription'}); }
   const prefs = p.prefs || {};

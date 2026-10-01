@@ -16,7 +16,7 @@ import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
 import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT,
          sleepParts, recentNights, nightHistory, restingHrWarning,
-         stepsOn, stepsHistory, stepsAverage, stepsNote, STEPS_TARGET, hrvStatus } from './health.js';
+         stepsOn, stepsHistory, stepsAverage, stepsNote, STEPS_TARGET, hrvStatus, watchReadiness } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -55,7 +55,9 @@ function renderBand(){
   const chips = $('bandChips'), week = $('bandWeek');
   if (!chips || !week) return;
   const t = todayISO(), r = state.readiness[t];
-  const pct = r ? readyPct(readyNow(r)) : null;
+  // answered: the blend; not yet: the watch's own estimate, labelled as such
+  const wr = r ? null : watchReadiness();
+  const pct = r ? readyPct(readyNow(r)) : wr ? readyPct(wr.score) : null;
   const L = loadStatus();
   const word = !L.enough || L.ratio == null ? '' : L.ratio > 1.3 ? 'مرتفع' : L.ratio >= 0.8 ? 'متوازن' : 'منخفض';
   const steps = stepsOn(t);
@@ -66,7 +68,7 @@ function renderBand(){
   const stepsOk = steps != null || stepsAverage() != null;
   chips.innerHTML =
     tile('chipReady', 'الجاهزية', pct == null ? 'عبّيها' : `${num(pct)}%`,
-      pct == null ? 'أقل من دقيقة' : pct >= 80 ? 'جاهز تمامًا' : pct >= 60 ? 'متوسطة' : 'منخفضة', pct ?? 0, '#3BD37F') +
+      pct == null ? 'أقل من دقيقة' : wr ? 'من الساعة، عبّيها للدقة' : pct >= 80 ? 'جاهز تمامًا' : pct >= 60 ? 'متوسطة' : 'منخفضة', pct ?? 0, '#3BD37F') +
     tile('chipLoad', 'الحمل', L.enough && L.ratio != null ? num(L.ratio.toFixed(2)) : '–', L.enough && L.ratio != null ? word : 'بيانات قليلة',
       L.enough && L.ratio != null ? 100 * L.ratio / 1.6 : 0, '#5DB2F2') +
     (stepsOk ? tile('chipSteps', 'الخطوات', steps != null ? num(steps) : '–', `الهدف ${num(STEPS_TARGET)}`, 100 * (steps || 0) / STEPS_TARGET, '#E7C873') : '');
@@ -451,10 +453,13 @@ function renderSessionCard(){
       ${parts.map(p => `<i style="flex:${p.min / total};background:${p.color}"></i>`).join('')}
     </div>
     <div class="seglabels">${parts.map(p => `<span>${p.label}${p.min ? ' ' + num(Math.round(p.min)) + ' د' : ''}</span>`).join('')}</div>
+    ${s.auto ? `<div class="autoadj"><span>${icon('heart')}</span><div><b>خففت تمرينك اليوم</b><small>${s.auto}. التمرين الأصلي: ${s.orig ? s.orig.title : ''}</small></div><button class="lnk" id="autoUndo">رجّع الأصلي</button></div>` : ''}
     ${watchLine(s.type)}
     <button class="btn primary" id="sessGo">${done ? 'أنهيته ✓' : 'ابدأ بالإحماء'}</button>
   </section>`;
   $('sessGo').onclick = () => openDay(t);
+  const au = $('autoUndo');
+  if (au) au.onclick = () => import('./coach.js').then(m => { m.restoreOrig(t); import('./state.js').then(st => st.save()); renderAll(); });
 }
 
 // Which saved workout to start on the watch today (js/garmin.js WATCH_NAME).
@@ -637,6 +642,8 @@ export function openSettings(focus){
           ? (iv.error === 'not_migrated' ? ' intervals.icu: قاعدة البيانات تحتاج ملف 004.'
              : /refused/.test(iv.error) ? ' intervals.icu: المفتاح أو رقم الحساب غلط.' : ' intervals.icu: ما قدرت أوصل له الحين.')
           : iv.last_ok ? ` intervals.icu متصل، آخر سحب ${clock12(new Date(iv.last_ok))}.` : '';
+        if (iv && !iv.error) msg.textContent += iv.push_error ? ' إرسال التمارين للساعة فشل، بحاول مرة ثانية.'
+          : iv.pushed_at ? ` أرسلت ${num(iv.pushed)} تمارين لتقويم الساعة.` : '';
         return;
       }
       msg.textContent = ({

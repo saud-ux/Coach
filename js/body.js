@@ -134,3 +134,9 @@ export function bindRecovery(root){
     startTimer(s, t, t, 'خلص، روح للي بعده');
   });
 }
+
+// Does yesterday's pain touch today's session? -> the area's name, or null.
+export function painHits(keys, pain){
+  if (!pain || pain.none || pain.level < 2) return null;
+  return (keys || []).some(k => (LOADS[pain.area] || []).includes(k)) ? AREA[pain.area] : null;
+}

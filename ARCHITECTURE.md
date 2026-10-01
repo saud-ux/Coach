@@ -69,10 +69,11 @@ one entry module and the browser resolves the rest.
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
 | `js/mobile.js` | ~110 | Phone behaviour: drag a sheet down to close, pull to refresh, the keyboard (§22). |
 | `js/garmin.js` | ~110 | A session as Garmin structured-workout steps, for the «للساعة» card (§23). |
-| `js/body.js` | ~150 | The pain check before training and the recovery routine (§25). |
+| `js/body.js` | ~150 | The pain check before training and the recovery routine, `painHits` (§25, §26). |
+| `js/plan.js` | ~10 | `PLAN_START BUILD CYCLE weekParams`: the weekly numbers. Pure ESM, shared by the schedule and the server's push to the watch (§26). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
-| `lib/intervals.js` | ~110 | Server side: wellness and activities from intervals.icu (§24). |
+| `lib/intervals.js` | ~165 | Server side: wellness and activities from intervals.icu (§24), and the plan pushed back as planned workouts, `workoutText pushPlan` (§26). |
 | `migrations/004_wellness.sql` | — | Wellness columns on `coach_health_day`, `coach_health_add_wellness` (§24). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
@@ -597,7 +598,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '45';
+const VERSION = '46';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1393,3 +1394,47 @@ Verified in Chromium:
 - a medium calf answer flagged the four sprint drills and was stored;
 - a strong hamstring answer turned the day into recovery, which then opened with the routine;
 - a 2-minute rest said to drink, and a 30-second rest did not.
+
+## 26. Readiness from the watch, the plan on the watch, the plan that adjusts itself
+
+**Readiness from the watch.** `watchReadiness()` (`js/health.js`) scores last night on the same 1–5
+axis as the questions, from what the watch already knows:
+
+- `sleep` from the sleep score (Garmin's when there is no stage breakdown);
+- `hrv` against the prior week's average (`hrvStatus()`: low under 85%);
+- `rhr` against the prior week's resting HR.
+
+`body` is the mean of `hrv` and `rhr`; `score` is the mean of all three. Today's readiness chip shows
+it with «من الساعة، عبّيها للدقة» when the questions are not answered. When they are, `readyNow`
+(`js/coach.js`) blends `body_watch` in as a fourth part, and `stampReadiness()` keeps it on the log.
+
+**The plan on the watch.** Each cron tick (§17) runs `pushIntervals()` in `server.js`:
+
+- today to +6 days, each day's session through `watchWorkout(type, weekParams(d))` (`js/garmin.js`,
+  `js/plan.js`), skipping days with nothing to time;
+- `pushPlan()` (`lib/intervals.js`) upserts one intervals.icu event per day, `external_id rc-<date>`,
+  in its workout-text format (`Warmup`, `Nx` repeats, `- Go 5s`, `Z1 HR`), and deletes `rc-` events
+  whose day no longer has one. Other events are never touched;
+- it is skipped while the plan's hash is unchanged and under 6 hours old.
+
+intervals.icu sends them to Garmin Connect («Upload planned workouts»), so the watch's calendar has the
+day's workout with that week's counts. `GET /api/health` reports `intervals.pushed_at / pushed /
+push_error`, shown in Settings. Cue words are English because the watch may not draw Arabic; a Lap
+step (the jumps) becomes 8 minutes.
+
+**The plan that adjusts itself.** `autoAdjust()` (`js/coach.js`) runs after every `syncHealth()` in
+`js/main.js`. It looks only at today's hard session that is not a test, not done, not already changed
+(`orig`) and not restored by hand (`noauto`):
+
+- watch score under 2.2 → recovery;
+- yesterday's pain (medium or strong) in an area the session loads (`painHits`), low HRV, or the
+  resting-HR warning → the light version.
+
+It sets `s.auto` to the reason. The session card shows it in `.autoadj` with «رجّع الأصلي», which
+calls `restoreOrig` and sets `noauto` so the next sync leaves it alone. The coach's `RULES` say the
+same, so chat suggestions agree.
+
+Verified: the push against a mock intervals.icu (two events, an identical tick skipped, a day made
+rest removed its event and left a non-`rc-` event alone); in Chromium, low HRV → light with the
+reason, undo → intervals with `noauto`; normal HRV → unchanged; calf pain yesterday → light; very low
+readiness → recovery. intervals.icu's parsing of the real workout text is not yet checked.

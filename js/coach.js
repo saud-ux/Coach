@@ -13,9 +13,11 @@ import { state, save, num, parse, addDays, todayISO, fWd, fDm, $ } from './state
 import { rt } from './storage-sync.js';
 import { icon } from './ui.js';
 import { TYPES, HARD, defDur, applyMatch, removeMatch, openDay } from './schedule.js';
+import { DIAGRAMS } from './figures.js';
+import { painHits } from './body.js';
 import { loadStatus, dayLoad, getWX, hr12, assessorTrends } from './progress.js';
 import { switchTab, renderAll } from './main.js';
-import { sleepTo5, stampReadiness, healthContext, restingHrWarning,
+import { sleepTo5, stampReadiness, healthContext, restingHrWarning, watchReadiness, hrvStatus,
          stepsOn, stepsAverage, stepsNote, STEPS_TARGET, recoveryHistory, sleepVsScore } from './health.js';
 
 /* ---------- readiness ---------- */
@@ -27,8 +29,12 @@ const readyScore = r => (r.sleep+r.sore+r.energy)/3;
 // sleep score (stamped by health.js), the sleep answer becomes the mean of what
 // the referee said and what the watch measured, both on the same 1-5 axis, and
 // the result is still a 1-5 mean of three. Without a watch score it IS readyScore.
-const readyNow = r => r.sleep_watch == null ? readyScore(r)
-  : ((r.sleep + sleepTo5(r.sleep_watch))/2 + r.sore + r.energy)/3;
+// With the watch's body signals stamped too (HRV and resting HR, body_watch), they
+// count as a fourth part beside the three answers.
+const readyNow = r => {
+  const base = r.sleep_watch == null ? readyScore(r) : ((r.sleep + sleepTo5(r.sleep_watch))/2 + r.sore + r.energy)/3;
+  return r.body_watch == null ? base : (base * 3 + r.body_watch) / 4;
+};
 // The gauge has always been shown as a percentage of 5, so its floor is 20%, not
 // 0%. Kept in one place now that both the Today tile and the card draw it.
 const readyPct = sc => Math.round(sc/5*100);
@@ -40,7 +46,33 @@ function lighten(d, toRecovery){
     ? {type:'recovery',title:'استشفاء (جاهزيتك منخفضة)',details:'مشي 20–30 دقيقة وإطالات خفيفة بجهد أقل من 50%. جسمك يحتاج راحة اليوم.',orig}
     : {type:'light',title:'نسخة خفيفة: '+orig.title,details:'جاهزيتك اليوم متوسطة، فخففنا الحمل:\n• نص العدد أو المدة\n• الجهد لا يتعدى 70%\n• وقّف إذا حسيت ثقل بالرجلين\n\nالتمرين الأصلي:\n'+orig.details,orig};
 }
-function restoreOrig(d){ const s=state.sessions[d]; if(s&&s.orig) state.sessions[d]={...s.orig}; }
+// Restoring a session the app lightened by itself also says «don't do it again
+// today», so the next sync does not lighten it straight back.
+function restoreOrig(d){ const s=state.sessions[d]; if(s&&s.orig) state.sessions[d]={...s.orig, ...(s.auto?{noauto:true}:{})}; }
+
+/* ---------- the plan adjusting itself ----------
+   Once a day, before training, the watch and yesterday's pain check can lighten a
+   hard session: a very low watch readiness turns it into recovery; low HRV, a
+   resting HR up two nights running, or a medium/strong pain in an area today's
+   drills load make it the light version. The session says why (s.auto) and Today
+   offers the original back. Never on a test day, never twice. */
+function autoAdjust(){
+  const t = todayISO(), s = state.sessions[t];
+  if (!s || !HARD.has(s.type) || s.type === 'test' || s.orig || s.noauto) return false;
+  if (state.logs[t] && state.logs[t].done) return false;
+  const w = watchReadiness(), hv = hrvStatus(), rh = restingHrWarning();
+  const pain = state.logs[addDays(t, -1)] && state.logs[addDays(t, -1)].pain;
+  const area = painHits(DIAGRAMS[s.type], pain);
+  let why = null, recovery = false;
+  if (w && w.score < 2.2){ why = `جاهزيتك من الساعة منخفضة (${num(readyPct(w.score))}%)`; recovery = true; }
+  else if (area) why = `سجّلت أمس ألم في ${area}`;
+  else if (hv && hv.low) why = `متغيرية نبضك ${num(hv.now)} أقل من معدلك ${num(hv.avg)}`;
+  else if (rh) why = `نبض راحتك مرتفع ليلتين (${num(rh.now)} والمعدل ${num(rh.avg)})`;
+  if (!why) return false;
+  lighten(t, recovery);
+  if (state.sessions[t] && state.sessions[t].orig) state.sessions[t].auto = why;
+  return true;
+}
 let readyEdit=false, rStep={};
 function setReadyEdit(v){ readyEdit = v; if (!v) rStep = {}; }
 const NAME='سعود';
@@ -94,7 +126,7 @@ function renderReady(){
   }
   const sc=readyNow(r), [lbl,col]=readyLabel(sc);
   c.appendChild(bubble(coachReply(t,r)));
-  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}%${r.sleep_watch!=null?`<small class="rwatch">مع نومك من الساعة ${num(r.sleep_watch)}</small>`:''}</span><button class="lnk">غيّر إجاباتي</button>`;
+  const meta=document.createElement('div'); meta.className='rtop'; meta.innerHTML=`<span class="rdot" style="background:${col}"></span><span class="rpct">${lbl} ${num(Math.round(sc/5*100))}%${r.sleep_watch!=null||r.body_watch!=null?`<small class="rwatch">مع ${[r.sleep_watch!=null?`نومك من الساعة ${num(r.sleep_watch)}`:'', r.body_watch!=null?`نبضك ومتغيريته ${num(Math.round(r.body_watch*20))}%`:''].filter(Boolean).join(' و')}</small>`:''}</span><button class="lnk">غيّر إجاباتي</button>`;
   meta.querySelector('.lnk').onclick=()=>{ readyEdit=true; rStep={}; renderReady(); }; c.appendChild(meta);
   if (s && s.orig){ const b=document.createElement('button'); b.className='btn ghost sm'; b.textContent='رجّع التمرين الأصلي'; b.onclick=()=>{ restoreOrig(t); save(); renderAll(); }; c.appendChild(b); }
   else if (s && HARD.has(s.type) && s.type!=='test' && sc<4){ const b=document.createElement('button'); b.className='btn primary sm'; b.textContent=sc<2.5?'حوّل اليوم لاستشفاء':'خفّف تمرين اليوم'; b.onclick=()=>{ lighten(t, sc<2.5); save(); renderAll(); }; c.appendChild(b); }
@@ -305,6 +337,6 @@ export function chatBusy(){ return busy; }
 export function abortChat(){ ctl?.abort(); }
 export const CHAT_CHIPS = ['عندي مباراة بكرة','رجولي تعبانة اليوم','فاتني تمرين أمس','عندي مباراتين هالأسبوع','الجو حار جدًا اليوم','وش أسوي قبل المباراة؟'];
 
-export { RQ, RQ2, readyScore, readyNow, readyPct, readyLabel, lighten, restoreOrig, greet, coachReply, bubble,
+export { RQ, RQ2, readyScore, readyNow, readyPct, readyLabel, lighten, restoreOrig, autoAdjust, greet, coachReply, bubble,
          renderReady, renderAlerts, weekSummary, genReport, renderReport, renderChat,
          applyChanges, send, context, RULES, setReadyEdit };

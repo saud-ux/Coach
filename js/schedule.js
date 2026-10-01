@@ -16,6 +16,7 @@ import { D, DOSE, MUS, IMG, DIAGRAMS, LEGEND, LEGEND_FOR, restHTML, flowHTML, ne
 import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js';
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
 import { icon } from './ui.js';
+import { weekParams } from './plan.js';
 import { keepAwake } from './mobile.js';
 import { watchWorkout, totalSec, clockOf, KIND, WATCH_NAME } from './garmin.js';
 import { painCardHTML, bindPain, recoveryHTML, bindRecovery } from './body.js';
@@ -36,17 +37,7 @@ const STRENGTH = n => `${rounds(n)}، دقيقة راحة بين كل جولة:
 • رفع الحوض برجل وحدة 12 لكل رجل
 • العضلة الخلفية: رجلينك تحت الكنب وانزل ببطء 5
 • بلانك جانبي 30 ثانية لكل جهة`;
-// first 4 weeks build up, then a repeating 4-week cycle (3 steady weeks + 1 lighter week)
-const BUILD = [
-  {run:25,sp:5,ar:6,str:2},{run:30,sp:6,ar:8,str:3},
-  {run:35,sp:6,ar:10,str:3},{run:40,sp:8,ar:12,str:3,slow:true}];
-const CYCLE = [
-  {run:40,sp:8,ar:12,str:3},{run:45,sp:8,ar:14,str:3},
-  {run:45,sp:10,ar:15,str:3,slow:true},{run:25,sp:4,ar:6,str:2,light:true}];
-function weekParams(date){
-  const w = Math.floor((parse(date)-parse(PLAN_START))/(7*864e5));
-  return w < 0 ? BUILD[0] : w < 4 ? BUILD[w] : CYCLE[(w-4)%4];
-}
+// BUILD, CYCLE and weekParams live in js/plan.js, shared with the server.
 function defaultSession(date){
   const w = Math.floor((parse(date)-parse(PLAN_START))/(7*864e5));
   if (w < 0) return null;

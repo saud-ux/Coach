@@ -10,13 +10,13 @@
 // background. A sleeping Render instance now delays the «يتم التحديث…» line and
 // nothing else.
 
-import { state, hooks, todayISO, addDays, parse, $ } from './state.js';
+import { state, hooks, save, todayISO, addDays, parse, $ } from './state.js';
 import { initRuntime, bootLocal, syncRemote, rt } from './storage-sync.js';
 import { stopTimer, precacheSelectedStyle } from './figures.js';
 import { ensureHorizon, renderSchedule, openAddMatch, openAddTest,
          loadInbox, getViewWeek, setViewWeek } from './schedule.js';
 import { renderToday, openSettings } from './today.js';
-import { renderReady, renderAlerts, renderReport, renderChat, send, chatBusy, abortChat,
+import { renderReady, renderAlerts, renderReport, renderChat, send, chatBusy, abortChat, autoAdjust,
          CHAT_CHIPS } from './coach.js';
 import { renderQuiz, renderLaw } from './quiz.js';
 import { renderProgress, renderCareer, renderMonth, renderLoad, renderMatches,
@@ -171,7 +171,7 @@ function wire(){
   // was in the background. syncHealth() throttles itself to once a minute.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    loadInbox(); syncHealth();
+    loadInbox(); syncHealth().then(adjust);
     applyTheme(state.settings && state.settings.theme);
     renderAll();          // the greeting and the week strip follow the clock
   });
@@ -221,7 +221,9 @@ openDeepLinkTab();
 // Health waits for the state row: syncHealth() saves when something new arrives,
 // and a save while syncRemote() is in flight counts as an edit and makes it skip
 // the server copy. Both talk to the same server, so waiting costs nothing.
-syncRemote().then(() => { requestAnimationFrame(scrollToday); syncHealth(); });
+// the plan may adjust itself once the watch has spoken (coach.js autoAdjust)
+const adjust = () => { if (autoAdjust()){ save(); renderAll(); } };
+syncRemote().then(() => { requestAnimationFrame(scrollToday); syncHealth().then(adjust); });
 loadWeather();
 loadInbox();
 precacheSelectedStyle();

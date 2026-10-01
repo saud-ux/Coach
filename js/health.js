@@ -301,11 +301,41 @@ export const sleepTo5 = score => 1 + 4 * Math.max(0, Math.min(100, score)) / 100
 // the first sync after, whichever comes second.
 export function stampReadiness(){
   const t = todayISO(), r = state.readiness && state.readiness[t];
-  if (!r || r.sleep_watch != null) return false;
+  if (!r) return false;
+  let changed = false;
   const s = lastNightSleep();
-  if (!s || s.score == null) return false;
-  r.sleep_watch = s.score;
-  return true;
+  if (r.sleep_watch == null && s && s.score != null){ r.sleep_watch = s.score; changed = true; }
+  // the body's own signals, stamped once like the sleep score (see watchReadiness)
+  const w = watchReadiness();
+  if (r.body_watch == null && w && w.body != null){ r.body_watch = Math.round(w.body * 100) / 100; changed = true; }
+  return changed;
+}
+
+/* ---------- readiness from the watch ----------
+   Three signals on the same 1-5 axis as the morning answers:
+     sleep      the night's score (Garmin's when intervals.icu sent it)
+     HRV        last night against the week before: 105%+ is 5, under 75% is 1
+     resting HR last night against the week before: 2 below is 5, 8 above is 1
+   `body` is the mean of HRV and resting HR, the part no question can ask; `score`
+   adds sleep. Needs three earlier nights for a baseline. */
+export function watchReadiness(){
+  const all = allNights(), t = todayISO();
+  const key = all[addDays(t, -1)] ? addDays(t, -1) : (all[t] ? t : null);
+  if (!key) return null;
+  const n = all[key], before = priorNights(all, 7, key);
+  const avg = f => { const xs = before.map(x => x[f]).filter(Number.isFinite); return xs.length >= 3 ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+  const parts = {};
+  const sc = n.garmin_score ?? sleepScore(n, before);
+  if (sc != null) parts.sleep = sleepTo5(sc);
+  const hAvg = avg('hrv');
+  if (Number.isFinite(n.hrv) && hAvg){ const r = n.hrv / hAvg; parts.hrv = r >= 1.05 ? 5 : r >= 0.95 ? 4 : r >= 0.85 ? 3 : r >= 0.75 ? 2 : 1; }
+  const rAvg = avg('resting_hr');
+  if (Number.isFinite(n.resting_hr) && rAvg){ const d = n.resting_hr - rAvg; parts.rhr = d <= -2 ? 5 : d <= 1 ? 4 : d <= 4 ? 3 : d <= 7 ? 2 : 1; }
+  const body = [parts.hrv, parts.rhr].filter(Number.isFinite);
+  const all3 = [parts.sleep, ...body].filter(Number.isFinite);
+  if (!all3.length) return null;
+  return { parts, body: body.length ? body.reduce((a, b) => a + b, 0) / body.length : null,
+           score: all3.reduce((a, b) => a + b, 0) / all3.length };
 }
 
 // What goes into the coach's prompt alongside the schedule.
