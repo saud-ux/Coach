@@ -131,7 +131,7 @@ function renderSchedule(){
   const strip=document.createElement('div'); strip.className='wstrip';
   for (let i=0;i<7;i++){ const d=addDays(ws,i), s=state.sessions[d], l=state.logs[d], ty=s?(TYPES[s.type]||TYPES.rest):TYPES.rest;
     const c=document.createElement('button'); c.className='wday'+(d===t?' now':'')+(l&&l.done?' dn':'')+(s&&s.type==='rest'?' rst':'');
-    c.innerHTML=`<small>${['ح','ن','ث','ر','خ','ج','س'][i]}</small><b>${num(parse(d).getDate())}</b><i style="background:${s&&s.type!=='rest'?ty.c:'transparent'}"></i>`;
+    c.innerHTML=`<small>${['أحد','اثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'][i]}</small><b>${num(parse(d).getDate())}</b><i style="background:${s&&s.type!=='rest'?ty.c:'transparent'}"></i>`;
     c.onclick=()=>{ const row=box.querySelector(`.day[data-date="${d}"]`); if(row){ row.scrollIntoView({block:'center',behavior:'smooth'}); row.classList.add('flash'); setTimeout(()=>row.classList.remove('flash'),900);} };
     strip.appendChild(c); }
   box.appendChild(strip);
@@ -149,7 +149,7 @@ function renderSchedule(){
       ${isRest?'':`<span class="tick ${log&&log.done?'on':''}">${log&&log.done?'✓':(d===t?'‹':'')}</span>`}`;
     b.querySelector('small').textContent = fWd.format(parse(d));
     b.querySelector('.ti').textContent = s.title;
-    b.querySelector('.ty').textContent = isRest ? ty.l : `${ty.l}${dur?'، '+num(dur)+' د':''}${d===t?'، اليوم':''}`;
+    b.querySelector('.ty').textContent = isRest ? (s.title === ty.l ? 'جسمك يبني نفسه اليوم' : ty.l) : `${ty.l}${dur?'، '+num(dur)+' د':''}${d===t?'، اليوم':''}`;
     b.onclick = () => openDay(d);
     list.appendChild(b);
   });

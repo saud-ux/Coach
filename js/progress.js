@@ -14,7 +14,7 @@ import { readyScore, renderAlerts } from './coach.js';
 import { renderAll } from './main.js';
 import { rt } from './storage-sync.js';
 import { sleepVsScore } from './health.js';
-import { hhmm } from './ui.js';
+import { hhmm, icon } from './ui.js';
 
 /* ---------- progress ---------- */
 function chart(points, unit){
@@ -35,10 +35,10 @@ function renderProgress(){
   const played = state.matches.filter(m => m.date<=t).length;
   const pct = trainDays.length ? Math.round(100*doneAll/trainDays.length) : 0;
   $('stats').innerHTML = `
-    <div class="stat"><b>${num(wkDone)}/${num(wk.length)}</b><span>تمارين هذا الأسبوع</span></div>
-    <div class="stat"><b>${num(pct)}%</b><span>الالتزام منذ البداية</span></div>
-    <div class="stat"><b>${num(doneAll)}</b><span>تمارين أنهيتها</span></div>
-    <div class="stat"><b>${num(played)}</b><span>مباريات حكمتها</span></div>`;
+    <div class="stat st-week"><i>${icon('calendar')}</i><b>${num(wkDone)}<small>/${num(wk.length)}</small></b><span>تمارين هذا الأسبوع</span></div>
+    <div class="stat st-commit"><i>${icon('check')}</i><b>${num(pct)}<small>%</small></b><span>الالتزام منذ البداية</span></div>
+    <div class="stat st-done"><i>${icon('bolt')}</i><b>${num(doneAll)}</b><span>تمارين أنهيتها</span></div>
+    <div class="stat st-match"><i>${icon('flag')}</i><b>${num(played)}</b><span>مباريات حكمتها</span></div>`;
   ['cooper'].forEach(k => {
     const list = state.tests.filter(x=>x.kind===k).sort((a,b)=>a.date.localeCompare(b.date));
     const id = k==='cooper'?'Cooper':'Yoyo';

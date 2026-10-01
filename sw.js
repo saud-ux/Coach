@@ -4,7 +4,7 @@
 // Bump VERSION whenever any shell file changes. The cache name is derived from it,
 // so a new version installs a fresh cache and activate() deletes the old ones. The
 // ?v= on css and the entry module must match the same number.
-const VERSION = '28';
+const VERSION = '29';
 const SHELL = `shell-v${VERSION}`;      // html, css, js, icons — replaced on every release
 const MEDIA = 'media-v1';               // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';                 // the last good /api/state, for a cold open

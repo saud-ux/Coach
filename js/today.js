@@ -23,7 +23,7 @@ import { openSheet, switchTab, renderAll } from './main.js';
 import { exportBackup, importBackup } from './storage-sync.js';
 import { planSteps, shiftDate } from './matchplan.js';
 
-/* ---------- the band: greeting, two chips, the week ---------- */
+/* ---------- the band: greeting, three tiles, the week ---------- */
 const NAME = 'سعود';
 function greeting(h){
   if (h >= 4 && h < 12) return `صباح الخير يا ${NAME}`;
@@ -37,11 +37,9 @@ function renderTodayHead(){
   if (h) h.textContent = greeting(new Date().getHours());
 }
 
-// A ring drawn as one conic gradient: small enough that an SVG would be overkill.
-const dial = (pct, color) => `<i class="dial" style="background:conic-gradient(${color} 0 ${Math.round(pct)}%, rgba(255,255,255,.18) ${Math.round(pct)}% 100%)"></i>`;
 
-// Readiness and load used to be two tiles under the sleep card. They are two chips
-// in the band now: the same numbers, one tap away, and the sleep card moves up.
+// Readiness, load and steps sit in the band as three equal tiles: the numbers one
+// tap away, and the sleep card moves up.
 function renderBand(){
   const chips = $('bandChips'), week = $('bandWeek');
   if (!chips || !week) return;
@@ -50,11 +48,17 @@ function renderBand(){
   const L = loadStatus();
   const word = !L.enough || L.ratio == null ? '' : L.ratio > 1.3 ? 'مرتفع' : L.ratio >= 0.8 ? 'متوازن' : 'منخفض';
   const steps = stepsOn(t);
-  chips.innerHTML = `
-    <button class="bchip" id="chipReady">${dial(pct ?? 0, '#3BD37F')}${pct == null ? 'عبّي الجاهزية' : `الجاهزية <b>${num(pct)}%</b>`}</button>
-    <button class="bchip" id="chipLoad">${dial(L.ratio == null ? 0 : Math.min(100, 100 * L.ratio / 1.6), '#5DB2F2')}${
-      L.enough && L.ratio != null ? `الحمل <b>${num(L.ratio.toFixed(2))}</b> ${word}` : 'الحمل: بيانات قليلة'}</button>
-    ${steps != null || stepsAverage() != null ? `<button class="bchip" id="chipSteps">${dial(Math.min(100, 100 * (steps || 0) / STEPS_TARGET), '#E7C873')}الخطوات <b>${steps != null ? num(steps) : '–'}</b></button>` : ''}`;
+  // three equal tiles: a small label, the number, and a thin bar for where it sits
+  const tile = (id, label, value, sub, pct, color) => `<button class="bchip" id="${id}">
+      <small>${label}</small><b>${value}</b><em>${sub || '&nbsp;'}</em>
+      <i class="bbar"><i style="width:${Math.max(0, Math.min(100, Math.round(pct)))}%;background:${color}"></i></i></button>`;
+  const stepsOk = steps != null || stepsAverage() != null;
+  chips.innerHTML =
+    tile('chipReady', 'الجاهزية', pct == null ? 'عبّيها' : `${num(pct)}%`,
+      pct == null ? 'أقل من دقيقة' : pct >= 80 ? 'جاهز تمامًا' : pct >= 60 ? 'متوسطة' : 'منخفضة', pct ?? 0, '#3BD37F') +
+    tile('chipLoad', 'الحمل', L.enough && L.ratio != null ? num(L.ratio.toFixed(2)) : '–', L.enough && L.ratio != null ? word : 'بيانات قليلة',
+      L.enough && L.ratio != null ? 100 * L.ratio / 1.6 : 0, '#5DB2F2') +
+    (stepsOk ? tile('chipSteps', 'الخطوات', steps != null ? num(steps) : '–', `الهدف ${num(STEPS_TARGET)}`, 100 * (steps || 0) / STEPS_TARGET, '#E7C873') : '');
   $('chipReady').onclick = openReadySheet;
   $('chipLoad').onclick = () => switchTab('prog');
   const cs = $('chipSteps'); if (cs) cs.onclick = openStepsSheet;
@@ -476,8 +480,8 @@ export function openSettings(focus){
   openSheet(sh => {
     sh.innerHTML = `<h2 class="sheeth">الإعدادات</h2>
 
-      <section class="sgroup">
-        <h3>المظهر</h3>
+      <section class="sgroup scard">
+        <h3><span class="sgi">${icon('moon')}</span>المظهر</h3>
         <p class="snote">التلقائي ليلي من 6 المغرب إلى 5 الفجر.</p>
         <div class="chiprow" id="themeRow" style="margin-top:10px">
           <button class="chip" data-t="auto">تلقائي</button>
@@ -486,15 +490,15 @@ export function openSettings(focus){
         </div>
       </section>
 
-      <section class="sgroup">
-        <h3>المدينة</h3>
+      <section class="sgroup scard">
+        <h3><span class="sgi">${icon('flag')}</span>المدينة</h3>
         <p class="snote">تُستخدم لتوقّع الطقس واقتراح أنسب وقت للتمرين.</p>
         <select class="in" id="citySel">${CITIES_OPT.map(([v,l]) =>
           `<option value="${v}">${l}</option>`).join('')}</select>
       </section>
 
-      <section class="sgroup" id="healthPanel">
-        <h3>ربط الساعة</h3>
+      <section class="sgroup scard" id="healthPanel">
+        <h3><span class="sgi">${icon('heart')}</span>ربط الساعة</h3>
         <p class="snote">بيانات النوم والتمارين تجي من ساعتك عن طريق اختصار آيفون.</p>
         <p class="snote" id="healthLast"></p>
         <button class="btn ghost" id="healthTest">${icon('refresh')} اختبر الربط</button>
@@ -504,37 +508,29 @@ export function openSettings(focus){
         <p class="snote">مناطق النبض تنحسب منه. إذا ما تعرفه: 220 ناقص عمرك. يطبّق على التمارين اللي توصل بعد التغيير.</p>
       </section>
 
-      <section class="sgroup" id="notifPanel">
-        <h3>التنبيهات</h3>
+      <section class="sgroup scard" id="notifPanel">
+        <h3><span class="sgi">${icon('inbox')}</span>التنبيهات</h3>
         <p class="snote" id="notifState">…</p>
         <div class="srow">
           <button class="btn primary sm" id="notifOn">فعّل التنبيهات</button>
           <button class="btn ghost sm" id="notifTest" hidden>جرّب تنبيه</button>
         </div>
         <div id="notifOpts" hidden>
-          <label class="sw"><input type="checkbox" id="nReady"><span>فحص الجاهزية الصباحي</span></label>
-          <input class="in sm" type="time" id="nReadyT">
-          <label class="sw"><input type="checkbox" id="nTrain"><span>تذكير التمرين</span></label>
-          <input class="in sm" type="time" id="nTrainT">
-          <label class="sw"><input type="checkbox" id="nMatch"><span>قبل المباراة</span></label>
-          <select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select>
-          <label class="sw"><input type="checkbox" id="nPlan"><span>خطة يوم المباراة: النوم، الماء، الأكل، الإحماء، والاستشفاء</span></label>
-          <label class="sw"><input type="checkbox" id="nSteps"><span>الخطوات: 12 الظهر و4 العصر و8 الليل، إذا كنت متأخر عن هدف 8,000</span></label>
-          <label class="sw"><input type="checkbox" id="nWater"><span>شرب الماء من 9 الصبح لين 9 الليل</span></label>
-          <select class="in sm" id="nWaterE"><option value="1">كل ساعة</option><option value="2">كل ساعتين</option><option value="3">كل 3 ساعات</option></select>
-          <label class="sw"><input type="checkbox" id="nWeek"><span>ملخص الأسبوع</span></label>
-          <div class="srow">
-            <select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select>
-            <input class="in sm" type="time" id="nWeekT">
-          </div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nReady"><span>فحص الجاهزية الصباحي</span></label><input class="in sm" type="time" id="nReadyT"></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nTrain"><span>تذكير التمرين</span></label><input class="in sm" type="time" id="nTrainT"></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nMatch"><span>قبل المباراة</span></label><select class="in sm" id="nMatchB"><option value="60">بساعة</option><option value="120">بساعتين</option><option value="180">بثلاث ساعات</option></select></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nPlan"><span>خطة يوم المباراة: النوم، الماء، الأكل، الإحماء، والاستشفاء</span></label></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nSteps"><span>الخطوات: 12 الظهر و4 العصر و8 الليل، إذا كنت متأخر عن هدف 8,000</span></label></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nWater"><span>شرب الماء من 9 الصبح لين 9 الليل</span></label><select class="in sm" id="nWaterE"><option value="1">كل ساعة</option><option value="2">كل ساعتين</option><option value="3">كل 3 ساعات</option></select></div>
+          <div class="nitem"><label class="sw"><input type="checkbox" id="nWeek"><span>ملخص الأسبوع</span></label><div class="srow">  <select class="in sm" id="nWeekD"><option value="5">الجمعة</option><option value="6">السبت</option><option value="0">الأحد</option></select>  <input class="in sm" type="time" id="nWeekT"></div></div>
           <p class="snote">التنبيه يكتبه المدرب حسب جدولك والطقس. تذكير التمرين يتخطى أيام الراحة والمباريات تلقائيًا.</p>
         </div>
         <button class="btn ghost sm" id="vapidBtn">أظهر مفاتيح التنبيهات الثابتة</button>
         <div id="vapidBox" hidden></div>
       </section>
 
-      <section class="sgroup">
-        <h3>نسخة احتياطية</h3>
+      <section class="sgroup scard">
+        <h3><span class="sgi">${icon('refresh')}</span>نسخة احتياطية</h3>
         <p class="snote">بياناتك محفوظة على هذا الجهاز. صدّر نسخة من وقت لآخر، أو استورد نسخة من جهاز ثاني.</p>
         <div class="srow">
           <button class="btn ghost sm" id="expBtn">تصدير نسخة</button>

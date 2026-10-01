@@ -44,11 +44,15 @@ section[hidden]{display:none}
 /* Today's band carries more: the greeting, two chips, and the week */
 .tband{flex-direction:column;align-items:stretch;gap:12px;padding-bottom:60px}
 .thtop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.bchips{display:flex;gap:8px;flex-wrap:wrap}
-.bchip{display:flex;align-items:center;gap:7px;min-height:32px;padding:4px 12px 4px 6px;border-radius:999px;
-  background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);color:var(--band-ink);font-size:12.5px}
-.bchip b{font-weight:700}
-.bchip .dial{width:20px;height:20px;border-radius:50%;flex:none}
+.bchips{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px}
+.bchip{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;padding:9px 11px 10px;border-radius:16px;text-align:start;
+  background:rgba(255,255,255,.09);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);color:var(--band-ink);font:inherit}
+.bchip:active{background:rgba(255,255,255,.16)}
+.bchip small{font-size:11.5px;color:var(--band-muted)}
+.bchip b{font-family:var(--font-display);font-size:19px;font-weight:800;line-height:1.35;white-space:nowrap}
+.bchip em{font-style:normal;font-size:11px;color:var(--band-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bbar{display:block;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.14);margin-top:6px;overflow:hidden}
+.bbar i{display:block;height:100%;border-radius:2px}
 .bweek{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
 .bday{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;border-radius:12px;color:var(--band-muted)}
 .bday small{font-size:11px}
@@ -767,3 +771,45 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
 .slvs div.win{border-color:var(--ready);background:color-mix(in srgb,var(--ready) 7%,var(--surface))}
 .wkchart.steps .wktarget{z-index:1}
 .wkchart.steps .wktarget span{background:var(--surface);padding:0 5px;border-radius:6px;font-weight:600;color:var(--ink-2)}
+
+/* ---------- polish pass ---------- */
+/* schedule: room around the week's progress line; a rest day is not a missed day */
+.wprog{margin:10px 4px 2px}
+.day.past.restd{opacity:.85}
+.wday small{font-size:10.5px;white-space:nowrap}
+
+/* progress: each tile carries an icon in its own accent */
+.stat{position:relative;display:flex;flex-direction:column;gap:2px;padding:14px 16px 15px}
+.stat>i{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;margin-bottom:8px;
+  background:color-mix(in srgb,var(--acc,var(--brand)) 13%,transparent);color:var(--acc,var(--brand))}
+.stat>i svg{width:18px;height:18px}
+.stat b{font-family:var(--font-display);font-size:28px;font-weight:800;margin:0}
+.stat b small{font-size:15px;font-weight:700;color:var(--muted)}
+.st-week{--acc:#3D8FD8}.st-commit{--acc:var(--ready)}.st-done{--acc:#E2702F}.st-match{--acc:#B8902A}
+
+/* the weekly report's week arrows, side by side under the action */
+.repnav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.repnav .btn{margin:0;width:100%}
+.repnav .btn:disabled{opacity:.4}
+
+/* chat: the coach's replies carry a small badge, and the suggestion row fades at its edge */
+.msg.ai{position:relative;margin-inline-end:34px}
+.msg.ai::before{content:"";position:absolute;bottom:0;inset-inline-end:-34px;width:26px;height:26px;border-radius:50%;
+  background:var(--brand) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 21V4'/%3E%3Cpath d='M5 4h11l-2 4 2 4H5'/%3E%3C/svg%3E") center/14px no-repeat;
+  box-shadow:0 0 0 2px var(--bg)}
+.msg.ai.typing::before{bottom:2px}
+.chips{-webkit-mask-image:linear-gradient(to left,#000 85%,transparent);mask-image:linear-gradient(to left,#000 85%,transparent)}
+
+/* settings: each section is a card with an icon, and each reminder its own row */
+.sheet .scard{background:var(--surface-2);border:1px solid var(--border);border-radius:20px;padding:14px 14px 16px;margin-top:12px}
+.sheet .scard:first-of-type{margin-top:14px;border-top:1px solid var(--border)}
+.scard h3{display:flex;align-items:center;gap:9px}
+.sgi{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none;background:var(--brand-soft);color:var(--brand)}
+.sgi svg{width:16px;height:16px}
+.scard .in{background:var(--surface)}
+.nitem{padding:10px 0;border-top:1px solid var(--border)}
+.nitem:first-child{border-top:0}
+.nitem .sw{margin:0 0 6px}
+.nitem .in.sm{margin:0}
+.nitem .srow{margin:0}
+.scard .btn.ghost,.scard .chip:not(.on){background:var(--surface)}

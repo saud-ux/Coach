@@ -182,10 +182,13 @@ function renderReport(){
   if (reportBusy){ box.insertAdjacentHTML('beforeend','<div class="report">المدرب يكتب التقرير…</div>'); return; }
   if (rep && rep.text){ const r=document.createElement('div'); r.className='report'; r.textContent=rep.text; box.appendChild(r); }
   if (reportErr){ const e=document.createElement('p'); e.className='note'; e.style.color='var(--red)'; e.textContent=reportErr; box.appendChild(e); reportErr=''; }
-  const row=document.createElement('div'); row.className='row'; row.style.marginTop='10px';
-  if (rt.sample){ const b=document.createElement('button'); b.className='btn primary sm'; b.style.marginTop='0'; b.textContent=rep?'حدّث التقرير':'أنشئ التقرير'; b.onclick=()=>genReport(ws); row.appendChild(b); }
-  const prev=document.createElement('button'); prev.className='btn ghost sm'; prev.style.marginTop='0'; prev.textContent='الأسبوع اللي قبله'; prev.onclick=()=>{ reportWeek=addDays(ws,-7); renderReport(); }; row.appendChild(prev);
-  if (ws < addDays(t,-dow)){ const nx=document.createElement('button'); nx.className='btn ghost sm'; nx.style.marginTop='0'; nx.textContent='اللي بعده'; nx.onclick=()=>{ reportWeek=addDays(ws,7); renderReport(); }; row.appendChild(nx); }
+  // the action on its own line, the two week arrows under it, so nothing wraps
+  if (rt.sample){ const b=document.createElement('button'); b.className='btn primary'; b.style.width='100%'; b.style.marginTop='12px'; b.textContent=rep?'حدّث التقرير':'أنشئ التقرير'; b.onclick=()=>genReport(ws); box.appendChild(b); }
+  const row=document.createElement('div'); row.className='repnav';
+  const prev=document.createElement('button'); prev.className='btn ghost sm'; prev.textContent='→ الأسبوع السابق'; prev.onclick=()=>{ reportWeek=addDays(ws,-7); renderReport(); }; row.appendChild(prev);
+  const nx=document.createElement('button'); nx.className='btn ghost sm'; nx.textContent='التالي ←';
+  if (ws < addDays(t,-dow)) nx.onclick=()=>{ reportWeek=addDays(ws,7); renderReport(); }; else nx.disabled=true;
+  row.appendChild(nx);
   box.appendChild(row);
 }
 
