@@ -897,3 +897,31 @@ button,.card,.day,.qcats button,.bday,.bchip{-webkit-tap-highlight-color:transpa
 .ihint b{font-size:14px;color:var(--band-accent,#E7C873)}
 .ihint i{font-style:normal;display:inline-block;padding:0 4px;border-radius:5px;background:rgba(255,255,255,.16)}
 .ihint button{position:absolute;top:8px;left:8px;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);color:#fff}
+
+/* the session as a watch workout (js/garmin.js) */
+.gwatch{margin:14px 0;border:1px solid var(--border);border-radius:20px;background:var(--surface-2);overflow:hidden}
+.gwatch>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer}
+.gwatch>summary::-webkit-details-marker{display:none}
+.gwatch>summary::after{content:"‹";margin-inline-start:auto;font-size:20px;color:var(--muted);transition:transform .2s}
+.gwatch[open]>summary::after{transform:rotate(-90deg)}
+.gwic{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none;background:var(--brand);color:#fff}
+.gwic svg{width:18px;height:18px}
+.gwatch>summary b{display:block;font-size:15px}.gwatch>summary small{font-size:12px;color:var(--muted)}
+.gwatch>.snote{padding:0 14px}
+.gwlist,.gwlist ol{list-style:none;margin:0;padding:0}
+.gwlist{padding:4px 12px 10px;display:flex;flex-direction:column;gap:6px}
+.gwlist li:not(.gwrep){display:grid;grid-template-columns:74px 1fr auto;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;
+  background:var(--surface);border-inline-start:4px solid var(--c,var(--muted-2))}
+.gwk{font-size:13px;font-weight:700;color:var(--c,var(--ink-2));line-height:1.25}
+.gwk small{display:block;font-size:10.5px;font-weight:500;color:var(--muted)}
+.gwl{font-size:13px;color:var(--ink-2);line-height:1.5}
+.gwl em{display:inline-block;font-style:normal;font-size:11px;font-weight:700;margin-inline-start:6px;padding:0 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand)}
+.gwt{font-family:var(--font-display);font-size:15px;font-weight:800;white-space:nowrap}
+.gw-warmup{--c:#8A968D}.gw-run{--c:#E2702F}.gw-recover{--c:#12A35A}.gw-rest{--c:#3D8FD8}.gw-cooldown{--c:#5B4FCF}.gw-other{--c:#B8902A}
+.gwrep{border:1.5px dashed var(--border);border-radius:14px;padding:6px 6px 6px}
+.gwrep ol{display:flex;flex-direction:column;gap:5px}
+.gwrh{font-size:12.5px;color:var(--ink-2);padding:2px 6px 6px;display:flex;align-items:baseline;gap:6px}
+.gwrh b{font-family:var(--font-display);font-size:16px;color:var(--ink)}
+.gwrh small{margin-inline-start:auto;color:var(--muted);font-size:11px}
+.gwhow{display:flex;flex-direction:column;gap:4px;margin:0 12px 14px;padding:12px;border-radius:14px;background:var(--surface);font-size:12.5px;line-height:1.7;color:var(--ink-2)}
+.gwhow b{font-size:13px;color:var(--ink)}

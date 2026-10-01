@@ -68,6 +68,7 @@ one entry module and the browser resolves the rest.
 | `js/matchplan.js` | ~45 | The match-day plan, `planSteps shiftDate`. Pure ESM, imported by Today and by the server cron (§17). |
 | `js/pitch.js` | ~130 | The 13 questions asked on a drawing of the pitch, and `pitchSVG()` that draws it (§18). |
 | `js/mobile.js` | ~110 | Phone behaviour: drag a sheet down to close, pull to refresh, the keyboard (§22). |
+| `js/garmin.js` | ~110 | A session as Garmin structured-workout steps, for the «للساعة» card (§23). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
@@ -593,7 +594,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '32';
+const VERSION = '33';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1271,3 +1272,27 @@ Verified in Chromium with stand-ins for the phone APIs:
 - the badge read 2 with readiness missing and an unrated match, and cleared once they were done;
 - the hint showed for an iPhone user agent and stayed closed after dismissal;
 - the calendar file parsed, with 19:30 Riyadh written as 16:30Z.
+
+## 23. The session on the watch
+
+Garmin lets only approved developers send workouts to a watch. So the session sheet carries a folded
+card, «للساعة», with the session written as Garmin structured-workout steps. You enter it once in
+Garmin Connect (Training & Planning → Workouts → Create Workout → Run), save it, and send it to the
+watch. From then on the watch times every step and buzzes at each change.
+
+`js/garmin.js` `watchWorkout(type, weekParams(date))` builds the steps. The types are Warm Up, Run,
+Recover, Rest, Cool Down, Other, plus Repeat.
+
+- **Timed, not measured.** Steps are timed, not measured by distance, because GPS cannot tell 20 m
+  from 30 m.
+  - A 20 m sprint at 90% is 5 s, side-then-sprint is 10 s, back-then-sprint is 8 s, and a
+    change-of-direction run is 15 s.
+  - ARIET is 75 m in 15 s with a 25 m walk in 18 s, and each rep is there and back.
+- **Jumps.** Jump drills cannot be timed, so they are «Other» steps ended with the Lap button.
+- **Covered sessions.** Intervals, the yoyo/reaction day, the endurance run (zone 2 in the middle),
+  the light day and the 12-minute test get a card. Strength, rest, recovery and match days get none.
+- **Weekly counts.** Repeat counts follow the week's parameters. When they change, the card says to
+  edit only the repeat number in the saved workout.
+
+The automatic route would be intervals.icu, which can push planned workouts to Garmin Connect. It
+was offered and not chosen.

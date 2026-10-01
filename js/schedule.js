@@ -17,6 +17,7 @@ import { matchFieldsHTML, bindMatchFields, ROLES, renderWx } from './progress.js
 import { openSheet, closeSheet, switchTab, renderAll } from './main.js';
 import { icon } from './ui.js';
 import { keepAwake } from './mobile.js';
+import { watchWorkout, totalSec, clockOf, KIND } from './garmin.js';
 import { send } from './coach.js';
 
 /* ---------- plan ---------- */
@@ -186,6 +187,30 @@ function sessionParts(date, s){
 const EFFORT = ['سهل جدًا','سهل','متوسط','صعب','مرهق'];
 function defDur(d,s){ if(!s) return 0; if(s.type==='run') return weekParams(d).run; return ({strength:35,intervals:35,yoyo:40,light:20,recovery:25,rest:0,test:25,match:105})[s.type] ?? 30; }
 
+/* ---------- the session as a watch workout (js/garmin.js) ---------- */
+// Steps to enter once in Garmin Connect; the watch then times each one and buzzes
+// at every change. Shown folded, under the session's own diagrams.
+function watchHTML(type, p){
+  const w = watchWorkout(type, p);
+  if (!w) return '';
+  const zone = z => z ? `<em>منطقة ${num(z)}</em>` : '';
+  const row = s => `<li class="gw-${s.k}"><span class="gwk">${KIND[s.k].ar}<small>${KIND[s.k].en}</small></span>
+      <span class="gwl">${s.label}${zone(s.zone)}</span><b class="gwt">${clockOf(s.sec)}</b></li>`;
+  const steps = w.steps.map(s => s.k === 'repeat'
+    ? `<li class="gwrep"><div class="gwrh">كرر <b>${num(s.times)}</b> مرات<small>Repeat ${s.times}×</small></div><ol>${s.steps.map(row).join('')}</ol></li>`
+    : row(s)).join('');
+  return `<details class="gwatch"><summary><span class="gwic">${icon('timer')}</span><span><b>للساعة</b><small>${w.name} · حوالي ${num(Math.round(totalSec(w.steps) / 60))} دقيقة</small></span></summary>
+    <p class="snote">الساعة تعدّ كل خطوة وتهتز مع كل تغيير: متى تسرع، ومتى تهدّي، وكم باقي.</p>
+    <ol class="gwlist">${steps}</ol>
+    <div class="gwhow"><b>تدخله مرة وحدة في قارمن كونكت:</b>
+      <span>1. Training &amp; Planning ← Workouts ← Create Workout ← Run</span>
+      <span>2. أضف الخطوات بالترتيب: النوع، المدة بالوقت (Time)، والهدف منطقة النبض إذا مكتوبة.</span>
+      <span>3. «كرر» = Add Repeat، وحط الخطوتين داخله.</span>
+      <span>4. احفظ باسم «${w.name}» واضغط Send to Device.</span>
+      <span>بعدها من الساعة: Run ← Training ← Workouts ← اسم التمرين. لو تغيّر العدد الأسبوع الجاي، عدّل رقم التكرار بس.</span></div>
+  </details>`;
+}
+
 function openDay(d){
   const s = state.sessions[d]; const log = {...(state.logs[d]||{})};
   // following today's session on the phone: the screen stays on until the sheet closes
@@ -196,6 +221,7 @@ function openDay(d){
     sh.innerHTML = `<div class="shero ${s.type==='match'?'match':''}" style="--hc:${ty0.c}"><span class="sty">${ty0.l}</span><h2></h2><div class="sub"></div>
         <div class="schips">${defDur(d,s)?`<span>${icon('clock')} ${num(defDur(d,s))} دقيقة</span>`:''}${keys0.filter(k=>k!=='zones').length?`<span>${icon('scale')} ${num(keys0.filter(k=>k!=='zones').length)} تمارين</span>`:''}<span>${icon('bolt')} ${EFF[s.type]||''}</span></div></div>
       <div id="dgs"></div>
+      ${watchHTML(s.type, weekParams(d))}
       <details class="dtl" ${keys0.length?'':'open'}><summary>التفاصيل المكتوبة</summary><div class="details"></div></details>
       <div class="logcard"><h3 id="logH">${s.type==='match'?'قيّم المباراة':'سجّل تمرينك'}</h3>
       <label class="f" id="effL">كيف كان التمرين؟</label><div class="scale" id="sc"></div>

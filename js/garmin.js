@@ -1,0 +1,97 @@
+// garmin.js — a session written as a Garmin structured workout.
+//
+// Garmin does not let a website send workouts to the watch (that needs its
+// developer programme), so the app shows each session as the exact steps to
+// enter once in Garmin Connect: Training → Workouts → Create → Running. Saved
+// there, the watch counts down every step, buzzes on each change («Run»,
+// «Recover»), and moves on by itself.
+//
+// Every step is timed rather than measured by distance: GPS cannot tell 20 m
+// from 30 m, but a 5-second sprint is a 20-metre sprint at 90%. The times come
+// from the distances in the session (js/figures.js) at match pace, and ARIET uses
+// its own test times (75 m in 15 s, 25 m walk in 18 s).
+//
+// A step: { k, sec, zone, label }
+//   k     warmup | run | recover | rest | cooldown | other   (Garmin's step types)
+//   sec   duration in seconds; null means «Lap Button Press»
+//   zone  heart-rate zone target, or null for none
+// A repeat: { k:'repeat', times, steps:[...] }
+
+export const KIND = {
+  warmup:   { ar: 'إحماء',   en: 'Warm Up' },
+  run:      { ar: 'جري',     en: 'Run' },
+  recover:  { ar: 'استشفاء', en: 'Recover' },
+  rest:     { ar: 'راحة',    en: 'Rest' },
+  cooldown: { ar: 'تبريد',   en: 'Cool Down' },
+  other:    { ar: 'حركة',    en: 'Other' },
+};
+
+const st = (k, sec, label, zone = null) => ({ k, sec, zone, label });
+const rep = (times, ...steps) => ({ k: 'repeat', times, steps });
+
+// p: weekParams(date) — run minutes, sprint count (sp), ARIET reps (ar), light week
+export function watchWorkout(type, p){
+  p = p || {};
+  const sp = p.sp || 6;
+  switch (type){
+    case 'intervals': return {
+      name: `حكم · سرعات ${sp}`,
+      steps: [
+        st('warmup', 600, 'ركض خفيف وخطوات جانبية', 1),
+        rep(sp, st('run', 5, 'سرعة 20 م بجهد 90%'), st('recover', 30, 'رجوع مشي')),
+        st('rest', 120, 'راحة'),
+        rep(sp, st('run', 10, '8 م جانبي ثم 20 م سرعة'), st('recover', 30, 'مشي')),
+        st('rest', 120, 'راحة'),
+        rep(sp, st('run', 8, '5 م للخلف ثم 10 م سرعة'), st('recover', 30, 'مشي')),
+        st('rest', 180, 'راحة أطول قبل تغيير الاتجاه'),
+        rep(p.light ? 2 : 4, st('run', 15, 'تغيير الاتجاه: أمام، جانبي، جانبي، أمام'), st('recover', 45, 'مشي')),
+        st('cooldown', 300, 'مشي وإطالات'),
+      ]};
+    case 'yoyo': {
+      const sets = p.light ? 2 : 3;
+      return {
+        name: 'حكم · ارتدادات وتحمّل',
+        steps: [
+          st('warmup', 600, 'ركض خفيف وحركات كاحل', 1),
+          rep(sets, st('other', null, 'ارتدادات الكاحل 20 قفزة'), st('rest', 60, 'راحة')),
+          rep(sets, st('other', null, 'قفز جانبي 10 لكل جهة'), st('rest', 60, 'راحة')),
+          rep(sets * 5, st('other', null, 'قفزة طويلة'), st('rest', 30, 'راحة')),
+          rep(8, st('run', 4, 'رد فعل: انطلق 5 م'), st('recover', 20, 'رجوع للوسط')),
+          st('rest', 120, 'راحة قبل التحمّل'),
+          rep((p.ar || 6) * 2, st('run', 15, '75 م بجهد 80–85%'), st('recover', 18, '25 م مشي')),
+          st('cooldown', 300, 'مشي وإطالات'),
+        ]};
+    }
+    case 'run': {
+      const total = p.run || 30;
+      return {
+        name: `حكم · تحمّل ${total} د`,
+        steps: [
+          st('warmup', 300, 'أبطأ من وتيرتك', 1),
+          st('run', Math.max(5, total - 10) * 60, 'وتيرة مريحة تقدر تتكلم فيها', 2),
+          st('cooldown', 300, 'مشي'),
+        ]};
+    }
+    case 'light': return {
+      name: 'حكم · تنشيط 20 د',
+      steps: [
+        st('run', 900, 'ركض هادي بجهد 50%', 1),
+        st('other', 300, 'إطالات حركية'),
+      ]};
+    case 'test': return {
+      name: 'حكم · اختبار 12 دقيقة',
+      steps: [
+        st('warmup', 600, 'إحماء', 1),
+        st('run', 720, 'أقصى وتيرة تقدر تحافظ عليها'),
+        st('cooldown', 300, 'مشي'),
+      ]};
+    default: return null;        // strength, rest, recovery, match: nothing for the watch to time
+  }
+}
+
+// total seconds, with lap-button steps counted at a rough 20 s each
+export function totalSec(steps){
+  return steps.reduce((a, s) => a + (s.k === 'repeat' ? s.times * totalSec(s.steps) : (s.sec ?? 20)), 0);
+}
+export const clockOf = sec => sec == null ? 'زر Lap'
+  : sec < 60 ? `${sec} ث` : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
