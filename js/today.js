@@ -16,7 +16,7 @@ import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
 import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT,
          sleepParts, recentNights, nightHistory, restingHrWarning,
-         stepsOn, stepsHistory, stepsAverage, stepsNote, STEPS_TARGET } from './health.js';
+         stepsOn, stepsHistory, stepsAverage, stepsNote, STEPS_TARGET, hrvStatus } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -212,6 +212,9 @@ export function openSleepSheet(night){
   const sp = sleepParts(night, recentNights(7, night.night_of));
   if (!sp) return;
   const list = nightHistory(7);
+  // Garmin's own score when intervals.icu sent it; the breakdown below stays this app's estimate
+  const shown = night.garmin_score ?? sp.score;
+  const hv = hrvStatus();
   const prev = recentNights(7, night.night_of).map(n => n.resting_hr).filter(Number.isFinite);
   const avgHr = prev.length ? Math.round(prev.reduce((a, b) => a + b, 0) / prev.length) : null;
   const inBed = night.in_bed_start && night.in_bed_end ? Math.round((Date.parse(night.in_bed_end) - Date.parse(night.in_bed_start)) / 60000) : null;
@@ -222,7 +225,7 @@ export function openSleepSheet(night){
       <p class="snote">ليلة ${fNight.format(parse(night.night_of))}${night.in_bed_start ? ` · ${clock12(new Date(night.in_bed_start))}` : ''}${night.in_bed_end ? ` ← ${clock12(new Date(night.in_bed_end))}` : ''}</p>
 
       <div class="slhead">
-        ${ringWith({ size: 96, pct: sp.score / 100, color: 'var(--sleep)', width: 9 }, `<b class="ringnum sm">${num(sp.score)}</b>`)}
+        ${ringWith({ size: 96, pct: shown / 100, color: 'var(--sleep)', width: 9 }, `<b class="ringnum sm">${num(shown)}</b>`)}
         <div class="slfacts">
           <div><span>نمت</span><b>${hhmm(night.asleep_min)}</b></div>
           <div><span>في السرير</span><b>${inBed != null ? hhmm(inBed) : '–'}</b></div>
@@ -230,16 +233,17 @@ export function openSleepSheet(night){
         </div>
       </div>
 
+      ${night.garmin_score != null ? `<p class="capnote">الدرجة ${num(night.garmin_score)} من قارمن نفسه. ${night.from === 'garmin' ? 'مراحل النوم ما وصلت من الاختصار لهذي الليلة.' : 'التفصيل تحت تقدير التطبيق من مراحل النوم.'}</p>` : ''}
       <section class="sgroup"><h3>مراحل النوم</h3>${stagesHTML(night)}</section>
 
-      <section class="sgroup"><h3>كيف انحسبت الدرجة</h3>
+      ${night.from === 'garmin' ? '' : `<section class="sgroup"><h3>كيف انحسبت الدرجة</h3>
         ${sp.parts.map(p => `<div class="spart">
           <div class="sptop"><b>${PART_LABEL[p.k]}</b><span>${num(Math.round(p.v * p.w))} من ${num(p.w)}</span></div>
           <div class="spbar"><i style="width:${Math.round(100 * p.v)}%"></i></div>
           <small>${partText(p, sp, night)}</small></div>`).join('')}
         ${sp.cap ? `<p class="capnote">المجموع ${num(sp.raw)}، بس النوم أقل من ${num(sp.cap.under / 60)} ساعات فالدرجة ما تتعدى ${num(sp.cap.max)}.</p>` : ''}
         <p class="coachline left">${sleepTip(night, sp)}</p>
-      </section>
+      </section>`}
 
       <section class="sgroup"><h3>نبض الراحة</h3>
         <p class="slhr"><b>${night.resting_hr != null ? num(night.resting_hr) : '–'}</b><span>نبضة بالدقيقة</span></p>
@@ -249,6 +253,12 @@ export function openSleepSheet(night){
           : avgHr - night.resting_hr >= 3 ? `أقل من معدلك (${num(avgHr)}). علامة استشفاء زينة.`
           : `قريب من معدلك (${num(avgHr)}).`}</p>
       </section>
+
+      ${hv ? `<section class="sgroup"><h3>متغيرية نبض القلب</h3>
+        <p class="slhr"><b>${num(hv.now)}</b><span>ملّي ثانية</span></p>
+        <p class="snote">${hv.avg == null ? 'بعد كم ليلة بقارنها بمعدلك.' : hv.low
+          ? `أقل من معدلك (${num(hv.avg)}) بوضوح. جسمك ما استشفى كامل، خفّف اليوم.`
+          : `قريبة من معدلك (${num(hv.avg)}) أو أعلى. علامة استشفاء زينة.`}</p></section>` : ''}
 
       <section class="sgroup"><h3>آخر ${num(list.length)} ليالي</h3>${weekHTML(list)}</section>`;
 
@@ -601,6 +611,11 @@ export function openSettings(focus){
         msg.textContent = r.last_at
           ? `الربط شغّال ✅ عندي ${num(r.nights)} ليلة و${num(r.workouts)} تمرين من آخر شهر.`
           : 'الخادم جاهز ✅ بس ما وصل شي من الاختصار للحين.';
+        const iv = r.intervals;
+        if (iv) msg.textContent += iv.error
+          ? (iv.error === 'not_migrated' ? ' intervals.icu: قاعدة البيانات تحتاج ملف 004.'
+             : /refused/.test(iv.error) ? ' intervals.icu: المفتاح أو رقم الحساب غلط.' : ' intervals.icu: ما قدرت أوصل له الحين.')
+          : iv.last_ok ? ` intervals.icu متصل، آخر سحب ${clock12(new Date(iv.last_ok))}.` : '';
         return;
       }
       msg.textContent = ({

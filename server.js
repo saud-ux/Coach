@@ -208,6 +208,34 @@ function arCount(n, one, two, few, many){
   return `${n} ${n <= 10 ? few : many}`;
 }
 
+/* ---------- intervals.icu: the watch without the phone (lib/intervals.js) ----------
+   Pulled every 30 minutes by the cron, and when the app opens if the last pull is
+   over 10 minutes old. INTERVALS_KEY and INTERVALS_ATHLETE turn it on. */
+const IV = require('./lib/intervals');
+const IV_CFG = { key: clean(process.env.INTERVALS_KEY), athlete: clean(process.env.INTERVALS_ATHLETE) };
+const ivStatus = { on: !!(IV_CFG.key && IV_CFG.athlete), last_pull: null, last_ok: null, error: null, days: 0, workouts: 0 };
+let ivBusy = null;
+function pullIntervals(){
+  if (!ivStatus.on || !SYNC) return Promise.resolve(null);
+  if (ivBusy) return ivBusy;
+  ivBusy = (async () => {
+    ivStatus.last_pull = new Date().toISOString();
+    try {
+      const { days, workouts } = await IV.pull(IV_CFG, { days: 7 });
+      if (days.length) await rpc('coach_health_add_wellness', {p_days: days});
+      if (workouts.length) await rpc('coach_health_add', {p_nights: [], p_workouts: workouts});
+      Object.assign(ivStatus, { last_ok: ivStatus.last_pull, error: null, days: days.length, workouts: workouts.length });
+      console.log(`intervals: pulled days=${days.length} workouts=${workouts.length}`);
+    } catch (e) {
+      ivStatus.error = missingFn(e) ? 'not_migrated' : String(e && e.message || e).slice(0, 160);
+      console.error('intervals: pull failed', redact(ivStatus.error));
+    } finally { ivBusy = null; }
+    return ivStatus;
+  })();
+  return ivBusy;
+}
+const ivStale = mins => !ivStatus.last_pull || Date.now() - Date.parse(ivStatus.last_pull) > mins * 60e3;
+
 async function health(req, res, url){
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
   try {
@@ -255,10 +283,14 @@ async function health(req, res, url){
       return send(res, 200, {ok: !!(await rpc('coach_health_ack', {p_id: id}))});
     }
     if (url.pathname === '/api/health' && req.method === 'GET') {
+      // opening the app is a good moment to read the watch, at most every 10 minutes;
+      // it waits up to 8 s for the pull and otherwise answers with what is stored
+      if (ivStatus.on && ivStale(10)) await Promise.race([pullIntervals(), new Promise(r => setTimeout(r, 8000))]);
       const days = Math.max(1, Math.min(120, Number(url.searchParams.get('days')) || 31));
       const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
       const d = (await rpc('coach_health_get', {p_since: since})) || {};
-      return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], days: d.days || [], last_at: d.last_at || null});
+      return send(res, 200, {nights: d.nights || [], workouts: d.workouts || [], days: d.days || [], last_at: d.last_at || null,
+        intervals: ivStatus.on ? {last_ok: ivStatus.last_ok, error: ivStatus.error} : null});
     }
     send(res, 405, {error:'method'});
   } catch (e) {
@@ -431,6 +463,7 @@ async function cron(req, res, url){
     return send(res, 401, {error:'token'});
   }
   if (!SYNC) return send(res, 404, {error:'sync disabled'});
+  if (ivStale(28)) await pullIntervals();       // the watch, every half hour, reminders on or not (lib/intervals.js)
   let st;
   try { st = (await rpc('coach_get', {})) || {}; } catch (e) { console.error('cron read failed', redact(e && e.message)); return send(res, 502, {error:'read'}); }
   const data = st.data || st;

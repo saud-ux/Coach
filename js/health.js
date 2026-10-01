@@ -25,17 +25,19 @@ state.health = {
     confirmed: false
   }],
   days:    { "YYYY-MM-DD": steps },     // daily step totals
+  wellness:{ "YYYY-MM-DD": { resting_hr, hrv, sleep_min, sleep_score } },   // intervals.icu, by morning
   syncedAt: ISO string | null
 }
 ---------------------------------- */
 
-const empty = () => ({ nights: {}, workouts: [], days: {}, syncedAt: null });
+const empty = () => ({ nights: {}, workouts: [], days: {}, wellness: {}, syncedAt: null });
 
 export function healthState(){
   if (!state.health || typeof state.health !== 'object') state.health = empty();
   if (!state.health.nights) state.health.nights = {};
   if (!Array.isArray(state.health.workouts)) state.health.workouts = [];
   if (!state.health.days || typeof state.health.days !== 'object') state.health.days = {};
+  if (!state.health.wellness || typeof state.health.wellness !== 'object') state.health.wellness = {};
   return state.health;
 }
 
@@ -120,29 +122,50 @@ export function sleepScore(night, history = []){
 
 /* ---------- accessors the UI reads ---------- */
 
+// The nights the app works with: the Shortcut's (with sleep stages) joined with
+// intervals.icu's wellness rows. Garmin files a night under the morning it ended,
+// so wellness row D belongs to night_of D-1. It fills a missing resting HR, adds
+// Garmin's own sleep score and HRV, and stands in for a night the Shortcut never
+// sent (total sleep only, no stages).
+export function allNights(){
+  const h = healthState(), out = {};
+  for (const k in h.nights) out[k] = { ...h.nights[k] };
+  for (const d in h.wellness){
+    const w = h.wellness[d], k = addDays(d, -1);
+    if (!out[k] && !w.sleep_min) continue;
+    const n = out[k] || (out[k] = { asleep_min: w.sleep_min, deep_min: null, rem_min: null, awake_min: null, resting_hr: null, from: 'garmin' });
+    if (n.resting_hr == null && w.resting_hr != null) n.resting_hr = w.resting_hr;
+    if (w.sleep_score != null) n.garmin_score = w.sleep_score;
+    if (w.hrv != null) n.hrv = w.hrv;
+  }
+  return out;
+}
+// Garmin's own score when intervals.icu sent it, otherwise this app's estimate.
+const shownScore = (night, key, all) => night.garmin_score ?? sleepScore(night, priorNights(all, 7, key));
+const priorNights = (all, n, before) => Object.keys(all).filter(d => d < before).sort().slice(-n).map(d => all[d]);
+
 // "Last night" is the night whose night_of is yesterday: you wake up today from
 // the night of yesterday. A night filed under today is accepted too, because a
 // Shortcut that runs after midnight may label it that way.
 export function lastNightSleep(){
-  const h = healthState();
+  const all = allNights();
   const y = addDays(todayISO(), -1), t = todayISO();
-  const key = h.nights[y] ? y : (h.nights[t] ? t : null);
+  const key = all[y] ? y : (all[t] ? t : null);
   if (!key) return null;
-  const night = h.nights[key];
-  return { ...night, night_of: key, score: sleepScore(night, recentNights(7, key)) };
+  const night = all[key];
+  return { ...night, night_of: key, score: shownScore(night, key, all) };
 }
 
 // The last n nights on record, oldest first, each with its own score measured
 // against the nights before it, the same way the ring measures last night.
 export function nightHistory(n = 7){
-  const h = healthState();
-  const keys = Object.keys(h.nights).sort().slice(-n);
-  return keys.map(k => ({ ...h.nights[k], night_of: k, score: sleepScore(h.nights[k], recentNights(7, k)) }));
+  const all = allNights();
+  const keys = Object.keys(all).sort().slice(-n);
+  return keys.map(k => ({ ...all[k], night_of: k, score: shownScore(all[k], k, all) }));
 }
 
 export function recentNights(n = 7, before = todayISO()){
-  const h = healthState();
-  return Object.keys(h.nights).filter(d => d < before).sort().slice(-n).map(d => h.nights[d]);
+  return priorNights(allNights(), n, before);
 }
 
 // Workouts that arrived from the watch and have not been confirmed yet, newest
@@ -212,9 +235,15 @@ function merge(remote){
   const keys = Object.keys(h.nights).sort();
   for (const k of keys.slice(0, Math.max(0, keys.length - KEEP_NIGHTS))){ delete h.nights[k]; changed = true; }
   for (const d of remote.days || []){
-    if (!d || !d.day || !Number.isFinite(d.steps)) continue;
-    if (h.days[d.day] !== d.steps){ h.days[d.day] = d.steps; changed = true; }
+    if (!d || !d.day) continue;
+    if (Number.isFinite(d.steps) && h.days[d.day] !== d.steps){ h.days[d.day] = d.steps; changed = true; }
+    // intervals.icu's wellness row (server lib/intervals.js); absent fields stay absent
+    const w = {};
+    for (const k of ['resting_hr', 'hrv', 'sleep_min', 'sleep_score']) if (Number.isFinite(d[k])) w[k] = d[k];
+    if (Object.keys(w).length && JSON.stringify(h.wellness[d.day]) !== JSON.stringify(w)){ h.wellness[d.day] = w; changed = true; }
   }
+  const wk = Object.keys(h.wellness).sort();
+  for (const k of wk.slice(0, Math.max(0, wk.length - KEEP_NIGHTS))){ delete h.wellness[k]; changed = true; }
   const dk = Object.keys(h.days).sort();
   for (const k of dk.slice(0, Math.max(0, dk.length - KEEP_NIGHTS))){ delete h.days[k]; changed = true; }
   return { changed, resend };
@@ -246,7 +275,7 @@ export function syncHealth({ force = false } = {}){
       // marks the state dirty, which would make a concurrent syncRemote() skip
       if (changed || newer || stamped || auto || slept){ save(); hooks.rerender(); }
       resend.forEach(ack);
-      return { ok: true, last_at: body.last_at || null, nights: (body.nights || []).length, workouts: (body.workouts || []).length };
+      return { ok: true, last_at: body.last_at || null, nights: (body.nights || []).length, workouts: (body.workouts || []).length, intervals: body.intervals || null };
     } catch(e){
       return { ok: false, error: 'offline' };
     } finally { inFlight = null; }
@@ -288,7 +317,9 @@ export function healthContext(){
     asleep_min: s.asleep_min,
     deep_min: s.deep_min,
     awake_min: s.awake_min,
-    resting_hr: s.resting_hr
+    resting_hr: s.resting_hr,
+    score_from: s.garmin_score != null ? 'garmin' : 'app',
+    hrv: hrvStatus()
   };
 }
 
@@ -348,7 +379,7 @@ const localDate = iso => { const t = new Date(iso); if (isNaN(t)) return null;
    Two nights running at 5+ above the average of the nights before them is the
    classic early sign of fatigue or an illness coming. Needs 4 earlier nights. */
 export function restingHrWarning(){
-  const h = healthState();
+  const h = { nights: allNights() };
   const keys = Object.keys(h.nights).filter(k => Number.isFinite(h.nights[k].resting_hr)).sort();
   if (keys.length < 6) return null;
   const last2 = keys.slice(-2), before = keys.slice(-9, -2);
@@ -419,12 +450,12 @@ export function recoveryUsual(beforeId){
    that night is still in the 31-night cache. The match keeps it after the cache
    moves on, so the comparison with the assessor's score can cover a season. */
 export function stampMatchSleep(){
-  const h = healthState(); let changed = false;
+  const all = allNights(); let changed = false;
   for (const m of state.matches){
     if (m.sleep_before || !m.date) continue;
-    const key = addDays(m.date, -1), n = h.nights[key];
+    const key = addDays(m.date, -1), n = all[key];
     if (!n || !n.asleep_min) continue;
-    m.sleep_before = { asleep_min: n.asleep_min, score: sleepScore(n, recentNights(7, key)) };
+    m.sleep_before = { asleep_min: n.asleep_min, score: shownScore(n, key, all) };
     changed = true;
   }
   return changed;
@@ -438,4 +469,17 @@ export function sleepVsScore(){
   const avg = xs => xs.length ? Math.round(10 * xs.reduce((a, r) => a + r.score, 0) / xs.length) / 10 : null;
   const long = rows.filter(r => r.sleep.asleep_min >= 420), short = rows.filter(r => r.sleep.asleep_min < 420);
   return { rows, groups: { long: { n: long.length, avg: avg(long) }, short: { n: short.length, avg: avg(short) } } };
+}
+
+/* ---------- HRV (intervals.icu) ----------
+   Last night's HRV against the average of the week before it. A drop of 15% or
+   more is the usual sign that the body has not recovered. */
+export function hrvStatus(){
+  const all = allNights(), keys = Object.keys(all).filter(k => Number.isFinite(all[k].hrv)).sort();
+  if (!keys.length) return null;
+  const last = keys[keys.length - 1];
+  if (last < addDays(todayISO(), -2)) return null;
+  const prev = keys.slice(-8, -1).map(k => all[k].hrv);
+  const avg = prev.length >= 3 ? Math.round(prev.reduce((a, b) => a + b, 0) / prev.length) : null;
+  return { now: all[last].hrv, avg, low: avg != null && all[last].hrv < 0.85 * avg };
 }

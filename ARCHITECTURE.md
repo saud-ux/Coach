@@ -71,6 +71,8 @@ one entry module and the browser resolves the rest.
 | `js/garmin.js` | ~110 | A session as Garmin structured-workout steps, for the «للساعة» card (§23). |
 | `lib/today.js` | ~110 | Server side: the spoken day for Siri, `brief()` (§19). |
 | `migrations/003_steps_recovery.sql` | — | Steps table, `hr_recovery`, `coach_health_add_days` (§20). |
+| `lib/intervals.js` | ~110 | Server side: wellness and activities from intervals.icu (§24). |
+| `migrations/004_wellness.sql` | — | Wellness columns on `coach_health_day`, `coach_health_add_wellness` (§24). |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
 
 ### Import cycles, and why they are safe
@@ -594,7 +596,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '36';
+const VERSION = '37';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -1297,3 +1299,58 @@ Recover, Rest, Cool Down, Other, plus Repeat.
 
 The automatic route would be intervals.icu, which can push planned workouts to Garmin Connect. It
 was offered and not chosen.
+
+## 24. intervals.icu: the watch without the phone
+
+Garmin pushes every sync to intervals.icu, so the server reads the watch there, with no phone and no
+Shortcut. `lib/intervals.js` `pull()` reads seven days of `/wellness` and `/activities`. The Shortcut
+keeps working beside it, and it is still what brings sleep stages.
+
+**Auth.** HTTP Basic, user `API_KEY` and the key as the password. `INTERVALS_KEY` and
+`INTERVALS_ATHLETE` (Render environment) turn it on. `INTERVALS_BASE` overrides the URL, for tests.
+
+**When it pulls.**
+
+- Every cron tick that finds the last pull over 28 minutes old, so about every half hour. This runs
+  before the push-subscription check, so it pulls whether reminders are on or not.
+- `GET /api/health` (the app opening, or pull to refresh), when the last pull is over 10 minutes old.
+  It waits up to 8 s for the pull, otherwise it answers with what is stored.
+
+**Wellness.** Each date's row has steps, `restingHR`, `hrv` (rMSSD), `sleepSecs` and `sleepScore`
+(Garmin's own score). They are stored in `coach_health_day` by `coach_health_add_wellness`
+(migration 004):
+
+- steps never go down;
+- a field missing from a call keeps the stored value;
+- nothing is ever deleted.
+
+**Activities.** They become the Shortcut's workout rows, keyed by start minute, so a workout that
+arrives both ways is one row.
+
+- HR zone times (5 to 7 zones) fold into z1..z5.
+- `icu_hrr` fills the HR recovery when present.
+
+**In the app.** `allNights()` joins the Shortcut's nights with wellness. Garmin files a night under
+the morning it ended, so wellness row D belongs to night_of D-1. The join:
+
+- fills a missing resting HR;
+- adds `garmin_score` and `hrv`;
+- stands in for a night the Shortcut never sent (`from: 'garmin'`, total sleep only).
+
+What reads it:
+
+- **The ring.** It shows Garmin's score when there is one, which settles the old 53-against-61
+  mismatch. The sheet says so. It hides the stage breakdown when there are no stages.
+- **HRV.** `hrvStatus()` compares last night's HRV with the week before; 15% under counts as low. The
+  sleep sheet shows it, and the coach's context carries it.
+- **Settings.** «اختبر الربط» reports the intervals.icu state from `GET /api/health`: when it last
+  pulled, a refused key, or a missing migration.
+
+Verified against a mock intervals.icu (Basic auth checked) through the mock Supabase and local
+Postgres:
+
+- three wellness days and a 35-minute run with 7-zone times were pulled and stored;
+- the sleep card showed Garmin's 53, and the sheet showed resting HR 53 and HRV 46;
+- a wrong key reported «refused (401)» in Settings.
+
+Pushing planned workouts to the watch through intervals.icu is the next step and is not built yet.
