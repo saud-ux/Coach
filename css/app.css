@@ -301,7 +301,7 @@ select.in{appearance:none;-webkit-appearance:none;padding-left:38px;
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.66);z-index:70;display:flex;align-items:flex-end;justify-content:center;
   -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 .scrim[hidden]{display:none}
-.sheet{background:var(--surface);width:100%;max-width:440px;max-height:92vh;overflow:auto;
+.sheet{background:var(--surface);width:100%;max-width:440px;max-height:92vh;overflow:auto;overscroll-behavior:contain;
   border-radius:26px 26px 0 0;padding:20px 18px calc(26px + env(safe-area-inset-bottom,0px))}
 .sheet h2,.sheeth{font-size:21px;font-weight:600;margin-bottom:4px}
 .sheet .sub{color:var(--muted);font-size:14px;margin-bottom:14px}

@@ -28,8 +28,27 @@ import { icon, latinDigits, applyTheme } from './ui.js';
 /* ---------- sheets ---------- */
 // `bare` suppresses the corner close button for sheets that carry their own
 // back control, so a screen never offers two ways to dismiss it.
+// While a sheet is open the page behind it must not move. iOS ignores
+// overflow:hidden on the body, so the body is pinned with position:fixed at its
+// current offset and put back exactly there on close. Called directly from
+// openSheet/closeSheet (so a switchTab() right after a close scrolls the
+// unlocked page), with an observer on #scrim as a net for any other path.
+let lockedY = null;
+function lockScroll(on){
+  const b = document.body;
+  if (on && lockedY == null){
+    lockedY = window.scrollY;
+    Object.assign(b.style, { position: 'fixed', top: `-${lockedY}px`, left: '0', right: '0', width: '100%' });
+  } else if (!on && lockedY != null){
+    Object.assign(b.style, { position: '', top: '', left: '', right: '', width: '' });
+    window.scrollTo(0, lockedY);
+    lockedY = null;
+  }
+}
+
 function openSheet(build, { bare = false } = {}){
   const sh = $('sheet');
+  lockScroll(true);
   sh.innerHTML = '';
   build(sh);
   if (bare){ $('scrim').hidden = false; sh.scrollTop = 0; return; }
@@ -47,6 +66,7 @@ function openSheet(build, { bare = false } = {}){
 }
 function closeSheet(){
   $('scrim').hidden = true;
+  lockScroll(false);
   // Sheets own their markup, and some of them host live ids (#ready, #notifState).
   // Clearing on close keeps renderAll() from writing into detached nodes.
   $('sheet').innerHTML = '';
@@ -112,6 +132,7 @@ function wire(){
 
   // sheet dismissal
   $('scrim').addEventListener('click', e => { if (e.target.id === 'scrim') closeSheet(); });
+  new MutationObserver(() => lockScroll(!$('scrim').hidden)).observe($('scrim'), { attributes: true, attributeFilter: ['hidden'] });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('scrim').hidden) closeSheet(); });
 
   // coach composer
