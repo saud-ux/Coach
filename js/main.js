@@ -138,8 +138,22 @@ function openDeepLinkTab(){
   if (t && TABS.includes(t)) setTimeout(() => switchTab(t), 0);
 }
 
+/* ---------- no zoom ---------- */
+// The app should behave like an app, not a page. Zoom comes from four places and
+// each needs its own fix:
+//   pinch                    user-scalable=no in the viewport tag (index.html)
+//   pinch on iOS Safari      Safari ignores that tag, so its gesture events are cancelled here
+//   double tap               touch-action:manipulation on html (css/tokens.css)
+//   tapping a field          iPhone zooms into text under 16px, so every field is 16px (css/app.css)
+// The cost is that nobody can pinch to enlarge text. To undo it, remove all four.
+function blockZoom(){
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend'])
+    document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+}
+
 /* ---------- boot ---------- */
 hooks.rerender = renderAll;
+blockZoom();
 initRuntime();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(()=>{}));

@@ -588,7 +588,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '17';
+const VERSION = '18';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -705,6 +705,17 @@ on the 1-5 scale.
 the exact inverse of that table. A 7 becomes effort 4 and a 38-minute session scores `38 x 8 = 304`.
 The raw answer is kept beside it as `rpe10` for later, and **nothing computes load from that field**.
 Changing either the table or what `effort` means would silently rewrite every historical comparison.
+
+### Form fields and zoom
+Fields sit below the sheet (`--bg`) with a 1px `--field-line` edge, a brighter edge and a soft ring on
+focus, a muted placeholder, and a chevron on dropdowns. They used to share the sheet's colour with no
+edge, so an empty field read as blank space. **Every field is 16px**, `.in.sm` included: iPhone zooms the
+page into any field under 16px when it is tapped.
+
+The app does not zoom, so it behaves like an app. Four sources, four fixes: `user-scalable=no` in the
+viewport tag (pinch), cancelling `gesture*` events in `main.js` (Safari ignores the tag),
+`touch-action:manipulation` on `html` (double tap), and the 16px rule above (tapping a field). The cost is
+that text cannot be pinched larger; to undo it, remove all four.
 
 ### Digits: Western 0-9 everywhere
 The app used to show Arabic-Indic digits (٠١٢…). It now shows Western digits, with Arabic words and

@@ -28,6 +28,9 @@
   --match:#F2C230;
   --max:#FF4D5E;
 
+  /* a form field's edge: a step brighter than --track, so it shows on --surface */
+  --field-line:#2C323C;
+
   /* sleep stages, in depth order. Checked as a categorical set on --surface with
      the dataviz validator: lightness band, colour-blind separation of neighbours,
      normal-vision separation and contrast all pass. */
@@ -74,7 +77,9 @@
 
 *,*::before,*::after{box-sizing:border-box}
 
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+/* no zoom, so the app behaves like an app (see the gesture handlers in main.js):
+   manipulation removes double-tap zoom, the viewport tag stops pinch elsewhere */
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%;touch-action:manipulation}
 
 body{
   margin:0;min-height:100%;
