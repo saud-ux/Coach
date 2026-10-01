@@ -61,7 +61,8 @@ one entry module and the browser resolves the rest.
 | `js/schedule.js` | 356 | The plan (`weekParams defaultSession ensureHorizon defDur`), matches, `renderSchedule`, `renderHero`, `openDay`, `openAddMatch`, `openAddTest`, and the assignment inbox. |
 | `js/coach.js` | 283 | Readiness (`readyScore lighten renderReady`), `renderAlerts`, the weekly report, and chat (`RULES context send applyChanges renderChat`). |
 | `js/progress.js` | 230 | Training load (`RPE dayLoad sumLoad loadStatus`), the Cooper chart, the career log, weather, the monthly report image, and the load/matches panels. |
-| `js/quiz.js` | 212 | The 92-question bank, the daily question, the mock exam, per-article practice, and `renderLaw`. |
+| `js/quiz.js` | ~260 | The quiz: 350 law-app questions plus 26 of its own on AR positioning, progress keyed by question id, the daily question, the mock exam, per-article practice, and `renderLaw`. §14. |
+| `js/lawbank.js` | 217 KB | **Generated** by `scripts/export-law-bank.py` from the law app. The 350 questions. Never edit by hand. |
 | `js/notifications.js` | 120 | Push subscription, the four reminder preferences, and `initNotifications()`. |
 | `js/health.js` | ~250 | Sleep and watch workouts: the `state.health` cache, `sleepScore()`, the accessors Today and the Workout Summary read, `syncHealth()`/`ack()` against `/api/health`, `maxHr()`, and `stampReadiness()`. |
 | `js/main.js` | 116 | The entry point: `openSheet/closeSheet`, `switchTab`, `scrollToday`, `renderAll`, `wire()`, and boot. |
@@ -198,12 +199,13 @@ state = {
   // weekly coach reports. key = that week's SUNDAY in ISO form.
   reports: { "2026-09-27": { text: String, at: "YYYY-MM-DD" } },
 
-  // laws quiz. quizState() resets the whole object if v !== 2.
+  // laws quiz. v3 is keyed by question id; quizState() migrates v2 (keyed by
+  // position in the old 92-question list) and resets anything else. See §14.
   quiz: {
-    v: 2,
-    answers: { "<QUIZ index>": { pick: Number, ok: Boolean, date: "YYYY-MM-DD", extra: Boolean } },
-    daily:   { "YYYY-MM-DD": <QUIZ index> },                   // which question was "today's"
-    wrong:   { "<QUIZ index>": { n: Number, fix: Number } },    // drops out of the bank at fix >= 2
+    v: 3,
+    answers: { "<question id>": { pick: Number, ok: Boolean, date: "YYYY-MM-DD", extra: Boolean } },
+    daily:   { "YYYY-MM-DD": "<question id>" },                 // which question was "today's"
+    wrong:   { "<question id>": { n: Number, fix: Number } },   // drops out of the bank at fix >= 2
     exams?:  [{ date: "YYYY-MM-DD", right: Number, total: Number, secs: Number }]
   },
 
@@ -319,7 +321,7 @@ because nothing there hard-codes a colour.
 
 ### Static serving (`serveFile()`)
 - Path traversal is blocked (`file.startsWith(PUBLIC)`), plus a `PRIVATE` deny-set, dotfiles, **any
-  `.md`**, and the `PRIVATE_DIRS` list (`/migrations`, `/lib`, `/node_modules`, `/.git`). Docs and SQL are
+  `.md`**, and the `PRIVATE_DIRS` list (`/migrations`, `/lib`, `/scripts`, `/node_modules`, `/.git`). Docs and SQL are
   refused by rule rather than by name, so a new one is private the moment it is written.
 - **Compression**: brotli (quality 5) or gzip for `.html .js .mjs .css .json .webmanifest .svg .txt`,
   chosen from `Accept-Encoding`, with `Vary: Accept-Encoding`. Each result is compressed once and kept
@@ -584,7 +586,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '14';
+const VERSION = '15';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -871,3 +873,53 @@ Verified in this environment:
 **Not verified:** the Shortcut itself on a real iPhone (in particular whether "Workouts" is offered as a
 Health sample type on the installed iOS — `SHORTCUT.md` flags it), and the migration on the real
 Supabase project.
+
+---
+
+## 14. The law app's question bank
+
+The law app — github.com/saud-ux/other-refereea, `other-refereea.onrender.com`, a separate Flask app with
+its own accounts — owns a bank of **350 questions** from the 2026/27 laws, each with a stable id
+(`L11-04`), article, topic, type (`mcq`/`tf`/`scenario`), difficulty 1–3, explanation, reference and page.
+This app now uses that bank instead of its own 92.
+
+### How it gets here
+`scripts/export-law-bank.py <path to a clone of the law app>` imports its `questions.py` and writes
+`js/lawbank.js`: the 350 questions in short keys, digits converted to 0-9 (§11), and the source commit in
+the header. It asserts the ids are unique and every answer index is in range. A copy rather than a live
+fetch, on purpose: the daily question and the mock exam keep working offline, and do not wait on a second
+free-plan server waking up. When the bank changes there, re-run the script and commit the result.
+`/scripts` is in `PRIVATE_DIRS`, and `js/lawbank.js` is in the service worker's shell list.
+
+### What was kept from the old bank
+The law app has no questions on the assistant referee's own job — positioning, signals, communication, the
+book's practical guidelines on pp. 212–229 — and only 8 of its 350 mention the assistant at all. The 26 such
+questions from the old bank (category `g`, «التمركز والإشارات») stay, as `G-01`…`G-26`, beside the 350:
+**376 in all**. The other 66 old questions were replaced.
+
+### Progress is keyed by id now
+v2 keyed `answers`, `wrong` and `daily` by position in the old list, which is why the bank could not grow.
+`migrateV2()` (`js/quiz.js`) runs inside `quizState()` the first time a v2 object is seen:
+
+| old position | becomes | answers | wrong bank | daily |
+|---|---|---|---|---|
+| 62–87 (the AR questions) | `G-01`…`G-26` | kept | kept | kept |
+| anything else | `old-<n>` | kept | dropped | dropped |
+
+So the accuracy figure, the streak and the monthly report still count every answer ever given, while the
+wrong bank and today's question only ever point at questions that exist. The per-article tiles and the
+«x/376 صح» count read only ids still in the bank. The migration is deterministic, so two devices that
+migrate the same v2 object independently end up identical.
+
+### Using it
+- The question tag shows the difficulty: «المادة 11 التسلل · صعب».
+- True/false questions keep صح/خطأ in that order instead of shuffling them.
+- The mock exam always draws 4 offside (`11`), 4 assistant-referee (`g`) and 4 from this season's
+  changes (`19`), then fills to 20 at random.
+- «📚 افتح منصة القانون» at the bottom of التقدم → القانون opens the law app in a new tab for full study
+  and the leaderboard. Progress is **not** shared between the two apps: they have different accounts,
+  and syncing them was judged too costly for one user.
+
+Verified in Chromium with a seeded v2 state: an AR answer and its wrong-bank entry came through as `G-02`,
+an answer to a replaced question stayed in the accuracy figure as `old-5` and left the wrong bank, the
+exam drew 4/4/4 from the three required groups, and the link opens the law app.

@@ -73,6 +73,7 @@ nav.tabs button[aria-selected="true"]{color:var(--ink);background:var(--surface-
 .btn.sm{min-height:var(--tap);padding:0 16px;font-size:14px}
 .btn.wide,.session .btn,.btn[style*="width:100%"]{width:100%}
 .btn:disabled{opacity:.4}
+a.btn{text-decoration:none}
 .sendbtn{min-height:var(--tap);padding:0 18px;font-size:15px;flex:none}
 
 .chip{

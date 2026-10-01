@@ -24,7 +24,7 @@ const PUBLIC = __dirname;
 // a reader our source and our notes. Any .md and the migrations folder are covered
 // by rule rather than by name, so a new doc is private the moment it is written.
 const PRIVATE = new Set(['server.js','package.json','package-lock.json','render.yaml','.gitignore']);
-const PRIVATE_DIRS = ['/migrations', '/lib', '/node_modules', '/.git'];
+const PRIVATE_DIRS = ['/migrations', '/lib', '/scripts', '/node_modules', '/.git'];
 const TYPES = { '.html':'text/html; charset=utf-8', '.js':'text/javascript', '.mjs':'text/javascript',
   '.css':'text/css; charset=utf-8', '.webmanifest':'application/manifest+json', '.json':'application/json',
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp',
