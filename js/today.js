@@ -14,7 +14,8 @@ import { ring, ringWith, icon, hhmm, clock12 } from './ui.js';
 import { TYPES, defDur, openDay, sessionParts, openAddMatch } from './schedule.js';
 import { loadStatus } from './progress.js';
 import { readyNow, readyPct, renderReady } from './coach.js';
-import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT } from './health.js';
+import { lastNightSleep, pendingWorkouts, lastSync, syncHealth, maxHr, MAX_HR_DEFAULT,
+         sleepParts, recentNights, nightHistory } from './health.js';
 import { openWorkout } from './workout.js';
 import { initNotifications, renderNotif } from './notifications.js';
 import { openSheet, switchTab, renderAll } from './main.js';
@@ -54,7 +55,7 @@ function renderSleep(){
     return;
   }
 
-  box.innerHTML = `<section class="card sleep">
+  box.innerHTML = `<section class="card sleep tappable" id="sleepOpen" role="button" tabindex="0" aria-label="تفاصيل النوم">
     ${ringWith({ size:176, pct:night.score/100, color:'var(--sleep)', width:14 },
       `<span class="ringlabel">${icon('moon')} النوم</span>
        <b class="ringnum">${num(night.score)}</b>
@@ -65,7 +66,132 @@ function renderSleep(){
       <div><span>نبض الراحة</span><b>${night.resting_hr != null ? num(night.resting_hr) : '–'}</b></div>
     </div>
     <p class="coachline">${sleepLine(night.score, night)}</p>
+    <p class="moreline">التفاصيل ${icon('back')}</p>
   </section>`;
+  const open = $('sleepOpen');
+  open.onclick = () => openSleepSheet(night);
+  open.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); openSleepSheet(night); } };
+}
+
+/* ---------- sleep details ---------- */
+// Everything the card summarises, opened from it: the night's times, the stages
+// as one stacked bar, how each of the score's four parts was earned, and the last
+// seven nights. The breakdown reads sleepParts(), the same function that makes
+// the score, so the two can never disagree.
+const STAGES = [
+  { k: 'deep',  l: 'عميق',  c: 'var(--st-deep)' },
+  { k: 'core',  l: 'خفيف',  c: 'var(--st-core)' },
+  { k: 'rem',   l: 'أحلام (REM)', c: 'var(--st-rem)' },
+  { k: 'awake', l: 'صاحي',  c: 'var(--st-awake)' },
+];
+const fNight = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' });
+const fWdShort = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { weekday: 'short' });
+
+function partText(p, sp, night){
+  if (p.k === 'duration') return `${hhmm(night.asleep_min)} من ${hhmm(sp.target)} المطلوبة`;
+  if (p.k === 'deep') return p.known ? `${hhmm(night.deep_min)}، يعني ${num(Math.round(100 * sp.deepShare))}% من نومك (الهدف ${num(100 * sp.deepTarget)}% أو أكثر)` : 'الساعة ما أرسلت النوم العميق';
+  if (p.k === 'awake') return p.known ? `صحيت ${hhmm(night.awake_min)} بعد ما نمت (أقل من ساعة أفضل)` : 'الساعة ما أرسلت وقت الاستيقاظ';
+  if (!p.known) return `يحتاج 3 ليالي قبلها على الأقل، عندك ${num(sp.nightsForConsistency)}`;
+  const d = Math.abs(sp.drift);
+  if (d <= 30) return 'نمت في وقتك المعتاد تقريبًا';
+  return `نمت ${sp.drift > 0 ? 'بعد' : 'قبل'} وقتك المعتاد بـ ${hhmm(d)}`;
+}
+const PART_LABEL = { duration: 'مدة النوم', deep: 'النوم العميق', awake: 'الاستيقاظ بالليل', consistency: 'انتظام وقت النوم' };
+
+function sleepTip(night, sp){
+  // the part that cost the most points, not the one with the fewest: losing 24
+  // of 55 on duration matters more than 15 of 15 on bedtime
+  const weakest = sp.parts.filter(p => p.known).sort((a, b) => (1 - b.v) * b.w - (1 - a.v) * a.w)[0];
+  if (!weakest || weakest.v >= 0.9) return 'كل أجزاء نومك زينة. حافظ على نفس الوقت.';
+  return {
+    duration: `أكبر شي ينقصك المدة. لو تنام ${hhmm(Math.max(0, sp.target - night.asleep_min))} زيادة توصل للهدف.`,
+    deep: 'نومك العميق قليل. تمرين بالنهار وغرفة باردة ومظلمة يساعدونه، والكافيين بعد العصر يقلله.',
+    awake: 'صحيت كثير بالليل. خفّف السوايل قبل النوم بساعة، وخلّ الجوال بعيد.',
+    consistency: 'وقت نومك يتغير كثير. ثبّته قريب من نفس الساعة كل ليلة، حتى بالإجازة.'
+  }[weakest.k];
+}
+
+function stagesHTML(night){
+  if (!Number.isFinite(night.deep_min)) return '<p class="snote">الساعة ما أرسلت مراحل النوم لهذي الليلة.</p>';
+  const deep = night.deep_min || 0, rem = night.rem_min || 0, awake = night.awake_min || 0;
+  const core = Math.max(0, night.asleep_min - deep - rem);
+  const mins = { deep, core, rem, awake }, total = deep + core + rem + awake || 1;
+  const shown = STAGES.filter(s => mins[s.k] > 0);
+  return `<div class="stbar" role="img" aria-label="${STAGES.map(s => `${s.l} ${hhmm(mins[s.k])}`).join('، ')}">
+      ${shown.map(s => `<i style="flex:${mins[s.k]};background:${s.c}"></i>`).join('')}
+    </div>
+    <div class="stlegend">${STAGES.map(s => `<div><span class="sw" style="background:${s.c}"></span>
+      <span class="stl">${s.l}</span><b>${hhmm(mins[s.k])}</b><small>${num(Math.round(100 * mins[s.k] / total))}%</small></div>`).join('')}</div>`;
+}
+
+// One series, so no legend: the heading names it. The target is a hairline, the
+// latest night carries the only label, and tapping a column reads its values out
+// in the caption under the chart.
+function weekHTML(list){
+  if (list.length < 2) return '<p class="snote">تحتاج ليلتين على الأقل عشان تظهر المقارنة.</p>';
+  const top = Math.max(9 * 60, ...list.map(n => n.asleep_min || 0));
+  const y = m => Math.round(100 * m / top);
+  return `<div class="wkchart" role="group" aria-label="مدة النوم آخر ${num(list.length)} ليالي">
+      <div class="wktarget" style="bottom:${y(450)}%"><span>الهدف 7:30</span></div>
+      ${list.map((n, i) => `<button class="wkcol${i === list.length - 1 ? ' last' : ''}" data-i="${i}"
+          aria-label="${fNight.format(parse(n.night_of))}: ${hhmm(n.asleep_min)}، الدرجة ${n.score ?? '–'}">
+        ${i === list.length - 1 ? `<em>${hhmm(n.asleep_min)}</em>` : ''}
+        <i style="height:${Math.max(2, y(n.asleep_min || 0))}%"></i>
+        <small>${fWdShort.format(parse(n.night_of))}</small></button>`).join('')}
+    </div>
+    <p class="snote wkcap" id="wkCap">اضغط على أي ليلة تشوف تفاصيلها.</p>`;
+}
+
+export function openSleepSheet(night){
+  const sp = sleepParts(night, recentNights(7, night.night_of));
+  if (!sp) return;
+  const list = nightHistory(7);
+  const prev = recentNights(7, night.night_of).map(n => n.resting_hr).filter(Number.isFinite);
+  const avgHr = prev.length ? Math.round(prev.reduce((a, b) => a + b, 0) / prev.length) : null;
+  const inBed = night.in_bed_start && night.in_bed_end ? Math.round((Date.parse(night.in_bed_end) - Date.parse(night.in_bed_start)) / 60000) : null;
+  const eff = inBed ? Math.min(100, Math.round(100 * night.asleep_min / inBed)) : null;
+
+  openSheet(sh => {
+    sh.innerHTML = `<h2 class="sheeth">تفاصيل النوم</h2>
+      <p class="snote">ليلة ${fNight.format(parse(night.night_of))}${night.in_bed_start ? ` · ${clock12(new Date(night.in_bed_start))}` : ''}${night.in_bed_end ? ` ← ${clock12(new Date(night.in_bed_end))}` : ''}</p>
+
+      <div class="slhead">
+        ${ringWith({ size: 96, pct: sp.score / 100, color: 'var(--sleep)', width: 9 }, `<b class="ringnum sm">${num(sp.score)}</b>`)}
+        <div class="slfacts">
+          <div><span>نمت</span><b>${hhmm(night.asleep_min)}</b></div>
+          <div><span>في السرير</span><b>${inBed != null ? hhmm(inBed) : '–'}</b></div>
+          <div><span>كفاءة النوم</span><b>${eff != null ? num(eff) + '%' : '–'}</b></div>
+        </div>
+      </div>
+
+      <section class="sgroup"><h3>مراحل النوم</h3>${stagesHTML(night)}</section>
+
+      <section class="sgroup"><h3>كيف انحسبت الدرجة</h3>
+        ${sp.parts.map(p => `<div class="spart">
+          <div class="sptop"><b>${PART_LABEL[p.k]}</b><span>${num(Math.round(p.v * p.w))} من ${num(p.w)}</span></div>
+          <div class="spbar"><i style="width:${Math.round(100 * p.v)}%"></i></div>
+          <small>${partText(p, sp, night)}</small></div>`).join('')}
+        <p class="coachline left">${sleepTip(night, sp)}</p>
+      </section>
+
+      <section class="sgroup"><h3>نبض الراحة</h3>
+        <p class="slhr"><b>${night.resting_hr != null ? num(night.resting_hr) : '–'}</b><span>نبضة بالدقيقة</span></p>
+        <p class="snote">${night.resting_hr == null ? 'الساعة ما أرسلت نبض الراحة لهذي الليلة.'
+          : avgHr == null ? 'بعد كم ليلة بقارنه بمعدلك.'
+          : night.resting_hr - avgHr >= 5 ? `أعلى من معدلك (${num(avgHr)}) بـ ${num(night.resting_hr - avgHr)}. ممكن تعب أو بداية مرض، خذها بهدوء اليوم.`
+          : avgHr - night.resting_hr >= 3 ? `أقل من معدلك (${num(avgHr)}). علامة استشفاء زينة.`
+          : `قريب من معدلك (${num(avgHr)}).`}</p>
+      </section>
+
+      <section class="sgroup"><h3>آخر ${num(list.length)} ليالي</h3>${weekHTML(list)}</section>`;
+
+    sh.querySelectorAll('.wkcol').forEach(b => b.onclick = () => {
+      const n = list[+b.dataset.i];
+      sh.querySelectorAll('.wkcol').forEach(x => x.classList.toggle('on', x === b));
+      sh.querySelector('#wkCap').textContent =
+        `ليلة ${fNight.format(parse(n.night_of))}: نمت ${hhmm(n.asleep_min)}${n.deep_min != null ? `، عميق ${hhmm(n.deep_min)}` : ''}، الدرجة ${n.score != null ? num(n.score) : '–'}`;
+    });
+  });
 }
 
 /* ---------- the two small tiles ---------- */

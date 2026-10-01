@@ -28,6 +28,14 @@
   --match:#F2C230;
   --max:#FF4D5E;
 
+  /* sleep stages, in depth order. Checked as a categorical set on --surface with
+     the dataviz validator: lightness band, colour-blind separation of neighbours,
+     normal-vision separation and contrast all pass. */
+  --st-deep:#6550D6;
+  --st-core:#4796E2;
+  --st-rem:#24A88E;
+  --st-awake:#E46A3C;
+
   /* session types. Distinct enough to read as dots on the week strip. */
   --run:#4AA3FF;
   --strength:#9B8CFF;

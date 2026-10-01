@@ -508,3 +508,56 @@ svg.dg,.dgimg{width:100%;height:auto;display:block;border-radius:12px}
   .tile{padding:12px;gap:9px}
   .p10b{font-size:12px}
 }
+
+/* sleep details: the card opens a sheet */
+.tappable{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tappable:active{transform:scale(.99)}
+.moreline{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:10px;font-size:13px;color:var(--muted)}
+.moreline svg{width:14px;height:14px}
+.slhead{display:flex;align-items:center;gap:18px;margin:14px 0 4px}
+.ringnum.sm{font-size:30px;letter-spacing:0}
+.slfacts{flex:1;display:grid;gap:8px}
+.slfacts div{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.slfacts span{font-size:13px;color:var(--muted)}
+.slfacts b{font-size:16px;font-weight:600}
+
+/* stages: one stacked bar, 2px surface gaps, rounded only at the two ends */
+.stbar{display:flex;gap:2px;height:14px;margin:6px 0 12px}
+.stbar i{display:block;min-width:3px}
+.stbar i:first-child{border-radius:0 4px 4px 0}
+.stbar i:last-child{border-radius:4px 0 0 4px}
+.stbar i:only-child{border-radius:4px}
+.stlegend{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+.stlegend div{display:flex;align-items:center;gap:7px;font-size:13px}
+.stlegend .sw{width:10px;height:10px;border-radius:3px;flex:none}
+.stlegend .stl{color:var(--ink-2);flex:1}
+.stlegend b{font-weight:600}
+.stlegend small{color:var(--muted);min-width:30px;text-align:left}
+
+/* score parts: neutral meters, not chart colours */
+.spart{margin:12px 0}
+.sptop{display:flex;justify-content:space-between;align-items:baseline;font-size:14px}
+.sptop span{color:var(--muted);font-size:13px}
+.spbar{height:6px;border-radius:3px;background:var(--track);margin:6px 0 5px;overflow:hidden}
+.spbar i{display:block;height:100%;border-radius:3px;background:var(--ink-2)}
+.spart small{display:block;font-size:12.5px;color:var(--muted);line-height:1.6}
+.coachline.left{text-align:right;margin-top:14px}
+.slhr{display:flex;align-items:baseline;gap:8px;margin:2px 0 4px}
+.slhr b{font-size:30px;font-weight:600}
+.slhr span{font-size:13px;color:var(--muted)}
+
+/* last nights: one series, columns <=24px, 4px rounded tops square at the baseline,
+   a hairline target, the latest night the only label */
+.wkchart{position:relative;display:flex;align-items:flex-end;gap:6px;height:150px;margin:28px 0 30px;
+  border-bottom:1px solid var(--track)}
+.wktarget{position:absolute;left:0;right:0;border-top:1px solid var(--muted-2);pointer-events:none}
+.wktarget span{position:absolute;left:0;top:-18px;font-size:11px;color:var(--muted)}
+.wkcol{position:relative;flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;
+  align-items:center;background:none;padding:0;min-width:0}
+.wkcol i{display:block;width:100%;max-width:24px;background:var(--sleep);border-radius:4px 4px 0 0}
+.wkcol em{font-style:normal;font-size:11px;font-weight:600;color:var(--ink);margin-bottom:4px;white-space:nowrap}
+.wkcol small{position:absolute;bottom:-22px;font-size:11px;color:var(--muted);white-space:nowrap}
+.wkcol.on small{color:var(--ink);font-weight:600}
+.wkcol.on i{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--ink-2)}
+.wkcap{min-height:20px}
+.sleep .moreline{margin-top:-8px}

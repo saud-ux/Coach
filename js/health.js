@@ -61,26 +61,42 @@ function bedMinutes(iso){
   return m < 12 * 60 ? m + 24 * 60 : m;
 }
 
-export function sleepScore(night, history = []){
+// The four parts, each 0-1, plus what they were measured from. The score and the
+// details sheet both read this, so the breakdown can never disagree with the
+// number on the ring.
+export function sleepParts(night, history = []){
   if (!night || !Number.isFinite(night.asleep_min) || night.asleep_min <= 0) return null;
 
+  const hasDeep = Number.isFinite(night.deep_min), hasAwake = Number.isFinite(night.awake_min);
   const duration = clamp01(night.asleep_min / DUR_TARGET);
-  const deep = Number.isFinite(night.deep_min)
-    ? clamp01((night.deep_min / night.asleep_min) / DEEP_TARGET) : 0.6;
-  const awake = Number.isFinite(night.awake_min)
-    ? clamp01(1 - night.awake_min / 60) : 0.6;
+  const deepShare = hasDeep ? night.deep_min / night.asleep_min : null;
+  const deep = hasDeep ? clamp01(deepShare / DEEP_TARGET) : 0.6;
+  const awake = hasAwake ? clamp01(1 - night.awake_min / 60) : 0.6;
 
-  let consistency = 0.6;
+  let consistency = 0.6, drift = null;
   const beds = history.map(n => bedMinutes(n.in_bed_start)).filter(Number.isFinite);
   const mine = bedMinutes(night.in_bed_start);
   if (beds.length >= 3 && Number.isFinite(mine)){
     const sorted = [...beds].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
-    const drift = Math.abs(mine - median);
-    consistency = clamp01(1 - (drift - 30) / 60);     // <=30 min full, >=90 min none
+    drift = mine - median;                              // + later than usual, - earlier
+    consistency = clamp01(1 - (Math.abs(drift) - 30) / 60);   // <=30 min full, >=90 min none
   }
 
-  return Math.round(100 * (duration * 0.55 + deep * 0.20 + awake * 0.10 + consistency * 0.15));
+  const parts = [
+    { k: 'duration',    w: 55, v: duration,    known: true },
+    { k: 'deep',        w: 20, v: deep,        known: hasDeep },
+    { k: 'awake',       w: 10, v: awake,       known: hasAwake },
+    { k: 'consistency', w: 15, v: consistency, known: drift != null },
+  ];
+  const score = Math.round(parts.reduce((a, p) => a + 100 * p.v * p.w / 100, 0));
+  return { score, parts, deepShare, drift, nightsForConsistency: beds.length,
+           target: DUR_TARGET, deepTarget: DEEP_TARGET };
+}
+
+export function sleepScore(night, history = []){
+  const p = sleepParts(night, history);
+  return p ? p.score : null;
 }
 
 /* ---------- accessors the UI reads ---------- */
@@ -95,6 +111,14 @@ export function lastNightSleep(){
   if (!key) return null;
   const night = h.nights[key];
   return { ...night, night_of: key, score: sleepScore(night, recentNights(7, key)) };
+}
+
+// The last n nights on record, oldest first, each with its own score measured
+// against the nights before it, the same way the ring measures last night.
+export function nightHistory(n = 7){
+  const h = healthState();
+  const keys = Object.keys(h.nights).sort().slice(-n);
+  return keys.map(k => ({ ...h.nights[k], night_of: k, score: sleepScore(h.nights[k], recentNights(7, k)) }));
 }
 
 export function recentNights(n = 7, before = todayISO()){

@@ -588,7 +588,7 @@ token check must match your existing `coach_get`/`coach_put`.
 ## 9. Service worker
 
 ```js
-const VERSION = '16';
+const VERSION = '17';
 const SHELL = `shell-v${VERSION}`;   // html, css, js, icons — replaced every release
 const MEDIA = 'media-v1';            // exercise images — survives releases, keyed by filename
 const API   = 'api-v1';              // the last good /api/state
@@ -840,6 +840,24 @@ consistency  (no history)     = 0.600 × 15 =  9.0
 
 "Last night" is the night filed under yesterday's date; one filed under today is accepted too, in case
 a Shortcut run after midnight labels it that way.
+
+### The sleep details sheet
+Tapping the sleep card opens `openSleepSheet()` (`js/today.js`):
+
+- **The night:** bedtime → wake time, time asleep, time in bed, and efficiency (asleep ÷ in bed).
+- **Stages:** one stacked bar, deep / light (core = asleep − deep − REM) / REM / awake, with a legend of
+  minutes and shares. The four colours (`--st-*` in `css/tokens.css`) were checked as a categorical set on
+  `--surface` with the dataviz validator: lightness band, colour-blind and normal-vision separation of
+  neighbours, and contrast all pass.
+- **How the score was made:** each of the four parts as points out of its weight, with what it was
+  measured from. It reads `sleepParts()`, which `sleepScore()` itself is now built on, so the breakdown and
+  the ring cannot disagree (the test night still scores 85; the first real night scores 61). Under it, one
+  tip about the part that **cost the most points**, not the one with the fewest.
+- **Resting HR** against the average of the nights before it: ≥5 above reads as a warning, ≥3 below as
+  good recovery.
+- **The last 7 nights:** one series of columns (≤24px, 4px rounded tops), a hairline at the 7:30 target,
+  the latest night the only label; tapping a column reads it out underneath. Each night is scored against
+  the nights before it, the way the ring scores last night (`nightHistory()`).
 
 ### Readiness with the watch
 When the three answers land, `stampReadiness()` writes the watch's score onto that day's entry as
