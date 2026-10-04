@@ -1,0 +1,25 @@
+name: iOS build check
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['ios/**', '.github/workflows/ios-build.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Preserve current icon
+        run: python3 ios/make-icon.py
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+      - name: Compile simulator app
+        run: xcodebuild -project ios/RefereeCoach.xcodeproj -scheme RefereeCoach -sdk iphonesimulator -configuration Debug -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RefereeCoach-simulator
+          path: build/Build/Products/Debug-iphonesimulator/RefereeCoach.app
